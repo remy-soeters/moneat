@@ -58,6 +58,34 @@ Sleutels worden bewaard in `data/mealplanner.db` (niet in git) en daarna alleen 
 sleutel in de app gaat voor op de omgevingsvariabelen `ANTHROPIC_API_KEY` / `GEMINI_API_KEY`. De Gemini-modellen
 kun je in de instellingen aanpassen als Google nieuwe versies uitbrengt.
 
+## Docker
+
+De app kan ook als container draaien; hij start dan vanzelf weer na een herstart van de computer.
+
+```bash
+docker compose up -d --build
+```
+
+Open daarna http://127.0.0.1:8000. Je gegevens (database, foto's, iconen, API-sleutels) staan in de
+map `data/` naast dit bestand; de container gebruikt die map, dus je bestaande recepten en lijst blijven.
+
+- Stoppen: `docker compose down` (je gegevens blijven in `data/`)
+- Na een update van de code: opnieuw `docker compose up -d --build`
+- Meldingen van de server bekijken: `docker compose logs -f`
+
+**Op je thuisnetwerk (bijv. een server thuis of je telefoon).** Standaard is de app alleen op de
+computer zelf bereikbaar. Maak naast `docker-compose.yml` een bestand `.env` met deze regel en start opnieuw:
+
+```
+MEALPLANNER_ADRES=0.0.0.0
+```
+
+Open dan `http://<ip-adres-van-de-server>:8000`. De app heeft geen wachtwoord: iedereen op je netwerk kan
+je recepten aanpassen en de AI (op jouw kosten) gebruiken. Zet poort 8000 dus nooit open naar internet.
+
+**Naar een andere computer verhuizen.** Haal de code op met `git clone`, kopieer de map `data/` mee
+(daarin staan ook je API-sleutels; die staan bewust niet in git) en start met `docker compose up -d --build`.
+
 ## Tests
 
 ```bash

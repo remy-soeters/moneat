@@ -1,0 +1,14 @@
+services:
+  mealplanner:
+    build: .
+    image: mealplanner
+    container_name: mealplanner
+    restart: unless-stopped  # start vanzelf weer na een herstart van de computer
+    ports:
+      # Standaard alleen bereikbaar op deze computer. Op een server thuis zet je in een
+      # bestand .env de regel MEALPLANNER_ADRES=0.0.0.0, dan kan je hele thuisnetwerk erbij.
+      # De app heeft geen wachtwoord: zet poort 8000 dus nooit open naar internet.
+      - "${MEALPLANNER_ADRES:-127.0.0.1}:8000:8000"
+    volumes:
+      # Je database, foto's, iconen en API-sleutels blijven op je eigen schijf in ./data.
+      - ./data:/data

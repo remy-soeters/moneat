@@ -1,0 +1,12 @@
+# Alleen de code gaat de container in; gegevens en ontwikkelbestanden niet.
+.git
+.gitignore
+.venv
+.claude
+data
+tests
+**/__pycache__
+*.db
+Dockerfile
+docker-compose.yml
+.dockerignore

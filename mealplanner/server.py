@@ -6,6 +6,7 @@ import json
 import mimetypes
 import os
 import re
+import signal
 import tempfile
 import time
 import traceback
@@ -600,7 +601,13 @@ def main():
             f"Poort {args.port} is al in gebruik; waarschijnlijk draait Mealplanner al.\n"
             f"Stop die eerst met Ctrl+C in de terminal waar hij draait, of kies een andere poort: --port {args.port + 1}"
         )
-    print(f"Mealplanner draait op http://{args.host}:{args.port}  (Ctrl+C om te stoppen)")
+    print(f"Mealplanner draait op http://{args.host}:{args.port}  (Ctrl+C om te stoppen)", flush=True)
+
+    # Docker (en systemd) stoppen met SIGTERM: net zo netjes afsluiten als bij Ctrl+C.
+    def stop(signum, frame):
+        raise KeyboardInterrupt
+
+    signal.signal(signal.SIGTERM, stop)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
