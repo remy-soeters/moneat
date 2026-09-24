@@ -49,14 +49,25 @@ functies met Claude.
 
 In **Instellingen** in het menu kies je wie de recepten schrijft en voeg je de API-sleutels toe:
 
-- **Gemini** (Google): recepten schrijven is gratis met limieten (`gemini-3.8-flash`). Gemini maakt ook
-  de **foto's** bij recepten (`gemini-3.1-flash-lite-image`, "Nano Banana 2 Lite", ongeveer $0,03 per foto); dat is bij Google niet gratis, daarvoor moet je
-  betalen instellen in AI Studio. Sleutel via https://aistudio.google.com/apikey.
-- **Claude** (Anthropic): betaald, beste kwaliteit. Sleutel via https://console.anthropic.com.
+- **Gemini** (Google): tekst (recepten, menu, inspiratie) is gratis met limieten, maar **alleen met een
+  sleutel uit een Google-project zonder betaalgegevens**. Gemini maakt ook de **foto's en iconen**; die zijn
+  niet gratis (Nano Banana 2 Lite kost ongeveer $0,03 per foto) en vragen een sleutel uit een project mét
+  betalen. Vul daarom bij Instellingen → Sleutels allebei in: de betaalde voor foto's, de gratis voor tekst.
+  Sleutels via https://aistudio.google.com/apikey.
+- **Claude** (Anthropic): betaald, beste kwaliteit. Kies Opus 5, Sonnet 5 of Haiku 4.5. Sleutel via
+  https://console.anthropic.com.
+
+Tekst- en beeldmodellen kies je bij Instellingen; foto's automatisch laten maken kun je daar ook uitzetten.
+
+### Bring!
+
+Bij Instellingen → Boodschappen koppel je de Bring!-app (inloggen met je Bring!-account; het wachtwoord
+wordt niet bewaard). Daarna stuurt de knop **Naar Bring! sturen** bij Boodschappen alles onder "Kopen" naar
+je Bring!-lijst. Bring! heeft geen officiële API; de koppeling werkt zoals de Bring!-app zelf en kan
+stoppen als Bring! iets verandert.
 
 Sleutels worden bewaard in `data/mealplanner.db` (niet in git) en daarna alleen gemaskeerd getoond. Een
-sleutel in de app gaat voor op de omgevingsvariabelen `ANTHROPIC_API_KEY` / `GEMINI_API_KEY`. De Gemini-modellen
-kun je in de instellingen aanpassen als Google nieuwe versies uitbrengt.
+sleutel in de app gaat voor op de omgevingsvariabelen `ANTHROPIC_API_KEY` / `GEMINI_API_KEY`.
 
 ## Docker
 
@@ -100,6 +111,7 @@ je recepten aanpassen en de AI (op jouw kosten) gebruiken. Zet poort 8000 dus no
 | `mealplanner/db.py` | SQLite-schema, recepten, weekmenu, boodschappenlijst |
 | `mealplanner/server.py` | HTTP-server en API-routes |
 | `mealplanner/ai.py` | AI: menu-opties, recepten bedenken en uitlezen, inspiratie, foto's |
+| `mealplanner/bring.py` | Koppeling met de Bring!-boodschappenapp |
 | `mealplanner/gemini.py` | Google Gemini (Interactions API) voor tekst en foto's |
 | `mealplanner/importer.py` | Recepten van websites importeren (schema.org/Recipe) |
 | `mealplanner/images.py` | Opslag van receptfoto's |

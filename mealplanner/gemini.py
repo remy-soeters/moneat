@@ -12,6 +12,21 @@ import urllib.request
 BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 DEFAULT_TEXT_MODEL = "gemini-3.8-flash"
 DEFAULT_IMAGE_MODEL = "gemini-3.1-flash-lite-image"
+# Keuzes voor tekst in Instellingen; alle hebben een gratis variant (met limieten), mits de sleutel uit een
+# Google-project zonder betaalgegevens komt. Bron: ai.google.dev/gemini-api/docs/pricing
+TEXT_MODELS = [
+    {"id": "gemini-3.8-flash", "name": "Gemini 3.8 Flash", "note": "Nieuwst en slimst"},
+    {"id": "gemini-3.5-flash-lite", "name": "Gemini 3.5 Flash-Lite", "note": "Sneller en lichter"},
+    {"id": "gemini-2.5-pro", "name": "Gemini 2.5 Pro", "note": "Grondig, maar trager"},
+    {"id": "gemini-2.5-flash", "name": "Gemini 2.5 Flash", "note": "Ouder, betrouwbaar"},
+]
+# Keuzes voor foto's en iconen in Instellingen; prijzen per foto (1K) volgens ai.google.dev/gemini-api/docs/pricing.
+IMAGE_MODELS = [
+    {"id": "gemini-3.1-flash-lite-image", "name": "Nano Banana 2 Lite", "price": "± $0,03 per foto", "note": "Goedkoopst, prima voor eten en iconen"},
+    {"id": "gemini-2.5-flash-image", "name": "Nano Banana", "price": "± $0,04 per foto", "note": "Eerste versie"},
+    {"id": "gemini-3.1-flash-image", "name": "Nano Banana 2", "price": "± $0,07 per foto", "note": "Mooiere details"},
+    {"id": "gemini-3-pro-image", "name": "Nano Banana Pro", "price": "± $0,13 per foto", "note": "Beste kwaliteit, duurst"},
+]
 TIMEOUT = 180
 
 

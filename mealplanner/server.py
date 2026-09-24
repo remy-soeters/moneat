@@ -16,7 +16,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import ai, gemini
+from . import ai, bring, gemini
 from .db import Database, NotFound
 from .images import MAX_IMAGE_BYTES, ImageStore
 from .icons import IconMaker
@@ -29,12 +29,13 @@ DEFAULT_DB = ROOT / "data" / "mealplanner.db"
 MAX_BODY = 1_000_000
 
 
-KEY_SETTINGS = {"claude": ai.CLAUDE_KEY, "gemini": ai.GEMINI_KEY}
+KEY_SETTINGS = {"claude": ai.CLAUDE_KEY, "gemini": ai.GEMINI_KEY, "gemini_text": ai.GEMINI_TEXT_KEY}
 KEY_PATTERNS = {
     "claude": (r"sk-ant-[A-Za-z0-9_\-]{20,}", "Dit lijkt geen Anthropic API-sleutel. Die begint met ‘sk-ant-’ en is lang."),
     # Google gebruikt zowel het oude formaat (AIza…) als het nieuwere met een punt (AQ.…).
     "gemini": (r"[A-Za-z0-9_.\-]{30,}", "Dit lijkt geen Gemini API-sleutel. Kopieer hem volledig uit Google AI Studio."),
 }
+KEY_PATTERNS["gemini_text"] = KEY_PATTERNS["gemini"]
 
 
 # Gangbare boodschappen als startpunt voor de suggesties, zolang er nog weinig geschiedenis is.
@@ -43,6 +44,8 @@ STAPLES = [
     "Knoflook", "Aardappelen", "Wortels", "Komkommer", "Paprika", "Sla", "Pasta", "Rijst", "Koffie",
     "Thee", "Olijfolie", "Hagelslag", "Pindakaas", "Wc-papier",
 ]
+BRING_SETTING = "bring_auth"  # Bring!-inlog (tokens, geen wachtwoord) en gekozen lijst
+BRING_SYNCED_SETTING = "bring_synced"  # wat we de vorige keer naar Bring! stuurden
 PREFERENCES_SETTING = "food_preferences"
 SWIPE_PRELOAD_SETTING = "swipe_preload"
 MAX_MINUTES = (None, 20, 30, 45, 60)
@@ -85,6 +88,16 @@ class ApiError(Exception):
         self.status = status
 
 
+def bring_spec(items):
+    """Hoeveelheid voor Bring!, bijv. '500 g' of '2 stuks + 1 blik'."""
+    parts = []
+    for item in items:
+        quantity = item["quantity"]
+        amount = "" if quantity is None else (f"{quantity:g}".replace(".", ","))
+        parts.append(" ".join(p for p in (amount, item["unit"]) if p))
+    return " + ".join(p for p in parts if p)
+
+
 def make_handler(db, images=None):
     images = images or ImageStore(tempfile.mkdtemp(prefix="mealplanner-images-"))
 
@@ -120,8 +133,34 @@ def make_handler(db, images=None):
         icon_maker.request([n for n in names if n not in icons])
         return items
 
+    def bring_auth():
+        try:
+            return json.loads(db.get_setting(BRING_SETTING) or "null")
+        except ValueError:
+            return None
+
+    def save_bring_auth(auth):
+        db.set_setting(BRING_SETTING, json.dumps(auth) if auth else None)
+
+    def bring_session():
+        """Ingelogde Bring!-gegevens, zo nodig met vernieuwde toegang."""
+        auth = bring_auth()
+        if not auth:
+            raise ApiError(HTTPStatus.BAD_REQUEST, "Bring! is nog niet gekoppeld. Doe dat bij Instellingen.")
+        if bring.fresh(auth):
+            save_bring_auth(auth)
+        return auth
+
+    def bring_status():
+        auth = bring_auth()
+        if not auth:
+            return {"connected": False}
+        return {"connected": True, "email": auth.get("email"), "list_uuid": auth.get("list_uuid"),
+                "list_name": auth.get("list_name")}
+
     def shopping_response():
         return {
+            "bring": bring_status()["connected"],
             "items": with_icons(db.shopping_list()),
             "icons": {"pending": icon_maker.pending(), "enabled": icon_maker.enabled(), "failed": icon_maker.failed},
         }
@@ -168,6 +207,8 @@ def make_handler(db, images=None):
                 self._send_json({"error": str(e)}, HTTPStatus.BAD_REQUEST)
             except ai.AIUnavailable as e:
                 self._send_json({"error": str(e)}, HTTPStatus.SERVICE_UNAVAILABLE)
+            except bring.BringError as e:
+                self._send_json({"error": str(e)}, HTTPStatus.BAD_GATEWAY)
             except ImportFailed as e:
                 self._send_json({"error": str(e)}, HTTPStatus.UNPROCESSABLE_ENTITY)
             except Exception:
@@ -224,9 +265,11 @@ def make_handler(db, images=None):
         def get_settings(self, query):
             claude_key = db.get_setting(ai.CLAUDE_KEY)
             gemini_key = db.get_setting(ai.GEMINI_KEY)
+            text_key = db.get_setting(ai.GEMINI_TEXT_KEY)
             text_model, image_model = ai.gemini_models()
             return {
                 "sdk_installed": ai.sdk_installed(),
+                "bring": bring_status(),
                 "text_provider": ai.text_provider(),
                 "swipe_preload": preload_target(),
                 "swipe_preload_options": list(PRELOAD_OPTIONS),
@@ -235,7 +278,8 @@ def make_handler(db, images=None):
                     "set": bool(claude_key),
                     "hint": mask_key(claude_key) if claude_key else None,
                     "env": ai.env_key_present(),
-                    "model": ai.MODEL,
+                    "model": ai.claude_model()["id"],
+                    "models": [{k: m[k] for k in ("id", "name", "note")} for m in ai.CLAUDE_MODELS],
                 },
                 "gemini": {
                     "set": bool(gemini_key),
@@ -245,6 +289,9 @@ def make_handler(db, images=None):
                     "image_model": image_model,
                     "default_text_model": gemini.DEFAULT_TEXT_MODEL,
                     "default_image_model": gemini.DEFAULT_IMAGE_MODEL,
+                    "image_models": gemini.IMAGE_MODELS,
+                    "text_models": gemini.TEXT_MODELS,
+                    "text_key": {"set": bool(text_key), "hint": mask_key(text_key) if text_key else None},
                 },
             }
 
@@ -266,6 +313,10 @@ def make_handler(db, images=None):
             if "auto_images" in body:
                 db.set_setting(ai.AUTO_IMAGES, None if body["auto_images"] else "off")
                 preloader.kick()
+            if "claude_model" in body:
+                if body["claude_model"] not in {m["id"] for m in ai.CLAUDE_MODELS}:
+                    raise ApiError(HTTPStatus.BAD_REQUEST, "Kies Opus, Sonnet of Haiku")
+                db.set_setting(ai.CLAUDE_MODEL, body["claude_model"])
             if "text_provider" in body:
                 if body["text_provider"] not in ("claude", "gemini"):
                     raise ApiError(HTTPStatus.BAD_REQUEST, "Kies Claude of Gemini")
@@ -283,12 +334,12 @@ def make_handler(db, images=None):
             return self.get_settings(query)
 
         def test_connection(self, query):
-            if self._body().get("provider") == "gemini":
+            if self._body().get("provider") in ("gemini", "gemini_text"):
                 ai.check_gemini()
                 text_model, image_model = ai.gemini_models()
                 return {"ok": True, "message": f"Verbinding met Gemini werkt ({text_model}, {image_model})."}
             ai.check_connection()
-            return {"ok": True, "message": f"Verbinding met Claude werkt ({ai.MODEL})."}
+            return {"ok": True, "message": f"Verbinding met Claude werkt ({ai.claude_model()['name']})."}
 
         # ---------- foto's maken ----------
 
@@ -446,6 +497,59 @@ def make_handler(db, images=None):
             names = frequent + [n for n in STAPLES if n.lower() not in seen]
             return {"suggestions": with_icons([{"name": n} for n in names[:30]]), "has_history": bool(frequent)}
 
+        # ---------- Bring! ----------
+
+        def bring_login(self, query):
+            body = self._body()
+            auth = bring.login(str(body.get("email") or "").strip(), str(body.get("password") or ""))
+            found = bring.lists(auth)
+            default = next((l for l in found if l["uuid"] == auth["list_uuid"]), found[0] if found else None)
+            auth["list_uuid"], auth["list_name"] = (default["uuid"], default["name"]) if default else ("", "")
+            save_bring_auth(auth)
+            db.set_setting(BRING_SYNCED_SETTING, None)
+            return {**bring_status(), "lists": found}
+
+        def bring_lists(self, query):
+            return {**bring_status(), "lists": bring.lists(bring_session())}
+
+        def bring_choose_list(self, query):
+            auth = bring_session()
+            wanted = str(self._body().get("list_uuid") or "")
+            chosen = next((l for l in bring.lists(auth) if l["uuid"] == wanted), None)
+            if not chosen:
+                raise ApiError(HTTPStatus.BAD_REQUEST, "Deze Bring!-lijst bestaat niet (meer)")
+            auth["list_uuid"], auth["list_name"] = chosen["uuid"], chosen["name"]
+            save_bring_auth(auth)
+            db.set_setting(BRING_SYNCED_SETTING, None)
+            return bring_status()
+
+        def bring_disconnect(self, query):
+            save_bring_auth(None)
+            db.set_setting(BRING_SYNCED_SETTING, None)
+            return bring_status()
+
+        def bring_sync(self, query):
+            """Zet alles onder 'Kopen' op de Bring!-lijst; wat we eerder stuurden en hier niet meer
+            te koop staat, wordt in Bring! afgevinkt. Wat je zelf in Bring! zette, blijft staan."""
+            auth = bring_session()
+            groups = {}
+            for item in db.shopping_list():
+                if not item["checked"]:
+                    groups.setdefault(bring.catalog_name(item["name"]), []).append(item)
+            try:
+                previous = set(json.loads(db.get_setting(BRING_SYNCED_SETTING) or "[]"))
+            except ValueError:
+                previous = set()
+            changes = [(name, bring_spec(items), "TO_PURCHASE") for name, items in groups.items()]
+            done = sorted(previous - set(groups))
+            if done:
+                on_list = bring.purchase_names(auth, auth["list_uuid"])
+                done = [name for name in done if name in on_list]
+                changes += [(name, "", "TO_RECENTLY") for name in done]
+            bring.change(auth, auth["list_uuid"], changes)
+            db.set_setting(BRING_SYNCED_SETTING, json.dumps(sorted(groups), ensure_ascii=False))
+            return {"sent": len(groups), "checked_off": len(done), "list_name": auth.get("list_name")}
+
         # ---------- AI ----------
 
         def fill_menu(self, query):
@@ -550,7 +654,7 @@ def make_handler(db, images=None):
         ("POST", re.compile(r"/api/swipe/cards/(\d+)"), Handler.swipe_card),
         ("GET", re.compile(r"/api/settings"), Handler.get_settings),
         ("PUT", re.compile(r"/api/settings"), Handler.save_settings),
-        ("DELETE", re.compile(r"/api/settings/key/(claude|gemini)"), Handler.delete_key),
+        ("DELETE", re.compile(r"/api/settings/key/(claude|gemini_text|gemini)"), Handler.delete_key),
         ("POST", re.compile(r"/api/settings/test"), Handler.test_connection),
         ("POST", re.compile(r"/api/photos/draft"), Handler.photo_for_draft),
         ("POST", re.compile(r"/api/recipes/(\d+)/photo"), Handler.photo_for_recipe),
@@ -572,6 +676,11 @@ def make_handler(db, images=None):
         ("DELETE", re.compile(r"/api/shopping/items"), Handler.remove_shopping_item),
         ("POST", re.compile(r"/api/shopping/clear-bought"), Handler.clear_bought),
         ("GET", re.compile(r"/api/shopping/suggestions"), Handler.shopping_suggestions),
+        ("POST", re.compile(r"/api/bring/login"), Handler.bring_login),
+        ("GET", re.compile(r"/api/bring/lists"), Handler.bring_lists),
+        ("PUT", re.compile(r"/api/bring/list"), Handler.bring_choose_list),
+        ("DELETE", re.compile(r"/api/bring"), Handler.bring_disconnect),
+        ("POST", re.compile(r"/api/bring/sync"), Handler.bring_sync),
     ]
 
     return Handler

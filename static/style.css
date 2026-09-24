@@ -573,7 +573,33 @@ dialog.modal::backdrop { background: rgba(35, 25, 18, 0.5); animation: fade-in 0
 .provider-choice button[aria-checked="true"] { border-color: var(--accent); background: var(--accent-soft); }
 .provider-choice strong { font-family: var(--serif); font-size: 18px; font-weight: 600; }
 .provider-choice small { color: var(--ink-2); font-size: 13px; }
+.model-choice { margin-top: 4px; }
+.model-choice strong { font-size: 16px; }
+.settings-subtitle { font-size: 14px; font-weight: 600; color: var(--ink-2); margin: 22px 0 10px; }
 .key-section, .settings-block { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--line); }
+.settings-nav { display: flex; flex-wrap: wrap; gap: 8px; margin: -8px 0 8px; }
+.settings-nav a {
+  padding: 7px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--paper);
+  color: var(--ink-2); font-size: 14px; text-decoration: none;
+}
+.settings-nav a:hover { border-color: var(--ink-2); color: var(--ink); }
+.settings-group {
+  margin-top: 24px; padding: 26px 26px 10px; border: 1px solid var(--line); border-radius: 14px;
+  background: var(--paper); scroll-margin-top: 130px;
+}
+.settings-group .provider-choice button, .settings-group .status-list { background: var(--bg); }
+.settings-group .provider-choice button[aria-checked="true"] { background: var(--accent-soft); }
+.group-title { margin: 0 0 6px; font-size: 26px; }
+.settings-group > .settings-subtitle:first-of-type { margin-top: 12px; }
+.settings-group .key-section:first-of-type { margin-top: 12px; }
+.settings-group .help { margin: 8px 0 0; }
+.settings-group > :last-child { margin-bottom: 16px; }
+.settings-title .optional { font-family: var(--sans); font-size: 13px; font-weight: 500; color: var(--ink-3); margin-left: 6px; }
+.model-choice.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 600px) {
+  .settings-group { padding: 20px 16px 6px; }
+  .model-choice.three { grid-template-columns: minmax(0, 1fr); }
+}
 .models { margin: 0 0 18px; }
 .models summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--ink-2); margin-bottom: 12px; }
 .models input { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 14px; }

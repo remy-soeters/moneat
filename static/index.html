@@ -173,6 +173,7 @@
           <p class="kicker" id="shop-kicker">Boodschappen</p>
           <h1 class="page-title">Boodschappenlijst</h1>
         </div>
+        <button type="button" class="btn outline" id="bring-sync" hidden>Naar Bring! sturen</button>
       </div>
       <div class="shop-add" id="shop-add">
         <form class="shop-input" id="shop-add-form" autocomplete="off">
@@ -193,82 +194,140 @@
           <h1 class="page-title">Instellingen</h1>
         </div>
       </div>
-      <h3 class="settings-title">Recepten schrijven</h3>
-      <p class="intro">Welke AI vult je menu aan, bedenkt recepten en zoekt inspiratie?</p>
-      <div class="provider-choice" id="provider-choice" role="radiogroup">
-        <button type="button" role="radio" data-provider="gemini" aria-checked="false">
-          <strong>Gemini</strong><small>Gratis (met limieten)</small>
-        </button>
-        <button type="button" role="radio" data-provider="claude" aria-checked="false">
-          <strong>Claude</strong><small>Betaald, beste kwaliteit</small>
-        </button>
-      </div>
+      <nav class="settings-nav" aria-label="Onderdelen">
+        <a href="#set-ai">Recepten en menu</a>
+        <a href="#set-photos">Foto's en iconen</a>
+        <a href="#set-shopping">Boodschappen</a>
+        <a href="#set-keys">Sleutels</a>
+      </nav>
 
-      <section class="settings-block" id="auto-images-settings">
-        <h3 class="settings-title">Foto's en iconen</h3>
-        <p class="intro">Mag de app zelf foto's laten maken voor de gerechten die klaarstaan om te swipen, en iconen voor je boodschappen? Dat gebeurt op de achtergrond en kost via Gemini per foto een beetje. Staat het uit, dan kun je nog steeds zelf op <em>Maak foto</em> drukken, en geïmporteerde recepten houden de foto van de website.</p>
+      <section class="settings-group" id="set-ai">
+        <h2 class="group-title">Recepten en menu</h2>
+        <p class="intro">Welke AI vult je weekmenu aan, bedenkt recepten en zoekt inspiratie?</p>
+        <div class="provider-choice" id="provider-choice" role="radiogroup">
+          <button type="button" role="radio" data-provider="gemini" aria-checked="false">
+            <strong>Gemini</strong><small>Gratis met een gratis sleutel</small>
+          </button>
+          <button type="button" role="radio" data-provider="claude" aria-checked="false">
+            <strong>Claude</strong><small>Betaald, beste kwaliteit</small>
+          </button>
+        </div>
+        <div id="gemini-text-models" hidden>
+          <h4 class="settings-subtitle">Welk Gemini-model?</h4>
+          <div class="provider-choice model-choice" id="text-model-choice" role="radiogroup"></div>
+          <p class="help" id="text-cost-note"></p>
+        </div>
+        <div id="claude-models" hidden>
+          <h4 class="settings-subtitle">Welk Claude-model?</h4>
+          <div class="provider-choice model-choice three" id="claude-model-choice" role="radiogroup"></div>
+          <p class="help">Je betaalt per gebruik bij Anthropic; Haiku kost een fractie van Opus.</p>
+        </div>
+      </section>
+
+      <section class="settings-group" id="set-photos">
+        <h2 class="group-title">Foto's en iconen</h2>
+        <p class="intro">Foto's bij recepten en swipekaarten, en iconen voor je boodschappen, worden gemaakt door Gemini. Dat is <strong>niet gratis</strong>: je betaalt per foto.</p>
+        <h4 class="settings-subtitle">Automatisch laten maken</h4>
         <div class="chips pick" id="auto-images-choice" data-single>
           <button type="button" class="chip" data-value="on">Automatisch aan</button>
           <button type="button" class="chip" data-value="off">Uit, bespaart credits</button>
         </div>
-      </section>
-
-      <section class="settings-block" id="swipe-settings">
-        <h3 class="settings-title">Recepten swipen</h3>
-        <p class="intro">Hoeveel gerechten mét foto staan er klaar om te swipen? De app vult die voorraad op de achtergrond aan, zodat je niet hoeft te wachten. Elke foto kost via Gemini een beetje; gerechten die klaarstaan worden weggegooid als je je voorkeuren aanpast.</p>
+        <p class="help">Staat het uit, dan maakt de app op de achtergrond niets meer. Zelf op <em>Maak foto</em> drukken kan altijd, en geïmporteerde recepten houden de foto van de website.</p>
+        <h4 class="settings-subtitle">Welk model?</h4>
+        <div class="provider-choice model-choice" id="image-model-choice" role="radiogroup"></div>
+        <h4 class="settings-subtitle">Gerechten klaarzetten om te swipen</h4>
         <div class="chips pick" id="swipe-preload-choice" data-single></div>
+        <p class="help">De app houdt zoveel gerechten mét foto klaar, zodat je niet hoeft te wachten. Pas je je voorkeuren aan, dan worden ze opnieuw gemaakt.</p>
       </section>
 
-      <section class="key-section" data-provider="gemini">
-        <h3 class="settings-title">Google Gemini</h3>
-        <p class="intro">Voor recepten (gratis met limieten) en voor <strong>foto's bij je recepten</strong>. Foto's maken is bij Google niet gratis: daarvoor moet je betalen instellen in AI Studio. Bij gratis gebruik mag Google je invoer gebruiken om hun diensten te verbeteren.</p>
-        <ul class="status-list" data-status></ul>
-        <form class="key-form">
-          <label class="field">
-            <span data-key-label>API-sleutel</span>
-            <span class="key-input">
-              <input name="key" type="password" autocomplete="off" spellcheck="false" placeholder="AQ.… of AIza…">
-              <button type="button" class="btn link" data-toggle>Toon</button>
-            </span>
-          </label>
-          <p class="help">Maak een sleutel aan op <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">aistudio.google.com</a>. De sleutel wordt alleen op deze computer bewaard.</p>
-          <details class="models">
-            <summary>Modellen</summary>
-            <label class="field"><span>Model voor recepten</span><input name="gemini_text_model" spellcheck="false"></label>
-            <label class="field"><span>Model voor foto's</span><input name="gemini_image_model" spellcheck="false"></label>
-            <p class="help">Laat leeg voor het standaardmodel.</p>
-          </details>
-          <div class="key-actions">
-            <button type="submit" class="btn primary">Opslaan</button>
-            <button type="button" class="btn outline" data-test>Test verbinding</button>
-            <span class="spacer"></span>
-            <button type="button" class="btn link danger" data-delete>Sleutel verwijderen</button>
-          </div>
+      <section class="settings-group" id="set-shopping">
+        <h2 class="group-title">Boodschappen</h2>
+        <h4 class="settings-subtitle">Bring!</h4>
+        <p class="intro">Stuur je boodschappenlijst met één knop naar de Bring!-app, bijvoorbeeld om samen boodschappen te doen. Bring! heeft geen officiële koppeling; deze werkt zoals de Bring!-app zelf. Je wachtwoord wordt alleen gebruikt om in te loggen en niet bewaard.</p>
+        <form class="key-form" id="bring-form" autocomplete="off">
+          <label class="field"><span>E-mailadres van Bring!</span><input name="email" type="email" autocomplete="off" spellcheck="false"></label>
+          <label class="field"><span>Wachtwoord van Bring!</span><input name="password" type="password" autocomplete="off"></label>
+          <div class="key-actions"><button type="submit" class="btn primary">Koppelen</button></div>
         </form>
-        <p class="test-result" data-result hidden></p>
+        <div id="bring-connected" hidden>
+          <ul class="status-list"><li class="ok"><span class="dot" id="bring-dot"></span><div><strong>Gekoppeld</strong><small id="bring-email"></small></div></li></ul>
+          <h4 class="settings-subtitle">Naar welke lijst?</h4>
+          <div class="chips pick" id="bring-list-choice" data-single></div>
+          <div class="key-actions"><span class="spacer"></span><button type="button" class="btn link danger" id="bring-disconnect">Ontkoppelen</button></div>
+        </div>
       </section>
 
-      <section class="key-section" data-provider="claude">
-        <h3 class="settings-title">Claude</h3>
-        <p class="intro">De beste kwaliteit voor recepten en menu's. Betaald per gebruik via Anthropic.</p>
-        <ul class="status-list" data-status></ul>
-        <form class="key-form">
-          <label class="field">
-            <span data-key-label>API-sleutel</span>
-            <span class="key-input">
-              <input name="key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…">
-              <button type="button" class="btn link" data-toggle>Toon</button>
-            </span>
-          </label>
-          <p class="help">Maak een sleutel aan op <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">console.anthropic.com</a> onder <em>API Keys</em>. De sleutel wordt alleen op deze computer bewaard.</p>
-          <div class="key-actions">
-            <button type="submit" class="btn primary">Opslaan</button>
-            <button type="button" class="btn outline" data-test>Test verbinding</button>
-            <span class="spacer"></span>
-            <button type="button" class="btn link danger" data-delete>Sleutel verwijderen</button>
-          </div>
-        </form>
-        <p class="test-result" data-result hidden></p>
+      <section class="settings-group" id="set-keys">
+        <h2 class="group-title">Sleutels</h2>
+        <p class="intro">De app praat met Gemini en Claude via je eigen API-sleutels. Ze worden alleen in de app op deze computer bewaard.</p>
+
+        <section class="key-section" data-provider="gemini">
+          <h3 class="settings-title">Gemini: sleutel met betalen</h3>
+          <p class="intro">Nodig voor <strong>foto's en iconen</strong>. Zet in Google AI Studio betalen aan voor het project van deze sleutel. Heb je hieronder geen gratis sleutel ingevuld, dan gebruikt de app deze ook voor tekst, en dan betaal je daar ook voor.</p>
+          <ul class="status-list" data-status></ul>
+          <form class="key-form">
+            <label class="field">
+              <span data-key-label>API-sleutel</span>
+              <span class="key-input">
+                <input name="key" type="password" autocomplete="off" spellcheck="false" placeholder="AQ.… of AIza…">
+                <button type="button" class="btn link" data-toggle>Toon</button>
+              </span>
+            </label>
+            <p class="help">Maak een sleutel aan op <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">aistudio.google.com</a>.</p>
+            <div class="key-actions">
+              <button type="submit" class="btn primary">Opslaan</button>
+              <button type="button" class="btn outline" data-test>Test verbinding</button>
+              <span class="spacer"></span>
+              <button type="button" class="btn link danger" data-delete>Sleutel verwijderen</button>
+            </div>
+          </form>
+          <p class="test-result" data-result hidden></p>
+        </section>
+
+        <section class="key-section" data-provider="gemini_text">
+          <h3 class="settings-title">Gemini: gratis sleutel voor tekst <small class="optional">optioneel</small></h3>
+          <p class="intro">Tekst (recepten, menu, inspiratie) is bij Gemini <strong>gratis</strong>, maar alleen met een sleutel uit een Google-project <em>zonder</em> betaalgegevens. Maak in AI Studio een tweede project aan, zet daar géén betalen aan, en plak die sleutel hier. Let op: bij gratis gebruik mag Google je invoer gebruiken om hun diensten te verbeteren.</p>
+          <ul class="status-list" data-status></ul>
+          <form class="key-form">
+            <label class="field">
+              <span data-key-label>API-sleutel</span>
+              <span class="key-input">
+                <input name="key" type="password" autocomplete="off" spellcheck="false" placeholder="AQ.… of AIza…">
+                <button type="button" class="btn link" data-toggle>Toon</button>
+              </span>
+            </label>
+            <div class="key-actions">
+              <button type="submit" class="btn primary">Opslaan</button>
+              <button type="button" class="btn outline" data-test>Test verbinding</button>
+              <span class="spacer"></span>
+              <button type="button" class="btn link danger" data-delete>Sleutel verwijderen</button>
+            </div>
+          </form>
+          <p class="test-result" data-result hidden></p>
+        </section>
+
+        <section class="key-section" data-provider="claude">
+          <h3 class="settings-title">Claude</h3>
+          <p class="intro">Alleen nodig als je bij <a href="#set-ai">Recepten en menu</a> voor Claude kiest. Betaald per gebruik via Anthropic.</p>
+          <ul class="status-list" data-status></ul>
+          <form class="key-form">
+            <label class="field">
+              <span data-key-label>API-sleutel</span>
+              <span class="key-input">
+                <input name="key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…">
+                <button type="button" class="btn link" data-toggle>Toon</button>
+              </span>
+            </label>
+            <p class="help">Maak een sleutel aan op <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">console.anthropic.com</a> onder <em>API Keys</em>.</p>
+            <div class="key-actions">
+              <button type="submit" class="btn primary">Opslaan</button>
+              <button type="button" class="btn outline" data-test>Test verbinding</button>
+              <span class="spacer"></span>
+              <button type="button" class="btn link danger" data-delete>Sleutel verwijderen</button>
+            </div>
+          </form>
+          <p class="test-result" data-result hidden></p>
+        </section>
       </section>
     </section>
   </main>

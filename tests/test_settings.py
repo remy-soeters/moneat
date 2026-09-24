@@ -6,7 +6,7 @@ import urllib.request
 from http.server import ThreadingHTTPServer
 from unittest import mock
 
-from mealplanner import ai
+from mealplanner import ai, gemini
 from mealplanner.db import Database
 from mealplanner.server import make_handler
 
@@ -81,6 +81,51 @@ class SettingsApiTest(unittest.TestCase):
         self.assertFalse(ai.auto_images())
         self.assertFalse(self.call("GET", "/api/shopping")[1]["icons"]["enabled"])
         self.assertTrue(self.call("PUT", "/api/settings", {"auto_images": True})[1]["auto_images"])
+
+    def test_claude_model_choice_shapes_the_request(self):
+        settings = self.call("GET", "/api/settings")[1]
+        self.assertEqual(settings["claude"]["model"], "claude-opus-5")
+        self.assertEqual([m["name"] for m in settings["claude"]["models"]], ["Opus 5", "Sonnet 5", "Haiku 4.5"])
+        self.assertEqual(self.call("PUT", "/api/settings", {"claude_model": "gpt-5"})[0], 400)
+
+        def sent_options():
+            fake = mock.MagicMock()
+            stream = fake.beta.messages.stream.return_value.__enter__.return_value
+            stream.get_final_message.return_value = mock.Mock(
+                stop_reason="end_turn", content=[mock.Mock(type="text", text="{}")])
+            with mock.patch.object(ai, "_client", return_value=(mock.Mock(), fake)):
+                ai._ask_claude("systeem", "vraag", {"type": "object"}, "low")
+            return fake.beta.messages.stream.call_args.kwargs
+
+        opus = sent_options()
+        self.assertEqual((opus["model"], opus["thinking"], opus["output_config"]["effort"], opus["fallbacks"]),
+                         ("claude-opus-5", {"type": "adaptive"}, "low", "default"))
+        self.call("PUT", "/api/settings", {"claude_model": "claude-sonnet-5"})
+        sonnet = sent_options()
+        self.assertEqual((sonnet["model"], sonnet["output_config"]["effort"]), ("claude-sonnet-5", "low"))
+        self.assertNotIn("fallbacks", sonnet)
+        self.call("PUT", "/api/settings", {"claude_model": "claude-haiku-4-5"})
+        haiku = sent_options()
+        self.assertEqual(haiku["model"], "claude-haiku-4-5")
+        self.assertNotIn("thinking", haiku)
+        self.assertNotIn("effort", haiku["output_config"])
+        self.assertIn("format", haiku["output_config"])
+
+    def test_free_gemini_key_is_used_for_text_only(self):
+        paid, free = "AIza" + "p" * 35, "AIza" + "f" * 35
+        self.call("PUT", "/api/settings", {"gemini_api_key": paid, "text_provider": "gemini"})
+        with mock.patch.object(gemini, "generate_json", return_value={}) as text:
+            ai._ask("s", "u", {})
+        self.assertEqual(text.call_args.args[0], paid)  # zonder gratis sleutel: de betaalde
+        settings = self.call("PUT", "/api/settings", {"gemini_text_api_key": free})[1]
+        self.assertTrue(settings["gemini"]["text_key"]["set"])
+        self.assertTrue(settings["gemini"]["text_models"])
+        with mock.patch.object(gemini, "generate_json", return_value={}) as text, \
+                mock.patch.object(gemini, "generate_image", return_value=b"x") as image:
+            ai._ask("s", "u", {})
+            ai.generate_icon("tomaat")
+        self.assertEqual((text.call_args.args[0], image.call_args.args[0]), (free, paid))
+        self.assertFalse(self.call("DELETE", "/api/settings/key/gemini_text")[1]["gemini"]["text_key"]["set"])
 
     def test_ai_uses_key_from_settings(self):
         self.call("PUT", "/api/settings", {"claude_api_key": KEY})

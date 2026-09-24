@@ -1123,9 +1123,15 @@ function renderSettings(settings) {
           : item(false, "Nog geen API-sleutel", "Plak hieronder je sleutel om Gemini en foto's te gebruiken."),
     ],
   };
+  const textKey = gemini.text_key;
+  statuses.gemini_text = [
+    textKey.set
+      ? item(true, "Gratis sleutel ingesteld", `Tekst gaat via <code>${esc(textKey.hint)}</code>; foto's via de sleutel met betalen.`)
+      : item(false, "Geen gratis sleutel", "Tekst gaat nu via de sleutel met betalen (als die er is)."),
+  ];
   for (const section of $$(".key-section")) {
     const provider = section.dataset.provider;
-    const info = settings[provider];
+    const info = provider === "gemini_text" ? textKey : settings[provider];
     $("[data-status]", section).innerHTML = statuses[provider].filter(Boolean).join("");
     $("[data-key-label]", section).textContent = info.set ? "Andere API-sleutel gebruiken" : "API-sleutel";
     $("[data-delete]", section).hidden = !info.set;
@@ -1134,14 +1140,72 @@ function renderSettings(settings) {
   for (const chip of $$("#auto-images-choice .chip")) {
     chip.setAttribute("aria-pressed", String((chip.dataset.value === "on") === settings.auto_images));
   }
+  renderBring(settings.bring);
   $("#swipe-preload-choice").innerHTML = settings.swipe_preload_options
     .map((n) => `<button type="button" class="chip" data-value="${n}" aria-pressed="${n === settings.swipe_preload}">${n} gerechten</button>`)
     .join("");
-  const form = $('.key-section[data-provider="gemini"] .key-form');
-  form.gemini_text_model.value = gemini.text_model === gemini.default_text_model ? "" : gemini.text_model;
-  form.gemini_image_model.value = gemini.image_model === gemini.default_image_model ? "" : gemini.image_model;
-  form.gemini_text_model.placeholder = gemini.default_text_model;
-  form.gemini_image_model.placeholder = gemini.default_image_model;
+  $("#gemini-text-models").hidden = settings.text_provider !== "gemini";
+  $("#claude-models").hidden = settings.text_provider !== "claude";
+  const choiceCards = (models, current, extraNote = () => "") => {
+    const list = models.some((m) => m.id === current)
+      ? models
+      : [...models, { id: current, name: current, price: "", note: "Zelf ingesteld" }];
+    return list
+      .map((m) => `<button type="button" role="radio" data-model="${esc(m.id)}" aria-checked="${m.id === current}">
+        <strong>${esc(m.name)}</strong>${m.price ? `<small>${esc(m.price)}</small>` : ""}<small>${esc(m.note)}</small>${extraNote(m)}</button>`)
+      .join("");
+  };
+  $("#text-model-choice").innerHTML = choiceCards(gemini.text_models, gemini.text_model);
+  $("#text-cost-note").innerHTML = textKey.set
+    ? "Deze modellen zijn gratis via je gratis sleutel (met een limiet per minuut en per dag)."
+    : 'Gratis met een gratis sleutel; die stel je in bij <a href="#set-keys">Sleutels</a>. Zonder die sleutel betaal je een klein beetje per recept.';
+  $("#claude-model-choice").innerHTML = choiceCards(claude.models, claude.model);
+  $("#image-model-choice").innerHTML = choiceCards(gemini.image_models, gemini.image_model);
+}
+
+// ---------- Bring! ----------
+
+function renderBring(status, lists) {
+  $("#bring-form").hidden = status.connected;
+  $("#bring-connected").hidden = !status.connected;
+  if (!status.connected) return;
+  $("#bring-dot").innerHTML = ICONS.check;
+  $("#bring-email").textContent = `als ${status.email}`;
+  const options = lists ?? [{ uuid: status.list_uuid, name: status.list_name }];
+  $("#bring-list-choice").innerHTML = options
+    .map((l) => `<button type="button" class="chip" data-list="${esc(l.uuid)}" aria-pressed="${l.uuid === status.list_uuid}">${esc(l.name)}</button>`)
+    .join("");
+  if (!lists) {
+    api("/api/bring/lists").then((res) => renderBring(res, res.lists)).catch(() => {});
+  }
+}
+
+async function bringLogin(form) {
+  await guarded(async () => {
+    const res = await api("/api/bring/login", {
+      method: "POST", body: { email: form.email.value.trim(), password: form.password.value },
+    });
+    form.password.value = "";
+    renderBring(res, res.lists);
+    toast(`Bring! is gekoppeld${res.list_name ? `; boodschappen gaan naar ‘${res.list_name}’` : ""}`);
+  });
+}
+
+async function bringSync() {
+  const button = $("#bring-sync");
+  button.disabled = true;
+  button.textContent = "Bezig met versturen…";
+  try {
+    const res = await api("/api/bring/sync", { method: "POST", body: {} });
+    const parts = [`${res.sent} ${res.sent === 1 ? "product" : "producten"} naar ‘${res.list_name}’ gestuurd`];
+    if (res.checked_off) parts.push(`${res.checked_off} afgevinkt`);
+    toast(parts.join(", "));
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    button.disabled = false;
+    button.textContent = "Naar Bring! sturen";
+  }
 }
 
 async function saveSettings(section) {
@@ -1150,10 +1214,6 @@ async function saveSettings(section) {
   const body = {};
   const key = form.key.value.trim();
   if (key) body[`${provider}_api_key`] = key;
-  if (provider === "gemini") {
-    body.gemini_text_model = form.gemini_text_model.value.trim();
-    body.gemini_image_model = form.gemini_image_model.value.trim();
-  }
   await guarded(async () => {
     const settings = await api("/api/settings", { method: "PUT", body });
     form.key.value = "";
@@ -1183,7 +1243,7 @@ async function testConnection(section) {
 }
 
 async function deleteKey(section) {
-  const name = section.dataset.provider === "gemini" ? "Gemini" : "Claude";
+  const name = { gemini: "Gemini (met betalen)", gemini_text: "Gemini (gratis)", claude: "Claude" }[section.dataset.provider];
   if (!confirm(`De opgeslagen API-sleutel van ${name} verwijderen?`)) return;
   await guarded(async () => {
     renderSettings(await api(`/api/settings/key/${section.dataset.provider}`, { method: "DELETE" }));
@@ -1573,6 +1633,7 @@ function productEmoji(name) {
 }
 
 function applyShopping(data) {
+  $("#bring-sync").hidden = !data.bring;
   shop.items = data.items;
   shop.icons = data.icons;
   renderShopping();
@@ -1881,6 +1942,40 @@ $("#provider-choice").addEventListener("click", (e) => {
   const provider = e.target.closest("[data-provider]")?.dataset.provider;
   if (provider) setProvider(provider);
 });
+$("#bring-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  bringLogin(e.target);
+});
+$("#bring-list-choice").addEventListener("click", (e) => {
+  const uuid = e.target.closest("[data-list]")?.dataset.list;
+  if (!uuid) return;
+  guarded(async () => {
+    const res = await api("/api/bring/list", { method: "PUT", body: { list_uuid: uuid } });
+    renderBring(res);
+    toast(`Boodschappen gaan voortaan naar ‘${res.list_name}’`);
+  });
+});
+$("#bring-disconnect").addEventListener("click", () =>
+  guarded(async () => {
+    renderBring(await api("/api/bring", { method: "DELETE" }));
+    toast("Bring! is ontkoppeld");
+  })
+);
+$("#bring-sync").addEventListener("click", bringSync);
+for (const [id, field, message] of [
+  ["#image-model-choice", "gemini_image_model", "Foto's worden voortaan gemaakt met"],
+  ["#text-model-choice", "gemini_text_model", "Recepten worden voortaan geschreven door"],
+  ["#claude-model-choice", "claude_model", "Recepten worden voortaan geschreven door Claude"],
+]) {
+  $(id).addEventListener("click", (e) => {
+    const button = e.target.closest("[data-model]");
+    if (!button || button.getAttribute("aria-checked") === "true") return;
+    guarded(async () => {
+      renderSettings(await api("/api/settings", { method: "PUT", body: { [field]: button.dataset.model } }));
+      toast(`${message} ${$("strong", button).textContent}`);
+    });
+  });
+}
 $$(".key-section").forEach((section) => {
   $(".key-form", section).addEventListener("submit", (e) => {
     e.preventDefault();

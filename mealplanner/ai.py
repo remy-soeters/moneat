@@ -6,7 +6,14 @@ import os
 
 from . import gemini
 
-MODEL = "claude-opus-5"
+MODEL = "claude-opus-5"  # standaard Claude-model
+# Keuzes in Instellingen. Haiku kan niet 'nadenken' (adaptive thinking) en kent geen effort-niveau;
+# de server-side fallback bij een weigering is er alleen voor Opus 5.
+CLAUDE_MODELS = [
+    {"id": "claude-opus-5", "name": "Opus 5", "note": "Beste kwaliteit, duurst", "thinking": True, "fallback": True},
+    {"id": "claude-sonnet-5", "name": "Sonnet 5", "note": "Bijna even goed, sneller en goedkoper", "thinking": True, "fallback": False},
+    {"id": "claude-haiku-4-5", "name": "Haiku 4.5", "note": "Snelst en goedkoopst, eenvoudiger recepten", "thinking": False, "fallback": False},
+]
 
 
 class AIUnavailable(Exception):
@@ -119,7 +126,9 @@ intro (twee zinnen) en per recept één aantrekkelijke zin die laat zien waarom 
 _setting = lambda key, default=None: default
 
 CLAUDE_KEY = "anthropic_api_key"
+CLAUDE_MODEL = "claude_model"
 GEMINI_KEY = "gemini_api_key"
+GEMINI_TEXT_KEY = "gemini_text_api_key"  # optioneel: sleutel uit een project zónder betalen, voor gratis tekst
 TEXT_PROVIDER = "text_provider"
 GEMINI_TEXT_MODEL = "gemini_text_model"
 GEMINI_IMAGE_MODEL = "gemini_image_model"
@@ -137,6 +146,11 @@ def text_provider():
 
 def provider_name():
     return "Gemini" if text_provider() == "gemini" else "Claude"
+
+
+def claude_model():
+    chosen = _setting(CLAUDE_MODEL)
+    return next((m for m in CLAUDE_MODELS if m["id"] == chosen), CLAUDE_MODELS[0])
 
 
 def gemini_models():
@@ -162,6 +176,11 @@ def _gemini_key():
             "Er is nog geen Gemini API-sleutel ingesteld. Voeg er een toe via Instellingen in het menu."
         )
     return key
+
+
+def _gemini_text_key():
+    """Voor tekst gaat de gratis sleutel voor (als die er is); anders de gewone."""
+    return _setting(GEMINI_TEXT_KEY) or _gemini_key()
 
 
 def sdk_installed():
@@ -193,7 +212,13 @@ NO_KEY = "Er is nog geen Anthropic API-sleutel ingesteld. Voeg er een toe via In
 def check_gemini():
     """Controleer de Gemini-sleutel en modellen, zonder iets te genereren."""
     try:
-        gemini.check_connection(_gemini_key(), gemini_models())
+        text_model, image_model = gemini_models()
+        if _setting(GEMINI_TEXT_KEY):
+            gemini.check_connection(_setting(GEMINI_TEXT_KEY), [text_model])
+            if _setting(GEMINI_KEY) or os.environ.get("GEMINI_API_KEY"):
+                gemini.check_connection(_gemini_key(), [image_model])
+        else:
+            gemini.check_connection(_gemini_key(), [text_model, image_model])
     except gemini.GeminiError as e:
         raise AIUnavailable(str(e))
 
@@ -202,7 +227,7 @@ def check_connection():
     """Controleer of Claude bereikbaar is met de huidige sleutel, zonder tokens te verbruiken."""
     anthropic, client = _client()
     try:
-        client.models.retrieve(MODEL)
+        client.models.retrieve(claude_model()["id"])
     except anthropic.AuthenticationError:
         raise AIUnavailable("Deze API-sleutel wordt niet geaccepteerd. Controleer of je hem volledig hebt geplakt.")
     except anthropic.PermissionDeniedError:
@@ -228,7 +253,7 @@ def _ask(system, user_message, schema, effort="medium"):
     """Stel de gekozen AI een vraag en krijg JSON terug volgens `schema`."""
     if text_provider() == "gemini":
         try:
-            return gemini.generate_json(_gemini_key(), gemini_models()[0], system, user_message, schema)
+            return gemini.generate_json(_gemini_text_key(), gemini_models()[0], system, user_message, schema)
         except gemini.GeminiError as e:
             raise AIUnavailable(str(e))
     return _ask_claude(system, user_message, schema, effort)
@@ -239,15 +264,19 @@ def _ask_claude(system, user_message, schema, effort):
     anthropic, client = _client()
     try:
         # Streaming, omdat een volle week of een collectie recepten een lang antwoord kan opleveren.
+        model = claude_model()
+        options = {"output_config": {"format": {"type": "json_schema", "schema": schema}}}
+        if model["thinking"]:
+            options["thinking"] = {"type": "adaptive"}
+            options["output_config"]["effort"] = effort
+        if model["fallback"]:
+            options.update(betas=["server-side-fallback-2026-07-01"], fallbacks="default")
         with client.beta.messages.stream(
-            model=MODEL,
+            model=model["id"],
             max_tokens=64000,
-            betas=["server-side-fallback-2026-07-01"],
-            fallbacks="default",
-            thinking={"type": "adaptive"},
-            output_config={"effort": effort, "format": {"type": "json_schema", "schema": schema}},
             system=system,
             messages=[{"role": "user", "content": user_message}],
+            **options,
         ) as stream:
             response = stream.get_final_message()
     except anthropic.AuthenticationError:
