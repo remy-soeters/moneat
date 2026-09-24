@@ -80,7 +80,8 @@ computer zelf bereikbaar. Maak naast `docker-compose.yml` een bestand `.env` met
 MEALPLANNER_ADRES=0.0.0.0
 ```
 
-Open dan `http://<ip-adres-van-de-server>:8000`. De app heeft geen wachtwoord: iedereen op je netwerk kan
+Open dan `http://<ip-adres-van-de-server>:8000`. Is poort 8000 al bezet door iets anders, voeg dan
+bijvoorbeeld `MEALPLANNER_POORT=8080` toe aan `.env` en gebruik die poort in het adres. De app heeft geen wachtwoord: iedereen op je netwerk kan
 je recepten aanpassen en de AI (op jouw kosten) gebruiken. Zet poort 8000 dus nooit open naar internet.
 
 **Naar een andere computer verhuizen.** Haal de code op met `git clone`, kopieer de map `data/` mee
