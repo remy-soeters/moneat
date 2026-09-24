@@ -92,6 +92,13 @@ class PreloaderTest(unittest.TestCase):
         self.run_preloader(retry=True)
         self.assertIsNotNone(self.preloader.status()["photos_failed"])  # opnieuw geprobeerd, nog steeds mis
 
+    def test_no_photos_when_auto_images_is_off(self):
+        with mock.patch.object(ai, "_setting", lambda key, default=None: "off" if key == ai.AUTO_IMAGES else default):
+            self.run_preloader()
+            self.assertFalse(self.preloader.status()["photos_enabled"])
+        self.assertEqual(ai.generate_photo.call_count, 0)
+        self.assertGreaterEqual(len(self.db.pending_swipe_cards()), 10)  # wel gerechten, zonder foto
+
     def test_text_errors_are_reported(self):
         ai.swipe_recipes.side_effect = ai.AIUnavailable("geen sleutel")
         self.run_preloader()

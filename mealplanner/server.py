@@ -230,6 +230,7 @@ def make_handler(db, images=None):
                 "text_provider": ai.text_provider(),
                 "swipe_preload": preload_target(),
                 "swipe_preload_options": list(PRELOAD_OPTIONS),
+                "auto_images": db.get_setting(ai.AUTO_IMAGES) != "off",
                 "claude": {
                     "set": bool(claude_key),
                     "hint": mask_key(claude_key) if claude_key else None,
@@ -261,6 +262,9 @@ def make_handler(db, images=None):
                 if int(body["swipe_preload"]) not in PRELOAD_OPTIONS:
                     raise ApiError(HTTPStatus.BAD_REQUEST, "Kies 5, 10, 15 of 20 gerechten")
                 db.set_setting(SWIPE_PRELOAD_SETTING, str(int(body["swipe_preload"])))
+                preloader.kick()
+            if "auto_images" in body:
+                db.set_setting(ai.AUTO_IMAGES, None if body["auto_images"] else "off")
                 preloader.kick()
             if "text_provider" in body:
                 if body["text_provider"] not in ("claude", "gemini"):

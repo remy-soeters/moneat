@@ -123,6 +123,7 @@ GEMINI_KEY = "gemini_api_key"
 TEXT_PROVIDER = "text_provider"
 GEMINI_TEXT_MODEL = "gemini_text_model"
 GEMINI_IMAGE_MODEL = "gemini_image_model"
+AUTO_IMAGES = "auto_images"  # "off" = geen foto's/iconen op de achtergrond laten maken
 
 
 def set_settings(getter):
@@ -147,6 +148,11 @@ def gemini_models():
 
 def gemini_configured():
     return bool(_setting(GEMINI_KEY) or os.environ.get("GEMINI_API_KEY"))
+
+
+def auto_images():
+    """Mag de app zelf (op de achtergrond) foto's en iconen laten maken? Handmatig kan altijd."""
+    return _setting(AUTO_IMAGES) != "off" and gemini_configured()
 
 
 def _gemini_key():

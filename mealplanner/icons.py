@@ -19,7 +19,7 @@ class IconMaker:
         self.failed = None  # melding als iconen maken niet lukt (bijv. geen sleutel of betaling)
 
     def enabled(self):
-        return self.failed is None and ai.gemini_configured()
+        return self.failed is None and ai.auto_images()
 
     def pending(self):
         with self.lock:

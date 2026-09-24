@@ -42,7 +42,7 @@ class SwipePreloader:
         }
 
     def photos_enabled(self):
-        return self.photos_failed is None and ai.gemini_configured()
+        return self.photos_failed is None and ai.auto_images()
 
     # ---------- aansturen ----------
 

@@ -1131,6 +1131,9 @@ function renderSettings(settings) {
     $("[data-delete]", section).hidden = !info.set;
     $("[data-test]", section).disabled = !(info.set || info.env) || (provider === "claude" && !settings.sdk_installed);
   }
+  for (const chip of $$("#auto-images-choice .chip")) {
+    chip.setAttribute("aria-pressed", String((chip.dataset.value === "on") === settings.auto_images));
+  }
   $("#swipe-preload-choice").innerHTML = settings.swipe_preload_options
     .map((n) => `<button type="button" class="chip" data-value="${n}" aria-pressed="${n === settings.swipe_preload}">${n} gerechten</button>`)
     .join("");
@@ -1889,6 +1892,15 @@ $$(".key-section").forEach((section) => {
     const input = $("[name=key]", section);
     input.type = input.type === "password" ? "text" : "password";
     $("[data-toggle]", section).textContent = input.type === "password" ? "Toon" : "Verberg";
+  });
+});
+
+$("#auto-images-choice").addEventListener("click", (e) => {
+  const value = e.target.closest(".chip")?.dataset.value;
+  if (!value) return;
+  guarded(async () => {
+    renderSettings(await api("/api/settings", { method: "PUT", body: { auto_images: value === "on" } }));
+    toast(value === "on" ? "Foto's en iconen worden weer automatisch gemaakt" : "Er worden geen foto's of iconen meer vanzelf gemaakt");
   });
 });
 

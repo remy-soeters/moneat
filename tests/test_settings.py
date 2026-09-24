@@ -72,6 +72,16 @@ class SettingsApiTest(unittest.TestCase):
         self.assertEqual(self.call("PUT", "/api/settings", {"text_provider": "chatgpt"})[0], 400)
         self.assertEqual(self.call("PUT", "/api/settings", {"gemini_image_model": "rm -rf /"})[0], 400)
 
+    def test_auto_images_switch(self):
+        self.db.set_setting(ai.GEMINI_KEY, "AIza" + "x" * 35)
+        self.assertTrue(self.call("GET", "/api/settings")[1]["auto_images"])
+        self.assertTrue(ai.auto_images())
+        settings = self.call("PUT", "/api/settings", {"auto_images": False})[1]
+        self.assertFalse(settings["auto_images"])
+        self.assertFalse(ai.auto_images())
+        self.assertFalse(self.call("GET", "/api/shopping")[1]["icons"]["enabled"])
+        self.assertTrue(self.call("PUT", "/api/settings", {"auto_images": True})[1]["auto_images"])
+
     def test_ai_uses_key_from_settings(self):
         self.call("PUT", "/api/settings", {"claude_api_key": KEY})
         self.assertEqual(ai._setting(ai.CLAUDE_KEY), KEY)
