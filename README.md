@@ -15,7 +15,7 @@ publiceren; staat dat er niet, dan haalt Claude het recept uit de tekst van de p
 
 - **Backend:** Python 3.11+ (alleen standaardbibliotheek) met een JSON-API en SQLite
 - **Frontend:** HTML, CSS en JavaScript zonder build-stap (`static/`)
-- **AI:** Claude via de officiële `anthropic` Python SDK (optioneel)
+- **AI:** Claude (officiële `anthropic` SDK) of Google Gemini (REST); beide optioneel
 
 ## Installeren (eenmalig)
 
@@ -30,16 +30,25 @@ python3 -m venv .venv
 ./start.sh
 ```
 
-Open daarna http://127.0.0.1:8000 en voeg je Anthropic API-sleutel toe via **Instellingen**
-(tandwiel rechtsboven). De database komt in `data/mealplanner.db`, foto's in `data/images/`.
+Open daarna http://127.0.0.1:8000 en voeg je API-sleutel(s) toe via **Instellingen** in het menu.
+De database komt in `data/mealplanner.db`, foto's in `data/images/`.
 Opties: `./start.sh --port 8080`, `--host 0.0.0.0` (bereikbaar op je netwerk), `--db pad/naar/bestand.db`.
 
 Zonder `.venv` start de app ook met `python3 -m mealplanner.server`; alles werkt dan behalve de
 functies met Claude.
 
-De API-sleutel kun je invoeren in de app zelf via **Instellingen**; een sleutel die je daar opslaat
-gaat voor op de omgevingsvariabele `ANTHROPIC_API_KEY`. Hij wordt bewaard in `data/mealplanner.db`
-(niet in git) en daarna alleen gemaskeerd getoond.
+### AI: Claude en Gemini
+
+In **Instellingen** in het menu kies je wie de recepten schrijft en voeg je de API-sleutels toe:
+
+- **Gemini** (Google): recepten schrijven is gratis met limieten (`gemini-3.8-flash`). Gemini maakt ook
+  de **foto's** bij recepten (`gemini-3.1-flash-image`); dat is bij Google niet gratis, daarvoor moet je
+  betalen instellen in AI Studio. Sleutel via https://aistudio.google.com/apikey.
+- **Claude** (Anthropic): betaald, beste kwaliteit. Sleutel via https://console.anthropic.com.
+
+Sleutels worden bewaard in `data/mealplanner.db` (niet in git) en daarna alleen gemaskeerd getoond. Een
+sleutel in de app gaat voor op de omgevingsvariabelen `ANTHROPIC_API_KEY` / `GEMINI_API_KEY`. De Gemini-modellen
+kun je in de instellingen aanpassen als Google nieuwe versies uitbrengt.
 
 ## Tests
 
@@ -53,7 +62,8 @@ gaat voor op de omgevingsvariabele `ANTHROPIC_API_KEY`. Hij wordt bewaard in `da
 | --- | --- |
 | `mealplanner/db.py` | SQLite-schema, recepten, weekmenu, boodschappenlijst |
 | `mealplanner/server.py` | HTTP-server en API-routes |
-| `mealplanner/ai.py` | Claude: menu-opties, recepten bedenken en uitlezen, inspiratie |
+| `mealplanner/ai.py` | AI: menu-opties, recepten bedenken en uitlezen, inspiratie, foto's |
+| `mealplanner/gemini.py` | Google Gemini (Interactions API) voor tekst en foto's |
 | `mealplanner/importer.py` | Recepten van websites importeren (schema.org/Recipe) |
 | `mealplanner/images.py` | Opslag van receptfoto's |
 | `static/` | Frontend |
@@ -68,9 +78,12 @@ gaat voor op de omgevingsvariabele `ANTHROPIC_API_KEY`. Hij wordt bewaard in `da
 | POST | `/api/recipes/import` | `{url}` → concept-recept van een website (niet opgeslagen) |
 | POST | `/api/recipes/generate` | `{prompt, servings}` → concept-recept door Claude (niet opgeslagen) |
 | POST | `/api/images` | Afbeelding (ruwe bytes) uploaden → `{image}` |
-| GET/PUT | `/api/settings` | Instellingen lezen / `{api_key}` opslaan (sleutel komt alleen gemaskeerd terug) |
-| DELETE | `/api/settings/api-key` | Opgeslagen sleutel verwijderen |
-| POST | `/api/settings/test` | Verbinding met Claude testen (verbruikt geen tokens) |
+| GET/PUT | `/api/settings` | Instellingen lezen / opslaan: `claude_api_key`, `gemini_api_key`, `text_provider`, Gemini-modellen |
+| DELETE | `/api/settings/key/{claude\|gemini}` | Opgeslagen sleutel verwijderen |
+| POST | `/api/settings/test` | `{provider}` verbinding met Claude of Gemini testen (verbruikt niets) |
+| POST | `/api/recipes/{id}/photo` | Foto maken met Gemini voor een recept |
+| POST | `/api/photos/draft` | `{recipe}` foto maken voor een recept dat nog niet bewaard is |
+| POST | `/api/inspiration/photo` | `{theme, servings, index}` foto maken voor een inspiratie-idee |
 | POST | `/api/inspiration` | `{theme, servings, refresh}` → collectie van 6 recepten (bewaard per thema) |
 | GET | `/api/menu?week=JJJJ-MM-DD` | Opties en keuzes van de week (ma–zo) waarin die datum valt |
 | POST | `/api/menu/options` | `{date, recipe_id}` eigen recept op het menu zetten |

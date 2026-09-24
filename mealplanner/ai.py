@@ -1,8 +1,10 @@
-"""Alles wat Claude doet: menu-opties, recepten bedenken, recepten uit een pagina halen en inspiratie."""
+"""Alle AI in de app: menu-opties, recepten bedenken en uitlezen, inspiratie (Claude of Gemini) en foto's (Gemini)."""
 
 import importlib.util
 import json
 import os
+
+from . import gemini
 
 MODEL = "claude-opus-5"
 
@@ -106,13 +108,43 @@ intro (twee zinnen) en per recept één aantrekkelijke zin die laat zien waarom 
 {RECIPE_RULES}"""
 
 
-# Levert de API-sleutel uit de instellingen van de app (of None); ingesteld door de server.
-_key_provider = lambda: None
+# Leest een instelling van de app: get(key, default). Ingesteld door de server.
+_setting = lambda key, default=None: default
+
+CLAUDE_KEY = "anthropic_api_key"
+GEMINI_KEY = "gemini_api_key"
+TEXT_PROVIDER = "text_provider"
+GEMINI_TEXT_MODEL = "gemini_text_model"
+GEMINI_IMAGE_MODEL = "gemini_image_model"
 
 
-def set_key_provider(provider):
-    global _key_provider
-    _key_provider = provider
+def set_settings(getter):
+    global _setting
+    _setting = getter
+
+
+def text_provider():
+    return _setting(TEXT_PROVIDER, "claude")
+
+
+def provider_name():
+    return "Gemini" if text_provider() == "gemini" else "Claude"
+
+
+def gemini_models():
+    return (
+        _setting(GEMINI_TEXT_MODEL) or gemini.DEFAULT_TEXT_MODEL,
+        _setting(GEMINI_IMAGE_MODEL) or gemini.DEFAULT_IMAGE_MODEL,
+    )
+
+
+def _gemini_key():
+    key = _setting(GEMINI_KEY) or os.environ.get("GEMINI_API_KEY")
+    if not key:
+        raise AIUnavailable(
+            "Er is nog geen Gemini API-sleutel ingesteld. Voeg er een toe via Instellingen in het menu."
+        )
+    return key
 
 
 def sdk_installed():
@@ -128,9 +160,9 @@ def _client():
         import anthropic
     except ImportError:
         raise AIUnavailable(
-            "Het pakket 'anthropic' is niet geïnstalleerd. Kijk bij Instellingen (tandwiel rechtsboven) hoe je dat oplost."
+            "Het pakket 'anthropic' is niet geïnstalleerd. Kijk bij Instellingen in het menu hoe je dat oplost."
         )
-    key = _key_provider()
+    key = _setting(CLAUDE_KEY)
     try:
         # Een sleutel uit de app gaat voor; anders zoekt de SDK zelf (omgevingsvariabele of `ant auth login`).
         return anthropic, anthropic.Anthropic(api_key=key) if key else anthropic.Anthropic()
@@ -138,7 +170,15 @@ def _client():
         raise AIUnavailable(NO_KEY)
 
 
-NO_KEY = "Er is nog geen Anthropic API-sleutel ingesteld. Voeg er een toe via Instellingen (tandwiel rechtsboven)."
+NO_KEY = "Er is nog geen Anthropic API-sleutel ingesteld. Voeg er een toe via Instellingen in het menu."
+
+
+def check_gemini():
+    """Controleer de Gemini-sleutel en modellen, zonder iets te genereren."""
+    try:
+        gemini.check_connection(_gemini_key(), gemini_models())
+    except gemini.GeminiError as e:
+        raise AIUnavailable(str(e))
 
 
 def check_connection():
@@ -168,6 +208,16 @@ def _raise_if_no_key(error):
 
 
 def _ask(system, user_message, schema, effort="medium"):
+    """Stel de gekozen AI een vraag en krijg JSON terug volgens `schema`."""
+    if text_provider() == "gemini":
+        try:
+            return gemini.generate_json(_gemini_key(), gemini_models()[0], system, user_message, schema)
+        except gemini.GeminiError as e:
+            raise AIUnavailable(str(e))
+    return _ask_claude(system, user_message, schema, effort)
+
+
+def _ask_claude(system, user_message, schema, effort):
     """Stel Claude een vraag en krijg JSON terug volgens `schema`."""
     anthropic, client = _client()
     try:
@@ -184,7 +234,7 @@ def _ask(system, user_message, schema, effort="medium"):
         ) as stream:
             response = stream.get_final_message()
     except anthropic.AuthenticationError:
-        raise AIUnavailable("De API-sleutel wordt niet geaccepteerd. Controleer hem bij Instellingen (tandwiel rechtsboven).")
+        raise AIUnavailable("De API-sleutel wordt niet geaccepteerd. Controleer hem bij Instellingen in het menu.")
     except anthropic.RateLimitError:
         raise AIUnavailable("Te veel verzoeken aan Claude; probeer het over een minuut opnieuw.")
     except anthropic.APIStatusError as e:
@@ -265,3 +315,21 @@ def inspiration(theme, servings=2, count=6):
         f"Stel een collectie van {count} avondgerechten samen voor {servings} personen.\nThema: {theme.strip()}",
         INSPIRATION_SCHEMA,
     )
+
+
+def photo_prompt(recipe):
+    ingredients = ", ".join(i["name"] for i in (recipe.get("ingredients") or [])[:6])
+    return (
+        f"Appetizing editorial food photograph of the dish \"{recipe['name']}\""
+        + (f", made with {ingredients}" if ingredients else "")
+        + ". Plated as a home-cooked dinner on a ceramic plate on a wooden table, natural window light, "
+        "shallow depth of field, warm tones, shot at a 45-degree angle. Realistic, no text, no people, no hands."
+    )
+
+
+def generate_photo(recipe):
+    """Laat Gemini een foto van het gerecht maken; geeft de afbeeldingsbytes terug."""
+    try:
+        return gemini.generate_image(_gemini_key(), gemini_models()[1], photo_prompt(recipe))
+    except gemini.GeminiError as e:
+        raise AIUnavailable(str(e))

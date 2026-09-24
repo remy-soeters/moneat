@@ -288,13 +288,15 @@ class Database:
     # ---------- afbeeldingen en inspiratie ----------
 
     def image_in_use(self, image):
-        """Wordt deze afbeelding nog gebruikt door een recept of een voorstel op het menu?"""
+        """Wordt deze afbeelding nog gebruikt door een recept, een voorstel op het menu of inspiratie?"""
         with self.connect() as conn:
             if conn.execute("SELECT 1 FROM recipes WHERE image = ?", (image,)).fetchone():
                 return True
-            return conn.execute(
-                "SELECT 1 FROM menu_options WHERE suggestion LIKE ?", (f'%"image": "{image}"%',)
-            ).fetchone() is not None
+            pattern = f'%"image": "{image}"%'
+            return (
+                conn.execute("SELECT 1 FROM menu_options WHERE suggestion LIKE ?", (pattern,)).fetchone()
+                or conn.execute("SELECT 1 FROM inspiration WHERE payload LIKE ?", (pattern,)).fetchone()
+            ) is not None
 
     def get_inspiration(self, key):
         with self.connect() as conn:

@@ -333,7 +333,8 @@ dialog.modal {
   border-radius: 16px; background: var(--bg); color: var(--ink); box-shadow: 0 24px 64px rgba(40, 20, 10, 0.3);
   display: none; flex-direction: column; overflow: hidden;
 }
-dialog.modal.wide { width: min(920px, calc(100vw - 32px)); }
+dialog.modal.wide { width: min(1120px, calc(100vw - 48px)); height: calc(100vh - 48px); max-height: none; }
+#edit-sheet { width: min(760px, calc(100vw - 32px)); max-height: calc(100vh - 48px); }
 dialog.modal[open] { display: flex; animation: modal-in 0.25s ease; }
 dialog.modal > form { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 dialog.modal::backdrop { background: rgba(35, 25, 18, 0.5); animation: fade-in 0.2s ease; }
@@ -357,7 +358,6 @@ dialog.modal::backdrop { background: rgba(35, 25, 18, 0.5); animation: fade-in 0
 }
 .close:hover { background: var(--line); }
 .close svg { width: 16px; height: 16px; stroke-width: 2.2; }
-#view-sheet > .close { position: absolute; top: 16px; right: 16px; z-index: 2; background: rgba(255, 255, 255, 0.92); color: #2b2622; }
 
 /* formuliervelden */
 .field { display: flex; flex-direction: column; gap: 6px; margin: 0 0 18px; border: 0; padding: 0; min-width: 0; }
@@ -412,49 +412,18 @@ dialog.modal::backdrop { background: rgba(35, 25, 18, 0.5); animation: fade-in 0
 .pick-row:disabled .box { background: var(--sage); border-color: var(--sage); }
 .pick-row:disabled .box svg { opacity: 1; }
 
-/* receptpagina */
-.recipe-hero { position: relative; height: 200px; display: grid; place-items: center; background: var(--plate); }
-.recipe-hero .dish { font-size: 88px; filter: drop-shadow(0 10px 14px rgba(60, 30, 10, 0.2)); }
-.recipe-hero .plate-badges { left: 24px; top: 20px; }
-.recipe-intro { padding: 28px 28px 8px; }
-.recipe-intro h2 { margin: 0 0 12px; font-size: clamp(28px, 4vw, 40px); line-height: 1.1; }
-.recipe-facts { display: flex; flex-wrap: wrap; gap: 8px 28px; padding: 14px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-.fact { display: flex; flex-direction: column; }
-.fact small { font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3); }
-.fact strong { font-family: var(--serif); font-size: 18px; font-weight: 600; }
-.recipe-why {
-  margin: 20px 0 0; padding: 14px 18px; border-left: 3px solid var(--claude); background: var(--claude-soft);
-  border-radius: 0 8px 8px 0; font-family: var(--serif); font-style: italic; font-size: 17px;
-}
-.recipe-why small { display: block; font-family: var(--sans); font-style: normal; font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--claude); margin-bottom: 2px; }
-.recipe-columns { display: grid; grid-template-columns: minmax(220px, 1fr) 2fr; gap: 36px; padding: 20px 28px 32px; }
-.recipe-columns h3 { font-size: 22px; margin: 0 0 12px; }
-.ing-list { list-style: none; margin: 0; padding: 0; }
-.ing-list li { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px dashed var(--line); }
-.ing-list .qty { flex: none; min-width: 70px; font-weight: 600; }
-.method { list-style: none; margin: 0; padding: 0; counter-reset: step; }
-.method li { position: relative; padding: 0 0 18px 48px; counter-increment: step; }
-.method li::before {
-  content: counter(step); position: absolute; left: 0; top: -4px; width: 34px; height: 34px; border-radius: 50%;
-  display: grid; place-items: center; background: var(--accent-soft); color: var(--accent);
-  font-family: var(--serif); font-weight: 700; font-size: 17px;
-}
 .muted { color: var(--ink-3); font-style: italic; }
 
 /* ---------- foto's ---------- */
 
-.plate.photo, .recipe-hero.photo, .mini-plate.photo, .photo-preview.photo {
+.plate.photo, .mini-plate.photo, .photo-preview.photo, .book-photo.photo {
   background-size: cover; background-position: center;
 }
-.plate.photo .dish, .recipe-hero.photo .dish { display: none; }
-.recipe-hero.photo { height: 300px; }
+.plate.photo .dish { display: none; }
 .plate.photo::after {
   content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0, 0, 0, 0.18), transparent 40%);
   pointer-events: none;
 }
-.recipe-source { margin: 14px 0 0; font-size: 14px; color: var(--ink-2); }
-.recipe-source a { color: var(--accent); font-weight: 600; text-decoration: none; }
-.recipe-source a:hover { text-decoration: underline; }
 
 .photo-field { display: flex; align-items: center; gap: 16px; margin: 4px 0 20px; }
 .photo-preview {
@@ -535,9 +504,7 @@ dialog.modal::backdrop { background: rgba(35, 25, 18, 0.5); animation: fade-in 0
 
 /* ---------- instellingen ---------- */
 
-.site-header-inner { position: relative; }
-.settings-btn { flex: none; }
-.site-header-inner .nav-tabs { margin-left: auto; }
+.settings-page { max-width: 760px; }
 .settings-title { margin: 4px 0 6px; font-size: 22px; }
 .status-list { list-style: none; margin: 0 0 24px; padding: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
 .status-list li { display: flex; align-items: flex-start; gap: 12px; padding: 12px 16px; }
@@ -561,6 +528,148 @@ dialog.modal::backdrop { background: rgba(35, 25, 18, 0.5); animation: fade-in 0
 .test-result.ok { background: var(--sage-soft); color: var(--sage); }
 .test-result.error { background: var(--accent-soft); color: var(--accent); }
 
+.provider-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px; }
+.provider-choice button {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 14px 16px; cursor: pointer; text-align: left;
+  border: 1.5px solid var(--line); border-radius: 10px; background: var(--paper); font: inherit; color: var(--ink);
+}
+.provider-choice button[aria-checked="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.provider-choice strong { font-family: var(--serif); font-size: 18px; font-weight: 600; }
+.provider-choice small { color: var(--ink-2); font-size: 13px; }
+.key-section { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--line); }
+.models { margin: 0 0 18px; }
+.models summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--ink-2); margin-bottom: 12px; }
+.models input { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 14px; }
+
+/* foto maken */
+.make-photo { display: inline-flex; align-items: center; gap: 6px; }
+.make-photo svg, .ai-btn svg { width: 15px; height: 15px; fill: currentColor; stroke: none; }
+.hero-photo-btn { position: absolute; right: 20px; bottom: 16px; }
+.btn.on-image { background: rgba(255, 255, 255, 0.92); color: #2b2622; border-color: transparent; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); }
+.btn.on-image:hover { background: #fff; }
+.plate.busy::before, .book-photo.busy::before {
+  content: ""; position: absolute; inset: 0; z-index: 1; background: rgba(255, 255, 255, 0.55);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+.plate.busy::after, .book-photo.busy::after {
+  content: "Foto maken…"; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 2;
+  background: rgba(43, 38, 34, 0.85); color: #fff; font-size: 13px; font-weight: 600; padding: 5px 12px; border-radius: 999px;
+}
+.book-tools { display: flex; justify-content: flex-end; margin: -12px 0 20px; }
+
+/* ---------- recept als opengeslagen kookboek ---------- */
+
+dialog.book {
+  --paper-page: #fdf8ee;
+  --paper-edge: #efe4cf;
+  --book-ink: #2e2620;
+  --book-ink-2: #7a6c5f;
+  --note: #fff3b8;
+  --note-ink: #33415c;
+  background: #4a3a2c; /* de kaft */
+  padding: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  dialog.book {
+    --paper-page: #2b251f;
+    --paper-edge: #221d18;
+    --book-ink: #f1e8dc;
+    --book-ink-2: #b8a998;
+    --note: #4a4330;
+    --note-ink: #efe3b0;
+    background: #120e0b;
+  }
+}
+dialog.book > .close { position: absolute; top: 20px; right: 20px; z-index: 3; background: rgba(255, 255, 255, 0.9); color: #2b2622; }
+dialog.book .modal-scroll { padding: 0; overflow-x: hidden; border-radius: 8px 8px 0 0; background: var(--paper-page); }
+dialog.book .modal-foot { background: var(--paper-edge); border-top: 1px solid rgba(0, 0, 0, 0.08); border-radius: 0 0 8px 8px; }
+
+.book-spread {
+  position: relative; display: grid; grid-template-columns: 1fr 1fr; min-height: 100%;
+  color: var(--book-ink);
+  background:
+    linear-gradient(to right, rgba(0, 0, 0, 0.06), transparent 3%, transparent 47%, rgba(0, 0, 0, 0.13) 49.6%,
+      rgba(0, 0, 0, 0.18) 50%, rgba(0, 0, 0, 0.1) 50.4%, transparent 53%, transparent 97%, rgba(0, 0, 0, 0.06)),
+    var(--paper-page);
+}
+.book-page { position: relative; padding: 56px 56px 64px; animation: page-open 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.book-page.left { transform-origin: right center; }
+.book-page.right { transform-origin: left center; animation-delay: 0.08s; --turn: -12deg; }
+@keyframes page-open { from { opacity: 0; transform: perspective(1600px) rotateY(var(--turn, 12deg)); } }
+
+.book-photo {
+  position: relative; margin: 0 0 32px; height: clamp(220px, 34vh, 380px); display: grid; place-items: center;
+  background: var(--plate, var(--paper-2)) center / cover no-repeat;
+  border: 10px solid #fff; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08), 0 12px 28px rgba(60, 40, 20, 0.18);
+  transform: rotate(-1.2deg);
+}
+.book-photo .dish { font-size: 96px; filter: drop-shadow(0 10px 14px rgba(60, 30, 10, 0.2)); }
+.book-photo:not(.busy)::before, .book-photo:not(.busy)::after {  /* fotohoekjes */
+  content: ""; position: absolute; width: 34px; height: 34px; z-index: 1;
+  background: linear-gradient(135deg, rgba(60, 45, 30, 0.55) 50%, transparent 50%);
+}
+.book-photo:not(.busy)::before { top: -12px; left: -12px; }
+.book-photo:not(.busy)::after { bottom: -12px; right: -12px; transform: rotate(180deg); }
+.book-photo .plate-badges { position: absolute; left: 14px; top: 14px; z-index: 2; }
+.book-photo .hero-photo-btn { right: 14px; bottom: 14px; z-index: 2; }
+
+.book-kicker {
+  margin: 0 0 10px; text-align: center; font-size: 12px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--accent);
+}
+.book-title {
+  margin: 0; text-align: center; font-family: var(--serif); font-size: clamp(32px, 3.6vw, 48px); font-weight: 600;
+  font-style: italic; line-height: 1.08; letter-spacing: -0.015em; text-wrap: balance;
+}
+.book-ornament { text-align: center; color: var(--accent); letter-spacing: 0.6em; margin: 18px 0 22px; font-size: 13px; }
+.book-facts {
+  display: flex; justify-content: center; flex-wrap: wrap; margin: 0 0 28px;
+  border-top: 1px solid rgba(0, 0, 0, 0.12); border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+}
+.book-facts div { padding: 12px 22px; text-align: center; }
+.book-facts div + div { border-left: 1px solid rgba(0, 0, 0, 0.12); }
+.book-facts dt { font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--book-ink-2); }
+.book-facts dd { margin: 2px 0 0; font-family: var(--serif); font-size: 19px; }
+
+.book-note {
+  position: relative; max-width: 380px; margin: 8px auto 20px; padding: 16px 20px 18px;
+  background: var(--note); color: var(--note-ink); transform: rotate(1.4deg);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1), 0 8px 18px rgba(60, 40, 20, 0.14);
+  font-family: "Caveat", "Segoe Print", cursive; font-size: 24px; line-height: 1.2;
+}
+.book-note::before {  /* plakbandje */
+  content: ""; position: absolute; top: -10px; left: 50%; width: 90px; height: 22px; transform: translateX(-50%) rotate(-2deg);
+  background: rgba(255, 255, 255, 0.55); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+.book-note small {
+  display: block; margin-bottom: 4px; font-family: var(--sans); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.7;
+}
+.book-source { text-align: center; font-family: var(--serif); font-style: italic; color: var(--book-ink-2); margin: 16px 0 0; }
+.book-source a { color: var(--accent); }
+
+.book-heading {
+  display: flex; align-items: baseline; gap: 12px; margin: 0 0 18px; padding-bottom: 10px;
+  font-family: var(--serif); font-size: 30px; font-weight: 600; border-bottom: 2px solid var(--accent);
+}
+.book-heading small { font-family: var(--sans); font-size: 13px; font-weight: 500; color: var(--book-ink-2); letter-spacing: 0.02em; }
+.book-ingredients { list-style: none; margin: 0 0 44px; padding: 0; font-family: var(--serif); font-size: 18px; }
+.book-ingredients li { display: flex; align-items: baseline; padding: 6px 0; }
+.book-ingredients .leader { flex: 1; min-width: 20px; margin: 0 8px; border-bottom: 2px dotted rgba(0, 0, 0, 0.22); transform: translateY(-4px); }
+.book-ingredients .qty { font-weight: 600; white-space: nowrap; }
+.book-method { list-style: none; margin: 0; padding: 0; counter-reset: step; font-family: var(--serif); font-size: 18px; line-height: 1.65; }
+.book-method li { position: relative; counter-increment: step; padding: 0 0 20px 58px; }
+.book-method li::before {
+  content: counter(step); position: absolute; left: 0; top: -8px; width: 42px; text-align: right;
+  font-family: var(--serif); font-size: 40px; font-weight: 600; font-style: italic; line-height: 1; color: var(--accent);
+}
+.book-end { text-align: center; color: var(--accent); font-family: var(--serif); font-size: 26px; margin: 12px 0 0; font-variant-emoji: text; }
+.page-no {
+  position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%);
+  font-family: var(--serif); font-style: italic; font-size: 14px; color: var(--book-ink-2);
+}
+.page-no::before, .page-no::after { content: "—"; margin: 0 8px; opacity: 0.5; }
+
 /* ---------- toast ---------- */
 
 .toast {
@@ -577,10 +686,12 @@ dialog.modal::backdrop { background: rgba(35, 25, 18, 0.5); animation: fade-in 0
   main { padding: 0 16px 64px; }
   .site-header-inner { height: auto; flex-direction: column; align-items: stretch; gap: 0; padding: 12px 16px 0; }
   .logo { justify-content: center; font-size: 22px; }
-  .site-header-inner .nav-tabs { margin-left: 0; }
-  .settings-btn { position: absolute; top: 10px; right: 12px; width: 34px; height: 34px; }
-  .nav-tabs { justify-content: space-between; gap: 4px; }
-  .nav-tabs button { padding: 12px 0; font-size: 11px; letter-spacing: 0.04em; }
+  .nav-tabs {
+    justify-content: flex-start; gap: 20px; margin: 0 -16px; padding: 0 16px;
+    overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  }
+  .nav-tabs::-webkit-scrollbar { display: none; }
+  .nav-tabs button { flex: none; padding: 12px 0; font-size: 12px; letter-spacing: 0.06em; }
   .themes { grid-template-columns: 1fr 1fr; gap: 10px; }
   .theme { padding: 14px; }
   .page-head { padding-top: 28px; }
@@ -592,24 +703,30 @@ dialog.modal::backdrop { background: rgba(35, 25, 18, 0.5); animation: fade-in 0
   .day-status { flex-basis: 100%; white-space: normal; }
   .plate { height: 104px; }
   .plate .dish { font-size: 44px; }
-  .recipe-hero { height: 150px; }
   .tiles { grid-template-columns: 1fr; gap: 14px; }
   .tile.add { min-height: 0; flex-direction: row; padding: 16px; }
-  .recipe-columns { grid-template-columns: 1fr; gap: 24px; padding: 16px 20px 24px; }
-  .recipe-intro { padding: 20px 20px 4px; }
   .modal-head, .modal-scroll, .modal-foot { padding-left: 20px; padding-right: 20px; }
   .modal-foot { flex-wrap: nowrap; gap: 8px; }
   .modal-foot .btn:not(.link) { padding: 10px 16px; }
   .shop-card { padding: 4px 16px 12px; }
   .shop-row .from { display: none; }
+  .book-spread { grid-template-columns: 1fr; background: var(--paper-page); }
+  .book-page { padding: 28px 22px 48px; }
+  .book-page.left { padding-bottom: 12px; }
+  .book-page.left .page-no { display: none; }
+  .book-photo { height: 210px; border-width: 6px; margin-bottom: 24px; }
+  .book-facts div { padding: 10px 14px; }
+  .book-heading { font-size: 26px; }
+  .book-method li { padding-left: 46px; }
+  .book-method li::before { font-size: 32px; width: 34px; }
+  dialog.book { padding: 6px 6px 0; }
   .season-card { padding: 22px; }
   .theme-search { flex-direction: column; }
-  .recipe-hero.photo { height: 200px; }
   .photo-preview { width: 104px; height: 80px; }
-  dialog.modal, dialog.modal.wide { width: 100vw; max-width: 100vw; max-height: 94vh; margin: auto 0 0; border-radius: 16px 16px 0 0; }
+  dialog.modal, dialog.modal.wide, #edit-sheet { width: 100vw; max-width: 100vw; max-height: 94vh; margin: auto 0 0; border-radius: 16px 16px 0 0; }
+  dialog.modal.wide { height: 94vh; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
-#view-sheet .modal-scroll { padding: 0; }
