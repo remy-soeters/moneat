@@ -15,6 +15,9 @@ recepten van Claude komen pas in je receptenboek als je ze kiest of bewaart.
   Kies je een avondeten, dan komen de ingrediënten er vanzelf op (voor het gekozen aantal personen);
   gelijke producten worden één tegel. Zelf iets toevoegen kan met suggesties van wat je vaak koopt, en
   Gemini tekent voor elk product één keer een icoon.
+- **Bring!-sync** (optioneel): koppel je Bring!-account bij **Instellingen** en je boodschappen gaan vanzelf
+  naar een Bring!-lijst naar keuze, met de hoeveelheid erbij. Vink je iets af in Bring!, dan komt het hier bij
+  *Gekocht*; wat je in Bring! zelf toevoegt blijft daar staan.
 - **Inspiratie:** wat er deze maand in het seizoen is, en collecties van 6 recepten per thema
   (of zelf ingetypt) die je bewaart of direct op het menu zet.
 
@@ -57,6 +60,22 @@ In **Instellingen** in het menu kies je wie de recepten schrijft en voeg je de A
 Sleutels worden bewaard in `data/mealplanner.db` (niet in git) en daarna alleen gemaskeerd getoond. Een
 sleutel in de app gaat voor op de omgevingsvariabelen `ANTHROPIC_API_KEY` / `GEMINI_API_KEY`. De Gemini-modellen
 kun je in de instellingen aanpassen als Google nieuwe versies uitbrengt.
+
+### Bring!
+
+Bij **Instellingen → Bring!** log je in met het e-mailadres en wachtwoord van je Bring!-account (heb je je
+aangemeld met Google of Apple, stel dan eerst een wachtwoord in in de Bring!-app). De app kiest je
+standaardlijst; een andere lijst kies je daar ook. Daarna gaat het vanzelf:
+
+- Alles onder *Kopen* staat op de Bring!-lijst. Bekende producten krijgen de Bring!-naam (en het icoon),
+  bijvoorbeeld *Melk* of *Uien*; de hoeveelheid (bijv. `500 g + 2 el`) staat eronder.
+- Koop je iets hier of haal je het van de lijst, dan gaat het in Bring! naar *Recent* of eraf.
+- Vink je iets af in Bring!, dan staat het hier bij *Gekocht* (de app kijkt elke twee minuten, en meteen als
+  je de boodschappenlijst opent).
+- Wat je in Bring! zelf toevoegt, raakt de app niet aan.
+
+Bring! heeft geen officiële API; de app gebruikt dezelfde API als de Bring!-apps (zoals de Home
+Assistant-integratie). Je e-mailadres en wachtwoord staan in `data/mealplanner.db`, net als de API-sleutels.
 
 ## Docker
 
@@ -105,6 +124,7 @@ je recepten aanpassen en de AI (op jouw kosten) gebruiken. Zet poort 8000 dus no
 | `mealplanner/images.py` | Opslag van receptfoto's |
 | `mealplanner/preloader.py` | Houdt op de achtergrond swipekaarten mét foto klaar |
 | `mealplanner/icons.py` | Laat Gemini op de achtergrond iconen voor producten tekenen |
+| `mealplanner/bring.py` | Boodschappenlijst synchroniseren met Bring! |
 | `static/` | Frontend |
 | `tests/` | Unittests voor database en API |
 
@@ -146,3 +166,9 @@ je recepten aanpassen en de AI (op jouw kosten) gebruiken. Zet poort 8000 dus no
 | DELETE | `/api/shopping/items?key=…` | Product van de lijst halen |
 | POST | `/api/shopping/clear-bought` | Alles wat gekocht is van de lijst halen |
 | GET | `/api/shopping/suggestions` | Vaak gekochte producten (aangevuld met gangbare boodschappen) |
+| GET | `/api/bring` | Status van de koppeling met Bring! |
+| POST | `/api/bring/connect` | `{email, password}` inloggen bij Bring! en de standaardlijst kiezen; geeft ook `lists` |
+| GET | `/api/bring/lists` | De lijsten in je Bring!-account |
+| PUT | `/api/bring/list` | `{list_uuid}` naar een andere Bring!-lijst synchroniseren |
+| POST | `/api/bring/sync` | Nu synchroniseren; geeft de boodschappenlijst terug (met `changed`) |
+| DELETE | `/api/bring` | Bring! ontkoppelen (wat in Bring! staat blijft staan) |

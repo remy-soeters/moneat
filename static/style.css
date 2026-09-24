@@ -362,6 +362,9 @@ h1, h2, h3 { font-family: var(--serif); font-weight: 600; letter-spacing: -0.01e
 .shop-empty { padding: 28px 16px; text-align: center; color: var(--ink-2); border: 2px dashed var(--line); border-radius: 14px; }
 .icons-note { display: flex; align-items: center; gap: 8px; margin: -16px 2px 20px; font-size: 13px; color: var(--ink-2); }
 .icons-note .spinner { width: 14px; height: 14px; }
+.bring-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: -12px 2px 18px; font-size: 13px; color: var(--ink-2); }
+.bring-line.error { color: var(--accent); }
+.bring-line .btn.link { padding: 0; font-size: 13px; }
 
 /* ---------- modals ---------- */
 
@@ -564,6 +567,11 @@ dialog.modal::backdrop { background: rgba(35, 25, 18, 0.5); animation: fade-in 0
 .test-result { margin: 18px 0 0; padding: 12px 16px; border-radius: 10px; font-weight: 500; }
 .test-result.ok { background: var(--sage-soft); color: var(--sage); }
 .test-result.error { background: var(--accent-soft); color: var(--accent); }
+select.select {
+  width: 100%; font: inherit; color: var(--ink); background: var(--paper);
+  border: 1.5px solid var(--line); border-radius: 8px; padding: 10px 12px; outline: none;
+}
+select.select:focus { border-color: var(--accent); }
 
 .provider-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px; }
 .provider-choice button {

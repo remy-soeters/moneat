@@ -17,6 +17,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from . import ai, gemini
+from .bring import BringError, BringSync
 from .db import Database, NotFound
 from .images import MAX_IMAGE_BYTES, ImageStore
 from .icons import IconMaker
@@ -27,6 +28,8 @@ ROOT = Path(__file__).resolve().parent.parent
 STATIC_DIR = ROOT / "static"
 DEFAULT_DB = ROOT / "data" / "mealplanner.db"
 MAX_BODY = 1_000_000
+# Na een wijziging via deze paden kan de boodschappenlijst anders zijn: dan Bring! bijwerken.
+SYNC_PATHS = ("/api/shopping", "/api/menu", "/api/recipes/")
 
 
 KEY_SETTINGS = {"claude": ai.CLAUDE_KEY, "gemini": ai.GEMINI_KEY}
@@ -85,8 +88,9 @@ class ApiError(Exception):
         self.status = status
 
 
-def make_handler(db, images=None):
+def make_handler(db, images=None, bring=None):
     images = images or ImageStore(tempfile.mkdtemp(prefix="mealplanner-images-"))
+    bring = bring or BringSync(db)
 
     ai.set_settings(db.get_setting)
 
@@ -110,6 +114,7 @@ def make_handler(db, images=None):
 
     preloader = SwipePreloader(db, images, release_image, load_preferences, preload_target)
     icon_maker = IconMaker(db, images)
+    bring.kick()  # gekoppeld? Dan meteen gelijktrekken en daarna af en toe kijken wat er in Bring! is afgevinkt
 
     def with_icons(items):
         """Voeg aan elk product het icoon toe (als dat er al is) en laat ontbrekende iconen tekenen."""
@@ -124,6 +129,7 @@ def make_handler(db, images=None):
         return {
             "items": with_icons(db.shopping_list()),
             "icons": {"pending": icon_maker.pending(), "enabled": icon_maker.enabled(), "failed": icon_maker.failed},
+            "bring": bring.status(),
         }
 
     class Handler(BaseHTTPRequestHandler):
@@ -158,6 +164,8 @@ def make_handler(db, images=None):
                     match = pattern.fullmatch(url.path)
                     if match and route_method == method:
                         result = action(self, query, *match.groups())
+                        if method != "GET" and url.path.startswith(SYNC_PATHS):
+                            bring.kick()  # de boodschappenlijst kan veranderd zijn
                         return self._send_json(result, HTTPStatus.OK)
                 raise ApiError(HTTPStatus.NOT_FOUND, "Onbekend API-pad")
             except ApiError as e:
@@ -168,6 +176,8 @@ def make_handler(db, images=None):
                 self._send_json({"error": str(e)}, HTTPStatus.BAD_REQUEST)
             except ai.AIUnavailable as e:
                 self._send_json({"error": str(e)}, HTTPStatus.SERVICE_UNAVAILABLE)
+            except BringError as e:
+                self._send_json({"error": str(e)}, HTTPStatus.BAD_GATEWAY)
             except ImportFailed as e:
                 self._send_json({"error": str(e)}, HTTPStatus.UNPROCESSABLE_ENTITY)
             except Exception:
@@ -446,6 +456,32 @@ def make_handler(db, images=None):
             names = frequent + [n for n in STAPLES if n.lower() not in seen]
             return {"suggestions": with_icons([{"name": n} for n in names[:30]]), "has_history": bool(frequent)}
 
+        # ---------- Bring! ----------
+
+        def get_bring(self, query):
+            return bring.status()
+
+        def connect_bring(self, query):
+            body = self._body()
+            lists = bring.connect(body.get("email"), body.get("password"))
+            return {**bring.status(), "lists": lists}
+
+        def bring_lists(self, query):
+            return {**bring.status(), "lists": bring.lists()}
+
+        def choose_bring_list(self, query):
+            bring.choose_list(str(self._body().get("list_uuid") or ""))
+            return bring.status()
+
+        def disconnect_bring(self, query):
+            bring.disconnect()
+            return bring.status()
+
+        def sync_bring(self, query):
+            """Nu synchroniseren; geeft de (mogelijk in Bring! afgevinkte) boodschappenlijst terug."""
+            changed = bring.sync()
+            return {**shopping_response(), "changed": changed}
+
         # ---------- AI ----------
 
         def fill_menu(self, query):
@@ -572,6 +608,12 @@ def make_handler(db, images=None):
         ("DELETE", re.compile(r"/api/shopping/items"), Handler.remove_shopping_item),
         ("POST", re.compile(r"/api/shopping/clear-bought"), Handler.clear_bought),
         ("GET", re.compile(r"/api/shopping/suggestions"), Handler.shopping_suggestions),
+        ("GET", re.compile(r"/api/bring"), Handler.get_bring),
+        ("POST", re.compile(r"/api/bring/connect"), Handler.connect_bring),
+        ("GET", re.compile(r"/api/bring/lists"), Handler.bring_lists),
+        ("PUT", re.compile(r"/api/bring/list"), Handler.choose_bring_list),
+        ("DELETE", re.compile(r"/api/bring"), Handler.disconnect_bring),
+        ("POST", re.compile(r"/api/bring/sync"), Handler.sync_bring),
     ]
 
     return Handler

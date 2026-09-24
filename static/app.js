@@ -288,6 +288,7 @@ async function refresh() {
       await loadSettingsPage();
     } else {
       applyShopping(await api("/api/shopping"));
+      syncShoppingWithBring();
     }
   });
 }
@@ -1088,6 +1089,7 @@ async function loadSettingsPage() {
     $("[data-toggle]", section).textContent = "Toon";
   });
   renderSettings(await api("/api/settings"));
+  await loadBring();
 }
 
 function renderSettings(settings) {
@@ -1197,6 +1199,145 @@ async function setProvider(provider) {
     renderSettings(await api("/api/settings", { method: "PUT", body: { text_provider: provider } }));
     toast(`Recepten worden nu geschreven door ${aiName()}`);
   });
+}
+
+// ---------- Bring! ----------
+
+async function loadBring() {
+  $("#bring-result").hidden = true;
+  const status = await api("/api/bring");
+  let lists = [];
+  if (status.connected) {
+    try {
+      ({ lists } = await api("/api/bring/lists"));
+    } catch (err) {
+      bringResult(false, err.message);
+    }
+  }
+  renderBring(status, lists);
+}
+
+function bringTime(status) {
+  return status.last_sync ? status.last_sync.slice(11, 16) : "";
+}
+
+function renderBring(status, lists = []) {
+  const item = (ok, title, detail) => `<li class="${ok ? "ok" : "missing"}">
+    <span class="dot">${ok ? ICONS.check : "!"}</span>
+    <div><strong>${title}</strong><small>${detail}</small></div>
+  </li>`;
+  const rows = [];
+  if (!status.connected) {
+    rows.push(item(false, "Niet gekoppeld", "Log hieronder in met je Bring!-account."));
+  } else {
+    rows.push(item(true, "Gekoppeld", `Als <code>${esc(status.email)}</code>, lijst ‘${esc(status.list_name || "?")}’`));
+    rows.push(status.error
+      ? item(false, "Synchroniseren lukt niet", esc(status.error))
+      : item(true, "Automatisch synchroniseren",
+          status.last_sync
+            ? `Laatst om ${bringTime(status)}; ${status.synced} ${status.synced === 1 ? "product" : "producten"} in Bring!.`
+            : "Je boodschappen gaan zo naar Bring!."));
+  }
+  $("#bring-status").innerHTML = rows.join("");
+  $("#bring-form").hidden = status.connected;
+  $("#bring-connected").hidden = !status.connected;
+  const options = lists.length ? lists : status.list_uuid ? [{ uuid: status.list_uuid, name: status.list_name }] : [];
+  $("#bring-list").innerHTML = options
+    .map((l) => `<option value="${esc(l.uuid)}" ${l.uuid === status.list_uuid ? "selected" : ""}>${esc(l.name)}</option>`)
+    .join("");
+}
+
+function bringResult(ok, message) {
+  const el = $("#bring-result");
+  el.className = `test-result ${ok ? "ok" : "error"}`;
+  el.textContent = ok ? `✓ ${message}` : message;
+  el.hidden = false;
+}
+
+async function connectBring(event) {
+  event.preventDefault();
+  const form = event.target;
+  const button = $("[type=submit]", form);
+  button.disabled = true;
+  button.textContent = "Bezig met koppelen…";
+  try {
+    const res = await api("/api/bring/connect", {
+      method: "POST",
+      body: { email: form.email.value.trim(), password: form.password.value },
+    });
+    form.reset();
+    renderBring(res, res.lists);
+    bringResult(true, `Gekoppeld. Je boodschappen gaan naar de lijst ‘${res.list_name}’.`);
+  } catch (err) {
+    bringResult(false, err.message);
+  } finally {
+    button.disabled = false;
+    button.textContent = "Koppelen";
+  }
+}
+
+async function chooseBringList(listUuid) {
+  await guarded(async () => {
+    const status = await api("/api/bring/list", { method: "PUT", body: { list_uuid: listUuid } });
+    await loadBring();
+    toast(`Je boodschappen gaan nu naar ‘${status.list_name}’`);
+  });
+}
+
+async function syncBringNow() {
+  const button = $("#bring-sync-now");
+  button.disabled = true;
+  try {
+    await api("/api/bring/sync", { method: "POST", body: {} });
+    await loadBring();
+    bringResult(true, "Bring! is bijgewerkt.");
+  } catch (err) {
+    await loadBring().catch(() => {});
+    bringResult(false, err.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function disconnectBring() {
+  if (!confirm("Bring! ontkoppelen? Wat al op je Bring!-lijst staat blijft daar staan.")) return;
+  await guarded(async () => {
+    renderBring(await api("/api/bring", { method: "DELETE" }));
+    toast("Bring! is ontkoppeld");
+  });
+}
+
+// Bij het openen van de lijst: meteen ophalen wat er in Bring! is afgevinkt.
+async function syncShoppingWithBring() {
+  if (!shop.bring?.list_uuid || shop.bringBusy) return;
+  shop.bringBusy = true;
+  renderBringLine();
+  try {
+    const data = await api("/api/bring/sync", { method: "POST", body: {} });
+    if (state.tab === "shopping" && !shopSaving.size) {
+      if (data.changed) applyShopping(data);
+      else shop.bring = data.bring;
+    }
+  } catch (err) {
+    shop.bring = { ...shop.bring, error: err.message };
+  } finally {
+    shop.bringBusy = false;
+    renderBringLine();
+  }
+}
+
+function renderBringLine() {
+  const el = $("#shop-bring");
+  const bring = shop.bring;
+  el.hidden = !bring?.list_uuid;
+  if (el.hidden) return;
+  el.classList.toggle("error", Boolean(bring.error));
+  const text = shop.bringBusy
+    ? `<span class="spinner" aria-hidden="true"></span>Bezig met Bring!…`
+    : bring.error
+      ? `Bring!: ${esc(bring.error)}`
+      : `Gesynchroniseerd met Bring! (‘${esc(bring.list_name)}’)${bring.last_sync ? ` om ${bringTime(bring)}` : ""}`;
+  el.innerHTML = `<span>${text}</span>${shop.bringBusy ? "" : `<button class="btn link" data-action="bring-sync">Nu bijwerken</button>`}`;
 }
 
 // ---------- foto's maken met Gemini ----------
@@ -1549,7 +1690,7 @@ async function renderSwipeTeaser() {
 
 // ---------- boodschappen ----------
 
-const shop = { items: [], icons: null, suggestions: [], poll: null };
+const shop = { items: [], icons: null, suggestions: [], poll: null, bring: null, bringBusy: false };
 
 // Emoji als icoon zolang Gemini nog geen eigen icoon getekend heeft (of als dat niet kan).
 const PRODUCT_EMOJI = [
@@ -1575,7 +1716,9 @@ function productEmoji(name) {
 function applyShopping(data) {
   shop.items = data.items;
   shop.icons = data.icons;
+  shop.bring = data.bring;
   renderShopping();
+  renderBringLine();
   pollIcons();
 }
 
@@ -1902,6 +2045,14 @@ $("#auto-images-choice").addEventListener("click", (e) => {
     renderSettings(await api("/api/settings", { method: "PUT", body: { auto_images: value === "on" } }));
     toast(value === "on" ? "Foto's en iconen worden weer automatisch gemaakt" : "Er worden geen foto's of iconen meer vanzelf gemaakt");
   });
+});
+
+$("#bring-form").addEventListener("submit", connectBring);
+$("#bring-list").addEventListener("change", (e) => chooseBringList(e.target.value));
+$("#bring-sync-now").addEventListener("click", syncBringNow);
+$("#bring-disconnect").addEventListener("click", disconnectBring);
+$("#shop-bring").addEventListener("click", (e) => {
+  if (e.target.closest("[data-action=bring-sync]")) syncShoppingWithBring();
 });
 
 $("#swipe-preload-choice").addEventListener("click", (e) => {

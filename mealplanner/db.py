@@ -101,6 +101,14 @@ CREATE TABLE IF NOT EXISTS purchase_counts (
     last_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Producten die de app naar Bring! heeft gestuurd (per icoonsleutel), zodat de sync weet wat van hem is.
+CREATE TABLE IF NOT EXISTS bring_items (
+    key      TEXT PRIMARY KEY,
+    item_id  TEXT NOT NULL,
+    uuid     TEXT NOT NULL,
+    spec     TEXT NOT NULL DEFAULT ''
+);
+
 """
 
 
@@ -609,6 +617,57 @@ class Database:
             )
             self._count_purchase(conn, rows[0]["name"], 1 if checked else -1)
 
+    # ---------- Bring! ----------
+
+    def bring_wanted(self):
+        """{icoonsleutel: {name, spec}} voor alles onder *Kopen*, zoals het naar Bring! gaat."""
+        with self.connect() as conn:
+            rows = conn.execute("SELECT name, quantity, unit FROM shopping_items WHERE checked = 0 ORDER BY id").fetchall()
+        groups = {}
+        for row in rows:
+            key = icon_key(row["name"])
+            if key:
+                groups.setdefault(key, {"name": row["name"].strip(), "parts": []})["parts"].append(
+                    (row["quantity"], row["unit"].strip())
+                )
+        return {key: {"name": g["name"], "spec": bring_spec(g["parts"])} for key, g in groups.items()}
+
+    def bring_synced(self):
+        with self.connect() as conn:
+            return {r["key"]: dict(r) for r in conn.execute("SELECT * FROM bring_items")}
+
+    def save_bring_item(self, key, item_id, uuid, spec):
+        with self.connect() as conn:
+            conn.execute(
+                """INSERT INTO bring_items (key, item_id, uuid, spec) VALUES (?, ?, ?, ?)
+                   ON CONFLICT (key) DO UPDATE SET item_id = excluded.item_id, uuid = excluded.uuid, spec = excluded.spec""",
+                (key, item_id, uuid, spec),
+            )
+
+    def delete_bring_item(self, key):
+        with self.connect() as conn:
+            conn.execute("DELETE FROM bring_items WHERE key = ?", (key,))
+
+    def _rows_for_product(self, conn, key, checked):
+        rows = conn.execute("SELECT id, name FROM shopping_items WHERE checked = ?", (int(checked),)).fetchall()
+        return [r for r in rows if icon_key(r["name"]) == key]
+
+    def product_bought(self, key):
+        """Staat dit product (icoonsleutel) onder *Gekocht*?"""
+        with self.connect() as conn:
+            return bool(self._rows_for_product(conn, key, True))
+
+    def mark_product_bought(self, key):
+        """Zet alles van dit product (icoonsleutel) op gekocht, bijv. na afvinken in Bring!."""
+        with self.connect() as conn:
+            rows = self._rows_for_product(conn, key, False)
+            if not rows:
+                return False
+            ids = [r["id"] for r in rows]
+            conn.execute(f"UPDATE shopping_items SET checked = 1 WHERE id IN ({','.join('?' * len(ids))})", ids)
+            self._count_purchase(conn, rows[0]["name"], 1)
+            return True
+
     def frequent_purchases(self, limit=24):
         with self.connect() as conn:
             rows = conn.execute(
@@ -708,6 +767,20 @@ def _clean_url(value):
     if value and not re.match(r"https?://", value):
         raise ValueError("De bron moet een http- of https-link zijn")
     return value[:2000]
+
+
+def bring_spec(parts):
+    """[(hoeveelheid, eenheid)] -> '500 g + 2 el', de toelichting bij een product in Bring!."""
+    totals = {}
+    for quantity, unit in parts:
+        if quantity is not None:
+            totals[unit] = totals.get(unit, 0) + quantity
+    texts = []
+    for unit, total in totals.items():
+        total = round(total, 2)
+        number = str(int(total)) if total == int(total) else f"{total:g}".replace(".", ",")
+        texts.append(f"{number} {unit}".strip())
+    return " + ".join(texts)[:60]
 
 
 def icon_key(name):
