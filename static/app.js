@@ -66,6 +66,7 @@ const state = {
   planTarget: null, // {recipeId, name} of {idea: index} in het inplanvenster
   inspiration: { theme: null, data: null, loading: false, saved: new Map() },
   settings: null,
+  swipe: { cards: [], stats: null, prefs: null, loading: false, error: null, photoQueue: new Set(), photosOff: false },
   photoBusy: new Set(), // recept-id's of "idea:<index>" waarvoor nu een foto gemaakt wordt
 };
 
@@ -431,20 +432,22 @@ async function fillMenu(event) {
 
 // Toont een recept. Precies één van: `option` (menu-optie), `recipe` (uit het receptenboek)
 // of `idea` (inspiratie van de AI die nog niet bewaard is: {recipe, description, index}).
-function openView({ option = null, recipe = null, idea = null }) {
+function openView({ option = null, recipe = null, idea = null, card = null }) {
   const source = option
     ? option.saved
       ? state.recipes.find((r) => r.id === option.recipe_id)
       : option.suggestion
     : idea
       ? idea.recipe
-      : recipe;
+      : card
+        ? { ...card.recipe, image: card.image }
+        : recipe;
   if (!source) return;
-  state.view = { option, idea, recipe: option?.saved || recipe ? source : null };
+  state.view = { option, idea, card, recipe: option?.saved || recipe ? source : null };
 
   const methodSteps = steps(source.instructions);
   const tags = tagList(source.tags);
-  const note = option?.reason || idea?.description;
+  const note = option?.reason || idea?.description || card?.description;
   const noteLabel = option?.source === "claude" ? "Waarom dit voorgesteld wordt" : idea ? "Waarom dit de moeite waard is" : "Notitie";
   let sourceHost = "";
   try {
@@ -458,7 +461,7 @@ function openView({ option = null, recipe = null, idea = null }) {
   ].filter(Boolean);
   const pageNumber = source.id ? source.id * 2 : null;
   const badges = option ? badgesHtml(option) : idea ? `<span class="badge claude">${ICONS.sparkle}AI</span>` : "";
-  const canMakePhoto = option?.saved || recipe || idea;
+  const canMakePhoto = option?.saved || recipe || idea; // swipekaarten krijgen vanzelf een foto
 
   $("#view-body").innerHTML = `
     <div class="book-spread">
@@ -516,6 +519,9 @@ function openView({ option = null, recipe = null, idea = null }) {
       foot.push(`<button class="btn outline" data-view-action="save-idea">Bewaar in receptenboek</button>`);
     }
     foot.push(`<button class="btn primary" data-view-action="plan">Op het menu zetten</button>`);
+  } else if (card) {
+    foot.push(`<button class="btn outline" data-view-action="swipe-nope">✕ Overslaan</button>`);
+    foot.push(`<button class="btn primary" data-view-action="swipe-like">♥ Bewaren</button>`);
   } else if (recipe) {
     foot.push(`<button class="btn primary" data-view-action="plan">Op het menu zetten</button>`);
   }
@@ -560,6 +566,9 @@ async function viewAction(action) {
       button.lastChild.textContent = "Maak foto";
       $("#view-body .book-photo").classList.remove("busy");
     }
+  } else if (action === "swipe-like" || action === "swipe-nope") {
+    closeSheet("#view-sheet");
+    await swipeTop(action === "swipe-like");
   } else if (action === "plan") {
     closeSheet("#view-sheet");
     openPlanSheet(idea ? { idea: idea.index } : { recipeId: recipe.id, name: recipe.name });
@@ -866,6 +875,7 @@ function seasonTheme() {
 }
 
 function renderInspiration() {
+  renderSwipeTeaser();
   const month = new Date().getMonth();
   $("#season-kicker").textContent = `In het seizoen · ${MONTHS[month]}`;
   $("#season-title").textContent = `Dit is nu op z'n lekkerst`;
@@ -1182,6 +1192,251 @@ async function photoForDraft() {
   }
 }
 
+// ---------- recepten swipen ----------
+
+const CUISINES = ["Hollands", "Italiaans", "Frans", "Spaans", "Grieks", "Midden-Oosters", "Indiaas", "Thais",
+  "Chinees", "Japans", "Koreaans", "Mexicaans"];
+const MIN_CARDS = 4; // vul de stapel aan zodra er minder kaarten over zijn
+const PHOTO_AHEAD = 3; // maak alvast foto's voor de bovenste kaarten
+
+function geminiReady() {
+  const g = state.settings?.gemini;
+  return Boolean(g && (g.set || g.env));
+}
+
+async function openSwipe({ prefsFirst = false } = {}) {
+  await guarded(async () => {
+    const data = await api("/api/swipe");
+    state.swipe.cards = data.cards;
+    state.swipe.stats = data.stats;
+    state.swipe.prefs = data.preferences;
+    state.swipe.error = null;
+    openSheet("#swipe-sheet");
+    if (prefsFirst || !data.preferences.diet) showSwipePrefs();
+    else showSwipeDeck();
+  });
+}
+
+function showSwipePrefs() {
+  const prefs = state.swipe.prefs || {};
+  $("#swipe-deck-view").hidden = true;
+  $("#swipe-prefs").hidden = false;
+  $("#pref-cuisines").innerHTML = CUISINES.map((c) => `<button type="button" class="chip" data-value="${esc(c)}">${esc(c)}</button>`).join("");
+  const mark = (group, values) =>
+    $$(`${group} .chip`).forEach((chip) => chip.setAttribute("aria-pressed", String(values.includes(chip.dataset.value))));
+  mark("#pref-diet", [prefs.diet || "alles"]);
+  mark("#pref-cuisines", prefs.cuisines || []);
+  mark("#pref-time", [prefs.max_minutes ? String(prefs.max_minutes) : ""]);
+  $("#swipe-prefs").avoid.value = prefs.avoid || "";
+}
+
+async function saveSwipePrefs(event) {
+  event.preventDefault();
+  const picked = (group) => $$(`${group} .chip[aria-pressed="true"]`).map((chip) => chip.dataset.value);
+  const body = {
+    diet: picked("#pref-diet")[0] || "alles",
+    cuisines: picked("#pref-cuisines"),
+    max_minutes: Number(picked("#pref-time")[0]) || null,
+    avoid: $("#swipe-prefs").avoid.value,
+  };
+  await guarded(async () => {
+    const before = JSON.stringify(state.swipe.prefs || {});
+    state.swipe.prefs = await api("/api/preferences", { method: "PUT", body });
+    // Kaarten die met oude voorkeuren gemaakt zijn, passen misschien niet meer.
+    if (before !== JSON.stringify(state.swipe.prefs) && state.swipe.cards.length) {
+      await api("/api/swipe/pending", { method: "DELETE" });
+      state.swipe.cards = [];
+    }
+    showSwipeDeck();
+  });
+}
+
+function showSwipeDeck() {
+  $("#swipe-prefs").hidden = true;
+  $("#swipe-deck-view").hidden = false;
+  renderDeck();
+  fillDeck();
+}
+
+function renderSwipeCount(bump = false) {
+  const liked = state.swipe.stats?.liked_today ?? 0;
+  $("#swipe-count").innerHTML = liked
+    ? `<span class="${bump ? "bump" : ""}">♥ ${liked}</span> vandaag bewaard in je receptenboek`
+    : "Swipe naar rechts om te bewaren";
+}
+
+function cardHtml(card, index) {
+  const recipe = { ...card.recipe, image: card.image };
+  const busy = state.swipe.photoQueue.has(card.id);
+  return `<article class="swipe-card ${index === 0 ? "top" : ""}" data-card="${card.id}" style="--i: ${index}">
+    <div ${plateAttrs(recipe)}>
+      <span class="dish" aria-hidden="true">${dishFor(recipe)}</span>
+      ${busy && !card.image ? `<span class="photo-pending"><span class="spinner"></span>Foto maken…</span>` : ""}
+    </div>
+    <span class="stamp like">BEWAREN</span>
+    <span class="stamp nope">NEE</span>
+    <div class="swipe-info">
+      <h3>${esc(recipe.name)}</h3>
+      ${metaHtml(recipe)}
+      <p>${esc(card.description)}</p>
+    </div>
+  </article>`;
+}
+
+function renderDeck() {
+  renderSwipeCount();
+  const { cards, loading, error } = state.swipe;
+  const deck = $("#deck");
+  const hasCards = cards.length > 0;
+  $("#swipe-nope").disabled = !hasCards;
+  $("#swipe-like").disabled = !hasCards;
+  $("#swipe-info").disabled = !hasCards;
+  if (!hasCards) {
+    deck.innerHTML = loading
+      ? `<div class="deck-message"><span class="spinner"></span><h3>${aiName()} zoekt gerechten voor je…</h3><p>Dit duurt meestal een halve minuut.</p></div>`
+      : `<div class="deck-message"><span class="dish">🍽️</span><h3>${error ? "Dat lukte niet" : "Even geen kaarten"}</h3>
+          <p>${esc(error || "Vraag nieuwe gerechten op.")}</p>
+          <button class="btn primary" data-action="retry">Nieuwe gerechten</button></div>`;
+    return;
+  }
+  // De bovenste kaart als laatste in de DOM, zodat hij bovenop ligt.
+  deck.innerHTML = cards.slice(0, 3).map((card, i) => cardHtml(card, i)).reverse().join("");
+  enableDrag($(".swipe-card.top", deck));
+}
+
+async function fillDeck() {
+  const sw = state.swipe;
+  ensurePhotos();
+  if (sw.loading || sw.cards.length >= MIN_CARDS) return;
+  sw.loading = true;
+  sw.error = null;
+  if (!sw.cards.length) renderDeck();
+  try {
+    const res = await api("/api/swipe/more", { method: "POST", body: { count: 8, servings: state.household } });
+    const known = new Set(sw.cards.map((c) => c.id));
+    sw.cards.push(...res.cards.filter((c) => !known.has(c.id)));
+  } catch (err) {
+    sw.error = err.message;
+  } finally {
+    sw.loading = false;
+    if (!$("#swipe-deck-view").hidden) renderDeck();
+    ensurePhotos();
+  }
+}
+
+// Maak één voor één foto's voor de bovenste kaarten, zodat ze klaarstaan voordat je erbij bent.
+async function ensurePhotos() {
+  const sw = state.swipe;
+  if (sw.photosOff || !geminiReady() || sw.photoQueue.size) return;
+  const card = sw.cards.slice(0, PHOTO_AHEAD).find((c) => !c.image);
+  if (!card) return;
+  sw.photoQueue.add(card.id);
+  updateCardPhoto(card);
+  try {
+    const { image } = await api(`/api/swipe/cards/${card.id}/photo`, { method: "POST" });
+    card.image = image;
+  } catch (err) {
+    sw.photosOff = true; // bijv. geen betaling ingesteld: niet elke kaart opnieuw proberen
+    toast(`Foto's maken lukt niet: ${err.message} Je kunt gewoon verder swipen.`, true);
+  } finally {
+    sw.photoQueue.delete(card.id);
+    updateCardPhoto(card);
+    ensurePhotos();
+  }
+}
+
+function updateCardPhoto(card) {
+  const el = $(`.swipe-card[data-card="${card.id}"]`);
+  if (!el) return;
+  const index = state.swipe.cards.indexOf(card);
+  const wrapper = document.createElement("div");
+  wrapper.innerHTML = cardHtml(card, index);
+  el.querySelector(".plate").replaceWith(wrapper.firstElementChild.querySelector(".plate"));
+}
+
+function enableDrag(el) {
+  if (!el) return;
+  let startX = 0, startY = 0, dx = 0, dy = 0, dragging = false;
+  const like = $(".stamp.like", el);
+  const nope = $(".stamp.nope", el);
+  el.addEventListener("pointerdown", (e) => {
+    dragging = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    dx = dy = 0;
+    el.setPointerCapture(e.pointerId);
+    el.classList.add("dragging");
+  });
+  el.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    dx = e.clientX - startX;
+    dy = e.clientY - startY;
+    el.style.transform = `translate(${dx}px, ${dy * 0.3}px) rotate(${dx / 18}deg)`;
+    like.style.opacity = Math.max(0, Math.min(1, dx / 100));
+    nope.style.opacity = Math.max(0, Math.min(1, -dx / 100));
+  });
+  const end = () => {
+    if (!dragging) return;
+    dragging = false;
+    el.classList.remove("dragging");
+    if (Math.abs(dx) > 110) return swipeTop(dx > 0);
+    el.style.transform = "";
+    like.style.opacity = nope.style.opacity = 0;
+    if (Math.abs(dx) < 5 && Math.abs(dy) < 5) openSwipeCard(); // gewoon getikt: toon het recept
+  };
+  el.addEventListener("pointerup", end);
+  el.addEventListener("pointercancel", end);
+}
+
+let swiping = false;
+async function swipeTop(liked) {
+  const card = state.swipe.cards[0];
+  const el = $(".swipe-card.top");
+  if (!card || !el || swiping) return;
+  swiping = true;
+  $(liked ? ".stamp.like" : ".stamp.nope", el).style.opacity = 1;
+  el.style.transform = "";
+  el.classList.add(liked ? "fly-right" : "fly-left");
+  state.swipe.cards.shift();
+  try {
+    const res = await api(`/api/swipe/cards/${card.id}`, { method: "POST", body: { liked } });
+    state.swipe.stats = res.stats;
+  } catch (err) {
+    state.swipe.cards.unshift(card); // terugzetten als het opslaan misging
+    toast(err.message, true);
+  }
+  setTimeout(() => {
+    swiping = false;
+    renderDeck();
+    if (liked) renderSwipeCount(true);
+    fillDeck();
+  }, 280);
+}
+
+async function undoSwipe() {
+  await guarded(async () => {
+    const { card, stats } = await api("/api/swipe/undo", { method: "POST" });
+    if (!card) return toast("Er is niets om ongedaan te maken");
+    state.swipe.stats = stats;
+    state.swipe.cards = [card, ...state.swipe.cards.filter((c) => c.id !== card.id)];
+    renderDeck();
+  });
+}
+
+function openSwipeCard() {
+  const card = state.swipe.cards[0];
+  if (card) openView({ card });
+}
+
+async function renderSwipeTeaser() {
+  try {
+    const { stats } = await api("/api/swipe");
+    $("#swipe-teaser-stats").textContent = stats.liked
+      ? `Je hebt al ${stats.liked} ${stats.liked === 1 ? "recept" : "recepten"} bewaard door te swipen.`
+      : "";
+  } catch {}
+}
+
 // ---------- boodschappen ----------
 
 let shoppingItems = [];
@@ -1377,6 +1632,38 @@ $$(".key-section").forEach((section) => {
 // Foto's
 $("#photo-generate").addEventListener("click", photoForDraft);
 $("#photos-missing").addEventListener("click", makeMissingPhotos);
+
+// Swipen
+$("#swipe-start").addEventListener("click", () => openSwipe());
+$("#swipe-prefs-open").addEventListener("click", () => openSwipe({ prefsFirst: true }));
+$("#swipe-edit-prefs").addEventListener("click", showSwipePrefs);
+$("#swipe-prefs").addEventListener("submit", saveSwipePrefs);
+$("#swipe-prefs").addEventListener("click", (e) => {
+  const chip = e.target.closest(".chip");
+  if (!chip) return;
+  const group = chip.closest(".chips");
+  if (group.hasAttribute("data-single")) $$(".chip", group).forEach((c) => c.setAttribute("aria-pressed", "false"));
+  chip.setAttribute("aria-pressed", String(group.hasAttribute("data-single") || chip.getAttribute("aria-pressed") !== "true"));
+});
+$("#swipe-like").addEventListener("click", () => swipeTop(true));
+$("#swipe-nope").addEventListener("click", () => swipeTop(false));
+$("#swipe-undo").addEventListener("click", undoSwipe);
+$("#swipe-info").addEventListener("click", openSwipeCard);
+$("#deck").addEventListener("click", (e) => {
+  if (e.target.closest("[data-action=retry]")) {
+    state.swipe.photosOff = false;
+    fillDeck();
+  }
+});
+document.addEventListener("keydown", (e) => {
+  const open = $("#swipe-sheet").open && !$("#swipe-deck-view").hidden && !$("#view-sheet").open;
+  if (!open) return;
+  if (e.key === "ArrowRight") swipeTop(true);
+  if (e.key === "ArrowLeft") swipeTop(false);
+});
+$("#swipe-sheet").addEventListener("close", () => {
+  if (state.tab === "inspiration") renderSwipeTeaser();
+});
 
 // Inspiratie
 $("#season-go").addEventListener("click", () => loadInspiration(seasonTheme()));

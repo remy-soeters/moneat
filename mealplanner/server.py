@@ -34,6 +34,32 @@ KEY_PATTERNS = {
 }
 
 
+PREFERENCES_SETTING = "food_preferences"
+MAX_MINUTES = (None, 20, 30, 45, 60)
+
+
+def clean_preferences(data):
+    """Controleer de voedselvoorkeuren uit het swipe-formulier."""
+    diet = data.get("diet") or "alles"
+    if diet not in ai.DIETS:
+        raise ValueError(f"Onbekend dieet: {diet}")
+    cuisines = data.get("cuisines") or []
+    if not isinstance(cuisines, list) or len(cuisines) > 12:
+        raise ValueError("Kies maximaal 12 keukens")
+    cuisines = [str(c).strip()[:30] for c in cuisines if str(c).strip()]
+    max_minutes = data.get("max_minutes") or None
+    if max_minutes is not None:
+        max_minutes = int(max_minutes)
+    if max_minutes not in MAX_MINUTES:
+        raise ValueError("Kies 20, 30, 45 of 60 minuten, of geen maximum")
+    return {
+        "diet": diet,
+        "cuisines": cuisines,
+        "max_minutes": max_minutes,
+        "avoid": str(data.get("avoid") or "").strip()[:200],
+    }
+
+
 def inspiration_key(theme, servings):
     return f"{str(theme or '').strip().lower()}|{int(servings or 2)}"
 
@@ -53,6 +79,12 @@ def make_handler(db, images=None):
     images = images or ImageStore(tempfile.mkdtemp(prefix="mealplanner-images-"))
 
     ai.set_settings(db.get_setting)
+
+    def load_preferences():
+        try:
+            return json.loads(db.get_setting(PREFERENCES_SETTING) or "{}")
+        except ValueError:
+            return {}
 
     def release_image(url):
         """Verwijder een foto van schijf zodra geen recept of voorstel hem meer gebruikt."""
@@ -243,6 +275,47 @@ def make_handler(db, images=None):
             release_image(old_image)
             return {"image": recipe["image"]}
 
+        # ---------- swipen ----------
+
+        def get_preferences(self, query):
+            return load_preferences()
+
+        def save_preferences(self, query):
+            prefs = clean_preferences(self._body())
+            db.set_setting(PREFERENCES_SETTING, json.dumps(prefs, ensure_ascii=False))
+            return prefs
+
+        def get_swipe(self, query):
+            return {"cards": db.pending_swipe_cards(), "stats": db.swipe_stats(), "preferences": load_preferences()}
+
+        def more_swipe_cards(self, query):
+            body = self._body()
+            count = max(1, min(int(body.get("count") or 8), 12))
+            ideas = ai.swipe_recipes(
+                load_preferences(), count, exclude=db.known_dish_names(), servings=int(body.get("servings") or 2)
+            )
+            added = db.add_swipe_cards(ideas)
+            return {"added": added, "cards": db.pending_swipe_cards()}
+
+        def swipe_card_photo(self, query, card_id):
+            card = db.get_swipe_card(int(card_id))
+            image = images.save(ai.generate_photo(card["recipe"]))
+            db.set_swipe_card_image(card["id"], image)
+            release_image(card["image"])
+            return {"image": image}
+
+        def swipe_card(self, query, card_id):
+            recipe = db.swipe(int(card_id), bool(self._body().get("liked")))
+            return {"recipe": recipe, "stats": db.swipe_stats()}
+
+        def clear_swipe_cards(self, query):
+            for image in db.clear_pending_swipe_cards():
+                release_image(image)
+            return {"ok": True}
+
+        def undo_swipe(self, query):
+            return {"card": db.undo_swipe(), "stats": db.swipe_stats()}
+
         # ---------- inspiratie ----------
 
         def inspiration(self, query):
@@ -388,6 +461,14 @@ def make_handler(db, images=None):
         ("POST", re.compile(r"/api/recipes/generate"), Handler.generate_recipe),
         ("POST", re.compile(r"/api/images"), Handler.upload_image),
         ("POST", re.compile(r"/api/inspiration"), Handler.inspiration),
+        ("GET", re.compile(r"/api/preferences"), Handler.get_preferences),
+        ("PUT", re.compile(r"/api/preferences"), Handler.save_preferences),
+        ("GET", re.compile(r"/api/swipe"), Handler.get_swipe),
+        ("POST", re.compile(r"/api/swipe/more"), Handler.more_swipe_cards),
+        ("POST", re.compile(r"/api/swipe/undo"), Handler.undo_swipe),
+        ("DELETE", re.compile(r"/api/swipe/pending"), Handler.clear_swipe_cards),
+        ("POST", re.compile(r"/api/swipe/cards/(\d+)/photo"), Handler.swipe_card_photo),
+        ("POST", re.compile(r"/api/swipe/cards/(\d+)"), Handler.swipe_card),
         ("GET", re.compile(r"/api/settings"), Handler.get_settings),
         ("PUT", re.compile(r"/api/settings"), Handler.save_settings),
         ("DELETE", re.compile(r"/api/settings/key/(claude|gemini)"), Handler.delete_key),
