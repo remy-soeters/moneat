@@ -78,6 +78,13 @@ INSPIRATION_SCHEMA = {
     "additionalProperties": False,
 }
 
+SWIPE_SCHEMA = {
+    "type": "object",
+    "properties": {"ideas": INSPIRATION_SCHEMA["properties"]["ideas"]},
+    "required": ["ideas"],
+    "additionalProperties": False,
+}
+
 RECIPE_RULES = """Recepten: Nederlandse namen, ingrediënten in metrische eenheden (g, ml, stuks, el, tl, teen)
 met hoeveelheden voor het opgegeven aantal personen, tags als korte kommagescheiden woorden
 (bijv. "vegetarisch, pasta, snel"), en een bereiding met één genummerde stap per regel."""
@@ -315,6 +322,43 @@ def inspiration(theme, servings=2, count=6):
         f"Stel een collectie van {count} avondgerechten samen voor {servings} personen.\nThema: {theme.strip()}",
         INSPIRATION_SCHEMA,
     )
+
+
+SWIPE_SYSTEM = f"""Je stelt avondgerechten voor in een swipe-app: de gebruiker ziet per kaart één gerecht met een foto
+en één zin, en swipet naar rechts (bewaren) of links (overslaan). Kies gerechten die precies passen bij de
+voorkeuren, en varieer binnen de stapel in keuken, hoofdingrediënt en bereidingswijze, zodat er echt iets te
+kiezen valt. Stel geen gerecht voor dat op de lijst 'Al gezien' staat, ook niet onder een iets andere naam.
+Schrijf per gerecht één korte, smakelijke zin (maximaal 20 woorden) die je doet watertanden, zonder de naam te herhalen.
+{RECIPE_RULES}"""
+
+DIETS = {
+    "alles": "eet alles",
+    "flexitarisch": "flexitarisch: overwegend vegetarisch, soms vlees of vis",
+    "vegetarisch": "vegetarisch: geen vlees en geen vis",
+    "veganistisch": "veganistisch: geen dierlijke producten",
+    "pescotarisch": "pescotarisch: wel vis, geen vlees",
+}
+
+
+def describe_preferences(prefs):
+    lines = [f"Dieet: {DIETS.get(prefs.get('diet'), DIETS['alles'])}."]
+    if prefs.get("cuisines"):
+        lines.append(f"Favoriete keukens: {', '.join(prefs['cuisines'])} (maar af en toe iets anders mag).")
+    if prefs.get("max_minutes"):
+        lines.append(f"Bereidingstijd: maximaal {prefs['max_minutes']} minuten.")
+    if str(prefs.get("avoid") or "").strip():
+        lines.append(f"Liever niet / allergieën (nooit gebruiken): {prefs['avoid'].strip()}.")
+    return "\n".join(lines)
+
+
+def swipe_recipes(prefs, count=8, exclude=(), servings=2):
+    """Een stapel gerechten om te swipen, passend bij de voorkeuren."""
+    seen = ", ".join(list(exclude)[:300]) or "nog niets"
+    return _ask(
+        SWIPE_SYSTEM,
+        f"Stel {count} avondgerechten voor {servings} personen voor.\n{describe_preferences(prefs)}\n\nAl gezien: {seen}",
+        SWIPE_SCHEMA,
+    )["ideas"][:count]
 
 
 def photo_prompt(recipe):

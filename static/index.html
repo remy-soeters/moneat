@@ -128,6 +128,22 @@
         </div>
       </div>
 
+      <div class="swipe-teaser">
+        <div class="teaser-stack" aria-hidden="true">
+          <span class="teaser-card c1">🍝</span><span class="teaser-card c2">🍛</span><span class="teaser-card c3">🥗</span>
+        </div>
+        <div class="teaser-text">
+          <p class="kicker">Recepten swipen</p>
+          <h2>Swipe je favorieten bij elkaar</h2>
+          <p>Vertel wat je lekker vindt en swipe door gerechten met foto. Naar rechts is bewaren in je receptenboek, naar links is overslaan.</p>
+          <div class="teaser-actions">
+            <button class="btn primary" id="swipe-start">Start met swipen</button>
+            <button class="btn link" id="swipe-prefs-open">Voorkeuren aanpassen</button>
+          </div>
+          <p class="teaser-stats" id="swipe-teaser-stats"></p>
+        </div>
+      </div>
+
       <div class="season-card">
         <div class="season-text">
           <p class="kicker" id="season-kicker"></p>
@@ -438,6 +454,76 @@
     </div>
   </dialog>
 
+
+  <!-- Recepten swipen -->
+  <dialog id="swipe-sheet" class="modal swipe">
+    <button class="close" data-close aria-label="Sluiten"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+
+    <form id="swipe-prefs" class="swipe-view">
+      <div class="modal-scroll">
+        <p class="kicker">Stap 1 van 2</p>
+        <h2 class="swipe-title">Wat lust je?</h2>
+        <p class="intro">Hiermee zoekt de AI gerechten die bij je passen. Je kunt dit later altijd aanpassen.</p>
+        <div class="field">
+          <span>Dieet</span>
+          <div class="chips pick" id="pref-diet" data-single>
+            <button type="button" class="chip" data-value="alles">Alles</button>
+            <button type="button" class="chip" data-value="flexitarisch">Flexitarisch</button>
+            <button type="button" class="chip" data-value="vegetarisch">Vegetarisch</button>
+            <button type="button" class="chip" data-value="veganistisch">Veganistisch</button>
+            <button type="button" class="chip" data-value="pescotarisch">Pescotarisch</button>
+          </div>
+        </div>
+        <div class="field">
+          <span>Keukens waar je van houdt <small>kies er zoveel je wilt</small></span>
+          <div class="chips pick" id="pref-cuisines"></div>
+        </div>
+        <div class="field">
+          <span>Hoeveel tijd heb je meestal?</span>
+          <div class="chips pick" id="pref-time" data-single>
+            <button type="button" class="chip" data-value="">Maakt niet uit</button>
+            <button type="button" class="chip" data-value="20">Max. 20 min</button>
+            <button type="button" class="chip" data-value="30">Max. 30 min</button>
+            <button type="button" class="chip" data-value="45">Max. 45 min</button>
+          </div>
+        </div>
+        <label class="field">
+          <span>Liever niet <small>of allergieën</small></span>
+          <input name="avoid" placeholder="Bijv. champignons, koriander, noten" autocomplete="off">
+        </label>
+      </div>
+      <div class="modal-foot">
+        <span class="spacer"></span>
+        <button type="submit" class="btn primary">Start met swipen</button>
+      </div>
+    </form>
+
+    <div id="swipe-deck-view" class="swipe-view" hidden>
+      <div class="swipe-head">
+        <div>
+          <p class="kicker">Recepten swipen</p>
+          <p class="swipe-count" id="swipe-count"></p>
+        </div>
+        <button type="button" class="btn link" id="swipe-edit-prefs">Voorkeuren</button>
+      </div>
+      <div class="deck" id="deck"></div>
+      <div class="swipe-actions">
+        <button type="button" class="round undo" id="swipe-undo" aria-label="Laatste swipe ongedaan maken" title="Ongedaan maken">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
+        </button>
+        <button type="button" class="round nope" id="swipe-nope" aria-label="Overslaan (pijl links)" title="Overslaan (←)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+        <button type="button" class="round like" id="swipe-like" aria-label="Bewaren (pijl rechts)" title="Bewaren (→)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z"/></svg>
+        </button>
+        <button type="button" class="round info" id="swipe-info" aria-label="Bekijk het hele recept" title="Bekijk recept">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h10.5A3.5 3.5 0 0 1 19 8v11.5H8.5A3.5 3.5 0 0 1 5 16z"/><path d="M5 16a3.5 3.5 0 0 1 3.5-3.5H19"/></svg>
+        </button>
+      </div>
+      <p class="swipe-hint">Sleep de kaart, of gebruik ← en →</p>
+    </div>
+  </dialog>
 
   <div id="toast" class="toast" role="status" hidden></div>
   <script src="/app.js" type="module"></script>
