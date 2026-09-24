@@ -9,7 +9,8 @@ recepten van Claude komen pas in je receptenboek als je ze kiest of bewaart.
   of laat Claude er een bedenken. Je kunt ook je eigen foto uploaden.
 - **Recepten swipen** (op de inspiratiepagina): geef je voedselvoorkeuren op (dieet, keukens, tijd,
   liever niet) en swipe door gerechten met foto en korte omschrijving. Naar rechts bewaart het recept
-  in je receptenboek, naar links slaat het over; gezien gerechten komen niet terug.
+  in je receptenboek, naar links slaat het over; gezien gerechten komen niet terug. De server zet op de
+  achtergrond een voorraad gerechten mét foto klaar (instelbaar: 5, 10, 15 of 20), zodat je niet hoeft te wachten.
 - **Inspiratie:** wat er deze maand in het seizoen is, en collecties van 6 recepten per thema
   (of zelf ingetypt) die je bewaart of direct op het menu zet.
 
@@ -69,6 +70,7 @@ kun je in de instellingen aanpassen als Google nieuwe versies uitbrengt.
 | `mealplanner/gemini.py` | Google Gemini (Interactions API) voor tekst en foto's |
 | `mealplanner/importer.py` | Recepten van websites importeren (schema.org/Recipe) |
 | `mealplanner/images.py` | Opslag van receptfoto's |
+| `mealplanner/preloader.py` | Houdt op de achtergrond swipekaarten mét foto klaar |
 | `static/` | Frontend |
 | `tests/` | Unittests voor database en API |
 
@@ -93,6 +95,7 @@ kun je in de instellingen aanpassen als Google nieuwe versies uitbrengt.
 | POST | `/api/swipe/cards/{id}` | `{liked}` swipen; bij `true` komt het recept (met foto) in het receptenboek |
 | POST | `/api/swipe/cards/{id}/photo` | Foto maken voor een kaart (Gemini) |
 | POST | `/api/swipe/undo` | Laatste swipe terugdraaien |
+| POST | `/api/swipe/preload` | `{servings, retry}` voorraad op de achtergrond aanvullen; geeft de status terug |
 | DELETE | `/api/swipe/pending` | Nog niet geswipete kaarten weggooien (na nieuwe voorkeuren) |
 | POST | `/api/inspiration` | `{theme, servings, refresh}` → collectie van 6 recepten (bewaard per thema) |
 | GET | `/api/menu?week=JJJJ-MM-DD` | Opties en keuzes van de week (ma–zo) waarin die datum valt |

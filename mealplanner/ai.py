@@ -145,6 +145,10 @@ def gemini_models():
     )
 
 
+def gemini_configured():
+    return bool(_setting(GEMINI_KEY) or os.environ.get("GEMINI_API_KEY"))
+
+
 def _gemini_key():
     key = _setting(GEMINI_KEY) or os.environ.get("GEMINI_API_KEY")
     if not key:

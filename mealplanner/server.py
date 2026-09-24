@@ -19,6 +19,7 @@ from . import ai, gemini
 from .db import Database, NotFound
 from .images import MAX_IMAGE_BYTES, ImageStore
 from .importer import ImportFailed, import_recipe
+from .preloader import DEFAULT_PRELOAD, PRELOAD_OPTIONS, SwipePreloader
 
 ROOT = Path(__file__).resolve().parent.parent
 STATIC_DIR = ROOT / "static"
@@ -35,6 +36,7 @@ KEY_PATTERNS = {
 
 
 PREFERENCES_SETTING = "food_preferences"
+SWIPE_PRELOAD_SETTING = "swipe_preload"
 MAX_MINUTES = (None, 20, 30, 45, 60)
 
 
@@ -90,6 +92,15 @@ def make_handler(db, images=None):
         """Verwijder een foto van schijf zodra geen recept of voorstel hem meer gebruikt."""
         if url and not db.image_in_use(url):
             images.delete(url)
+
+    def preload_target():
+        try:
+            value = int(db.get_setting(SWIPE_PRELOAD_SETTING) or DEFAULT_PRELOAD)
+        except ValueError:
+            value = DEFAULT_PRELOAD
+        return value if value in PRELOAD_OPTIONS else DEFAULT_PRELOAD
+
+    preloader = SwipePreloader(db, images, release_image, load_preferences, preload_target)
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "mealplanner/0.1"
@@ -193,6 +204,8 @@ def make_handler(db, images=None):
             return {
                 "sdk_installed": ai.sdk_installed(),
                 "text_provider": ai.text_provider(),
+                "swipe_preload": preload_target(),
+                "swipe_preload_options": list(PRELOAD_OPTIONS),
                 "claude": {
                     "set": bool(claude_key),
                     "hint": mask_key(claude_key) if claude_key else None,
@@ -220,6 +233,11 @@ def make_handler(db, images=None):
                     if not re.fullmatch(pattern, key):
                         raise ApiError(HTTPStatus.BAD_REQUEST, message)
                     db.set_setting(setting, key)
+            if "swipe_preload" in body:
+                if int(body["swipe_preload"]) not in PRELOAD_OPTIONS:
+                    raise ApiError(HTTPStatus.BAD_REQUEST, "Kies 5, 10, 15 of 20 gerechten")
+                db.set_setting(SWIPE_PRELOAD_SETTING, str(int(body["swipe_preload"])))
+                preloader.kick()
             if "text_provider" in body:
                 if body["text_provider"] not in ("claude", "gemini"):
                     raise ApiError(HTTPStatus.BAD_REQUEST, "Kies Claude of Gemini")
@@ -283,10 +301,21 @@ def make_handler(db, images=None):
         def save_preferences(self, query):
             prefs = clean_preferences(self._body())
             db.set_setting(PREFERENCES_SETTING, json.dumps(prefs, ensure_ascii=False))
+            preloader.kick()
             return prefs
 
         def get_swipe(self, query):
-            return {"cards": db.pending_swipe_cards(), "stats": db.swipe_stats(), "preferences": load_preferences()}
+            return {
+                "cards": db.pending_swipe_cards(),
+                "stats": db.swipe_stats(),
+                "preferences": load_preferences(),
+                "preload": preloader.status(),
+            }
+
+        def preload_swipe(self, query):
+            body = self._body()
+            preloader.kick(body.get("servings"), retry=bool(body.get("retry")))
+            return preloader.status()
 
         def more_swipe_cards(self, query):
             body = self._body()
@@ -306,11 +335,13 @@ def make_handler(db, images=None):
 
         def swipe_card(self, query, card_id):
             recipe = db.swipe(int(card_id), bool(self._body().get("liked")))
+            preloader.kick()  # voorraad weer aanvullen
             return {"recipe": recipe, "stats": db.swipe_stats()}
 
         def clear_swipe_cards(self, query):
             for image in db.clear_pending_swipe_cards():
                 release_image(image)
+            preloader.kick()
             return {"ok": True}
 
         def undo_swipe(self, query):
@@ -466,6 +497,7 @@ def make_handler(db, images=None):
         ("GET", re.compile(r"/api/swipe"), Handler.get_swipe),
         ("POST", re.compile(r"/api/swipe/more"), Handler.more_swipe_cards),
         ("POST", re.compile(r"/api/swipe/undo"), Handler.undo_swipe),
+        ("POST", re.compile(r"/api/swipe/preload"), Handler.preload_swipe),
         ("DELETE", re.compile(r"/api/swipe/pending"), Handler.clear_swipe_cards),
         ("POST", re.compile(r"/api/swipe/cards/(\d+)/photo"), Handler.swipe_card_photo),
         ("POST", re.compile(r"/api/swipe/cards/(\d+)"), Handler.swipe_card),

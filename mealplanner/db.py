@@ -3,6 +3,7 @@
 import json
 import re
 import sqlite3
+import threading
 from contextlib import contextmanager
 from datetime import date, timedelta
 from pathlib import Path
@@ -91,6 +92,8 @@ class Database:
         if self.path != ":memory:":
             Path(self.path).parent.mkdir(parents=True, exist_ok=True)
         self._memory_conn = sqlite3.connect(":memory:", check_same_thread=False) if self.path == ":memory:" else None
+        # Een geheugendatabase (tests) deelt één verbinding; laat threads die om de beurt gebruiken.
+        self._memory_lock = threading.RLock()
         with self.connect() as conn:
             _rename_old_menu_options(conn)
             _add_missing_recipe_columns(conn)
@@ -101,15 +104,22 @@ class Database:
     @contextmanager
     def connect(self):
         """Verbinding binnen één transactie; commit bij succes, rollback bij een fout."""
-        conn = self._memory_conn or sqlite3.connect(self.path)
+        if self._memory_conn is not None:
+            with self._memory_lock:
+                conn = self._memory_conn
+                conn.row_factory = sqlite3.Row
+                conn.execute("PRAGMA foreign_keys = ON")
+                with conn:
+                    yield conn
+            return
+        conn = sqlite3.connect(self.path, timeout=15)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
         try:
             with conn:
                 yield conn
         finally:
-            if conn is not self._memory_conn:
-                conn.close()
+            conn.close()
 
     # ---------- recepten ----------
 

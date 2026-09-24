@@ -89,6 +89,10 @@ class SwipePromptTest(unittest.TestCase):
 
 class SwipeApiTest(unittest.TestCase):
     def setUp(self):
+        # Het klaarzetten op de achtergrond heeft eigen tests; hier mag het niet de echte AI aanroepen.
+        kick = mock.patch("mealplanner.preloader.SwipePreloader.kick")
+        kick.start()
+        self.addCleanup(kick.stop)
         self.db = Database(":memory:")
         self.images = ImageStore(tempfile.mkdtemp())
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(self.db, self.images))
@@ -123,6 +127,19 @@ class SwipeApiTest(unittest.TestCase):
         called_prefs, count = fake.call_args.args
         self.assertEqual((called_prefs, count, fake.call_args.kwargs["servings"]), (prefs, 2, 3))
         self.assertIn("Pasta pesto", fake.call_args.kwargs["exclude"])
+
+    def test_preload_setting_and_status(self):
+        from mealplanner.preloader import SwipePreloader
+
+        status, settings = self.call("GET", "/api/settings")
+        self.assertEqual((settings["swipe_preload"], settings["swipe_preload_options"]), (10, [5, 10, 15, 20]))
+        self.assertEqual(self.call("PUT", "/api/settings", {"swipe_preload": 15})[1]["swipe_preload"], 15)
+        self.assertEqual(self.call("PUT", "/api/settings", {"swipe_preload": 7})[0], 400)
+
+        status, result = self.call("POST", "/api/swipe/preload", {"servings": 4, "retry": True})
+        self.assertEqual((status, result["target"]), (200, 15))
+        SwipePreloader.kick.assert_called_with(4, retry=True)
+        self.assertIn("preload", self.call("GET", "/api/swipe")[1])
 
     def test_swipe_flow_with_photo_and_undo(self):
         self.db.add_swipe_cards([idea("Dahl")])
