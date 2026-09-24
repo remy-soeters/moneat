@@ -4,6 +4,7 @@ import argparse
 import errno
 import json
 import mimetypes
+import os
 import re
 import tempfile
 import time
@@ -14,7 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import ai
+from . import ai, gemini
 from .db import Database, NotFound
 from .images import MAX_IMAGE_BYTES, ImageStore
 from .importer import ImportFailed, import_recipe
@@ -25,7 +26,15 @@ DEFAULT_DB = ROOT / "data" / "mealplanner.db"
 MAX_BODY = 1_000_000
 
 
-API_KEY_SETTING = "anthropic_api_key"
+KEY_SETTINGS = {"claude": ai.CLAUDE_KEY, "gemini": ai.GEMINI_KEY}
+KEY_PATTERNS = {
+    "claude": (r"sk-ant-[A-Za-z0-9_\-]{20,}", "Dit lijkt geen Anthropic API-sleutel. Die begint met ‘sk-ant-’ en is lang."),
+    "gemini": (r"[A-Za-z0-9_\-]{30,}", "Dit lijkt geen Gemini API-sleutel. Kopieer hem volledig uit Google AI Studio."),
+}
+
+
+def inspiration_key(theme, servings):
+    return f"{str(theme or '').strip().lower()}|{int(servings or 2)}"
 
 
 def mask_key(key):
@@ -42,7 +51,7 @@ class ApiError(Exception):
 def make_handler(db, images=None):
     images = images or ImageStore(tempfile.mkdtemp(prefix="mealplanner-images-"))
 
-    ai.set_key_provider(lambda: db.get_setting(API_KEY_SETTING))
+    ai.set_settings(db.get_setting)
 
     def release_image(url):
         """Verwijder een foto van schijf zodra geen recept of voorstel hem meer gebruikt."""
@@ -145,36 +154,93 @@ def make_handler(db, images=None):
         # ---------- instellingen ----------
 
         def get_settings(self, query):
-            key = db.get_setting(API_KEY_SETTING)
+            claude_key = db.get_setting(ai.CLAUDE_KEY)
+            gemini_key = db.get_setting(ai.GEMINI_KEY)
+            text_model, image_model = ai.gemini_models()
             return {
                 "sdk_installed": ai.sdk_installed(),
-                "api_key": {
-                    "set": bool(key),
-                    "hint": mask_key(key) if key else None,
+                "text_provider": ai.text_provider(),
+                "claude": {
+                    "set": bool(claude_key),
+                    "hint": mask_key(claude_key) if claude_key else None,
                     "env": ai.env_key_present(),
+                    "model": ai.MODEL,
                 },
-                "model": ai.MODEL,
+                "gemini": {
+                    "set": bool(gemini_key),
+                    "hint": mask_key(gemini_key) if gemini_key else None,
+                    "env": bool(os.environ.get("GEMINI_API_KEY")),
+                    "text_model": text_model,
+                    "image_model": image_model,
+                    "default_text_model": gemini.DEFAULT_TEXT_MODEL,
+                    "default_image_model": gemini.DEFAULT_IMAGE_MODEL,
+                },
             }
 
         def save_settings(self, query):
             body = self._body()
-            if "api_key" in body:
-                key = str(body.get("api_key") or "").strip()
-                if not re.fullmatch(r"sk-ant-[A-Za-z0-9_\-]{20,}", key):
-                    raise ApiError(
-                        HTTPStatus.BAD_REQUEST,
-                        "Dit lijkt geen Anthropic API-sleutel. Een sleutel begint met ‘sk-ant-’ en is lang.",
-                    )
-                db.set_setting(API_KEY_SETTING, key)
+            for provider, setting in KEY_SETTINGS.items():
+                field = f"{provider}_api_key"
+                if field in body:
+                    key = str(body.get(field) or "").strip()
+                    pattern, message = KEY_PATTERNS[provider]
+                    if not re.fullmatch(pattern, key):
+                        raise ApiError(HTTPStatus.BAD_REQUEST, message)
+                    db.set_setting(setting, key)
+            if "text_provider" in body:
+                if body["text_provider"] not in ("claude", "gemini"):
+                    raise ApiError(HTTPStatus.BAD_REQUEST, "Kies Claude of Gemini")
+                db.set_setting(ai.TEXT_PROVIDER, body["text_provider"])
+            for field, setting in (("gemini_text_model", ai.GEMINI_TEXT_MODEL), ("gemini_image_model", ai.GEMINI_IMAGE_MODEL)):
+                if field in body:
+                    model = str(body.get(field) or "").strip()
+                    if model and not re.fullmatch(r"[a-z0-9][a-z0-9.\-]{2,80}", model):
+                        raise ApiError(HTTPStatus.BAD_REQUEST, f"Ongeldige modelnaam: {model}")
+                    db.set_setting(setting, model or None)  # leeg = standaardmodel
             return self.get_settings(query)
 
-        def delete_api_key(self, query):
-            db.set_setting(API_KEY_SETTING, None)
+        def delete_key(self, query, provider):
+            db.set_setting(KEY_SETTINGS[provider], None)
             return self.get_settings(query)
 
         def test_connection(self, query):
+            if self._body().get("provider") == "gemini":
+                ai.check_gemini()
+                text_model, image_model = ai.gemini_models()
+                return {"ok": True, "message": f"Verbinding met Gemini werkt ({text_model}, {image_model})."}
             ai.check_connection()
             return {"ok": True, "message": f"Verbinding met Claude werkt ({ai.MODEL})."}
+
+        # ---------- foto's maken ----------
+
+        def photo_for_draft(self, query):
+            recipe = self._body().get("recipe") or {}
+            if not str(recipe.get("name") or "").strip():
+                raise ApiError(HTTPStatus.BAD_REQUEST, "Geef het recept eerst een naam")
+            return {"image": images.save(ai.generate_photo(recipe))}
+
+        def photo_for_recipe(self, query, recipe_id):
+            recipe = db.get_recipe(int(recipe_id))
+            old_image = recipe["image"]
+            recipe["image"] = images.save(ai.generate_photo(recipe))
+            recipe = db.update_recipe(recipe["id"], recipe)
+            release_image(old_image)
+            return recipe
+
+        def photo_for_idea(self, query):
+            body = self._body()
+            key = inspiration_key(body.get("theme"), body.get("servings"))
+            collection = db.get_inspiration(key)
+            index = int(body.get("index", -1))
+            if not collection or not 0 <= index < len(collection["ideas"]):
+                raise ApiError(HTTPStatus.NOT_FOUND, "Dit idee bestaat niet (meer); laad de inspiratie opnieuw")
+            recipe = collection["ideas"][index]["recipe"]
+            old_image = recipe.get("image")
+            recipe["image"] = images.save(ai.generate_photo(recipe))
+            collection.pop("created_at", None)
+            db.save_inspiration(key, collection)
+            release_image(old_image)
+            return {"image": recipe["image"]}
 
         # ---------- inspiratie ----------
 
@@ -184,7 +250,7 @@ def make_handler(db, images=None):
             if not theme:
                 raise ApiError(HTTPStatus.BAD_REQUEST, "Kies een thema of typ waar je zin in hebt")
             servings = int(body.get("servings") or 2)
-            key = f"{theme.lower()}|{servings}"
+            key = inspiration_key(theme, servings)
             if not body.get("refresh"):
                 cached = db.get_inspiration(key)
                 if cached:
@@ -323,8 +389,11 @@ def make_handler(db, images=None):
         ("POST", re.compile(r"/api/inspiration"), Handler.inspiration),
         ("GET", re.compile(r"/api/settings"), Handler.get_settings),
         ("PUT", re.compile(r"/api/settings"), Handler.save_settings),
-        ("DELETE", re.compile(r"/api/settings/api-key"), Handler.delete_api_key),
+        ("DELETE", re.compile(r"/api/settings/key/(claude|gemini)"), Handler.delete_key),
         ("POST", re.compile(r"/api/settings/test"), Handler.test_connection),
+        ("POST", re.compile(r"/api/photos/draft"), Handler.photo_for_draft),
+        ("POST", re.compile(r"/api/recipes/(\d+)/photo"), Handler.photo_for_recipe),
+        ("POST", re.compile(r"/api/inspiration/photo"), Handler.photo_for_idea),
         ("GET", re.compile(r"/api/recipes/(\d+)"), Handler.get_recipe),
         ("PUT", re.compile(r"/api/recipes/(\d+)"), Handler.update_recipe),
         ("DELETE", re.compile(r"/api/recipes/(\d+)"), Handler.delete_recipe),

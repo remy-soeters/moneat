@@ -333,7 +333,8 @@ dialog.modal {
   border-radius: 16px; background: var(--bg); color: var(--ink); box-shadow: 0 24px 64px rgba(40, 20, 10, 0.3);
   display: none; flex-direction: column; overflow: hidden;
 }
-dialog.modal.wide { width: min(920px, calc(100vw - 32px)); }
+dialog.modal.wide { width: min(1120px, calc(100vw - 48px)); height: calc(100vh - 48px); max-height: none; }
+#edit-sheet { width: min(760px, calc(100vw - 32px)); max-height: calc(100vh - 48px); }
 dialog.modal[open] { display: flex; animation: modal-in 0.25s ease; }
 dialog.modal > form { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 dialog.modal::backdrop { background: rgba(35, 25, 18, 0.5); animation: fade-in 0.2s ease; }
@@ -447,7 +448,8 @@ dialog.modal::backdrop { background: rgba(35, 25, 18, 0.5); animation: fade-in 0
   background-size: cover; background-position: center;
 }
 .plate.photo .dish, .recipe-hero.photo .dish { display: none; }
-.recipe-hero.photo { height: 300px; }
+.recipe-hero.photo { height: clamp(260px, 42vh, 460px); }
+.recipe-columns > div:first-child { position: sticky; top: 16px; align-self: start; }
 .plate.photo::after {
   content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0, 0, 0, 0.18), transparent 40%);
   pointer-events: none;
@@ -561,6 +563,35 @@ dialog.modal::backdrop { background: rgba(35, 25, 18, 0.5); animation: fade-in 0
 .test-result.ok { background: var(--sage-soft); color: var(--sage); }
 .test-result.error { background: var(--accent-soft); color: var(--accent); }
 
+.provider-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px; }
+.provider-choice button {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 14px 16px; cursor: pointer; text-align: left;
+  border: 1.5px solid var(--line); border-radius: 10px; background: var(--paper); font: inherit; color: var(--ink);
+}
+.provider-choice button[aria-checked="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.provider-choice strong { font-family: var(--serif); font-size: 18px; font-weight: 600; }
+.provider-choice small { color: var(--ink-2); font-size: 13px; }
+.key-section { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--line); }
+.models { margin: 0 0 18px; }
+.models summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--ink-2); margin-bottom: 12px; }
+.models input { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 14px; }
+
+/* foto maken */
+.make-photo { display: inline-flex; align-items: center; gap: 6px; }
+.make-photo svg, .ai-btn svg { width: 15px; height: 15px; fill: currentColor; stroke: none; }
+.hero-photo-btn { position: absolute; right: 20px; bottom: 16px; }
+.btn.on-image { background: rgba(255, 255, 255, 0.92); color: #2b2622; border-color: transparent; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); }
+.btn.on-image:hover { background: #fff; }
+.plate.busy::before, .recipe-hero.busy::before {
+  content: ""; position: absolute; inset: 0; z-index: 1; background: rgba(255, 255, 255, 0.55);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+.plate.busy::after, .recipe-hero.busy::after {
+  content: "Foto maken…"; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 2;
+  background: rgba(43, 38, 34, 0.85); color: #fff; font-size: 13px; font-weight: 600; padding: 5px 12px; border-radius: 999px;
+}
+.book-tools { display: flex; justify-content: flex-end; margin: -12px 0 20px; }
+
 /* ---------- toast ---------- */
 
 .toast {
@@ -596,6 +627,7 @@ dialog.modal::backdrop { background: rgba(35, 25, 18, 0.5); animation: fade-in 0
   .tiles { grid-template-columns: 1fr; gap: 14px; }
   .tile.add { min-height: 0; flex-direction: row; padding: 16px; }
   .recipe-columns { grid-template-columns: 1fr; gap: 24px; padding: 16px 20px 24px; }
+  .recipe-columns > div:first-child { position: static; }
   .recipe-intro { padding: 20px 20px 4px; }
   .modal-head, .modal-scroll, .modal-foot { padding-left: 20px; padding-right: 20px; }
   .modal-foot { flex-wrap: nowrap; gap: 8px; }
@@ -606,7 +638,8 @@ dialog.modal::backdrop { background: rgba(35, 25, 18, 0.5); animation: fade-in 0
   .theme-search { flex-direction: column; }
   .recipe-hero.photo { height: 200px; }
   .photo-preview { width: 104px; height: 80px; }
-  dialog.modal, dialog.modal.wide { width: 100vw; max-width: 100vw; max-height: 94vh; margin: auto 0 0; border-radius: 16px 16px 0 0; }
+  dialog.modal, dialog.modal.wide, #edit-sheet { width: 100vw; max-width: 100vw; max-height: 94vh; margin: auto 0 0; border-radius: 16px 16px 0 0; }
+  dialog.modal.wide { height: 94vh; }
 }
 
 @media (prefers-reduced-motion: reduce) {

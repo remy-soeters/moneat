@@ -58,14 +58,31 @@ const state = {
   menu: { days: [], options: [], choices: [] },
   household: Number(load("household")) || 2,
   perDay: Number(load("perDay")) || 3,
-  filling: null, // {datum: aantal} terwijl Claude bezig is
+  filling: null, // {datum: aantal} terwijl de AI bezig is
   picker: { date: null, selected: new Set() },
   view: null, // {option?, recipe?} in de receptweergave
   editMenuDate: null,
   tagFilter: null,
   planTarget: null, // {recipeId, name} of {idea: index} in het inplanvenster
   inspiration: { theme: null, data: null, loading: false, saved: new Map() },
+  settings: null,
+  photoBusy: new Set(), // recept-id's of "idea:<index>" waarvoor nu een foto gemaakt wordt
 };
+
+function aiName() {
+  return state.settings?.text_provider === "gemini" ? "Gemini" : "Claude";
+}
+
+function applyAiName() {
+  $$(".ai-name").forEach((el) => (el.textContent = aiName()));
+}
+
+async function loadSettings() {
+  try {
+    state.settings = await api("/api/settings");
+    applyAiName();
+  } catch {}
+}
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -279,7 +296,7 @@ function renderMenu() {
 
 function badgesHtml(option) {
   return [
-    option.source === "claude" ? `<span class="badge claude">${ICONS.sparkle}Claude</span>` : "",
+    option.source === "claude" ? `<span class="badge claude">${ICONS.sparkle}AI</span>` : "",
     option.saved ? "" : `<span class="badge">Nieuw</span>`,
   ].join("");
 }
@@ -360,7 +377,7 @@ async function copyPreviousWeek() {
   });
 }
 
-// ---------- aanvullen met Claude ----------
+// ---------- aanvullen met AI ----------
 
 function openFillSheet() {
   $$("#per-day button").forEach((b) => b.setAttribute("aria-checked", String(Number(b.dataset.value) === state.perDay)));
@@ -395,7 +412,7 @@ async function fillMenu(event) {
         method: "POST",
         body: { week: state.week, wishes, servings: state.household, per_day: state.perDay },
       });
-      toast(res.added ? `Claude heeft ${res.added} opties toegevoegd` : res.message || "Claude had geen nieuwe opties");
+      toast(res.added ? `${aiName()} heeft ${res.added} opties toegevoegd` : res.message || `${aiName()} had geen nieuwe opties`);
     } finally {
       state.filling = null;
       await refresh();
@@ -406,7 +423,7 @@ async function fillMenu(event) {
 // ---------- recept bekijken ----------
 
 // Toont een recept. Precies één van: `option` (menu-optie), `recipe` (uit het receptenboek)
-// of `idea` (inspiratie van Claude die nog niet bewaard is: {recipe, description, index}).
+// of `idea` (inspiratie van de AI die nog niet bewaard is: {recipe, description, index}).
 function openView({ option = null, recipe = null, idea = null }) {
   const source = option
     ? option.saved
@@ -427,7 +444,7 @@ function openView({ option = null, recipe = null, idea = null }) {
   const methodSteps = steps(source.instructions);
   const tags = tagList(source.tags);
   const note = option?.reason || idea?.description;
-  const noteLabel = option?.source === "claude" ? "Waarom Claude dit voorstelt" : idea ? "Inspiratie van Claude" : "Notitie";
+  const noteLabel = option?.source === "claude" ? "Waarom dit voorgesteld wordt" : idea ? "Waarom dit de moeite waard is" : "Notitie";
   let sourceHost = "";
   try {
     sourceHost = source.source_url ? new URL(source.source_url).hostname.replace(/^www\./, "") : "";
@@ -437,7 +454,10 @@ function openView({ option = null, recipe = null, idea = null }) {
     <div ${plateAttrs(source, "recipe-hero")}>
       <span class="dish" aria-hidden="true">${dishFor(source)}</span>
       ${option ? `<span class="plate-badges">${badgesHtml(option)}</span>` : ""}
-      ${idea ? `<span class="plate-badges"><span class="badge claude">${ICONS.sparkle}Claude</span></span>` : ""}
+      ${idea ? `<span class="plate-badges"><span class="badge claude">${ICONS.sparkle}AI</span></span>` : ""}
+      ${option?.saved || recipe || idea
+        ? `<button class="btn small on-image make-photo hero-photo-btn" data-view-action="photo">${ICONS.sparkle}${source.image ? "Nieuwe foto" : "Maak foto"}</button>`
+        : ""}
     </div>
     <div class="recipe-intro">
       ${tags.length ? `<p class="kicker">${esc(tags.join(" · "))}</p>` : ""}
@@ -506,6 +526,27 @@ async function viewAction(action) {
   } else if (action === "save-idea") {
     closeSheet("#view-sheet");
     await saveIdea(idea.index);
+  } else if (action === "photo") {
+    const button = $("#view-body .hero-photo-btn");
+    button.disabled = true;
+    button.lastChild.textContent = "Foto maken…";
+    $("#view-body .recipe-hero").classList.add("busy");
+    try {
+      if (idea) {
+        await photoForIdea(idea.index);
+        openView({ idea: { ...state.inspiration.data.ideas[idea.index], index: idea.index } });
+      } else {
+        const updated = await photoForRecipe(recipe);
+        if (state.tab === "plan") await refresh();
+        else renderRecipes();
+        openView(option ? { option: findOption(option.id) ?? option } : { recipe: updated });
+      }
+    } catch (err) {
+      toast(err.message, true);
+      button.disabled = false;
+      button.lastChild.textContent = "Maak foto";
+      $("#view-body .recipe-hero").classList.remove("busy");
+    }
   } else if (action === "plan") {
     closeSheet("#view-sheet");
     openPlanSheet(idea ? { idea: idea.index } : { recipeId: recipe.id, name: recipe.name });
@@ -554,7 +595,7 @@ function ingredientRow(ing = {}) {
   return row;
 }
 
-// `recipe` zonder id is een concept (geïmporteerd of door Claude bedacht) dat nog bewaard moet worden.
+// `recipe` zonder id is een concept (geïmporteerd of door de AI bedacht) dat nog bewaard moet worden.
 function openEdit(recipe = null, menuDate = null) {
   const form = $("#edit-form");
   form.reset();
@@ -682,6 +723,12 @@ async function addPicked() {
 function renderRecipes() {
   const q = $("#recipe-search").value.trim().toLowerCase();
   $("#recipe-count").textContent = `${state.recipes.length} ${state.recipes.length === 1 ? "recept" : "recepten"}`;
+  const withoutPhoto = state.recipes.filter((r) => !r.image).length;
+  const photosButton = $("#photos-missing");
+  photosButton.hidden = !withoutPhoto;
+  if (!photosButton.disabled) {
+    photosButton.innerHTML = `${ICONS.sparkle}Maak foto's voor ${withoutPhoto} ${withoutPhoto === 1 ? "recept" : "recepten"} zonder foto`;
+  }
 
   // Tag-filters: de meest gebruikte tags eerst.
   const counts = new Map();
@@ -695,7 +742,7 @@ function renderRecipes() {
 
   if (!state.recipes.length) {
     $("#recipe-list").innerHTML = `<div class="empty"><div class="dish">🍲</div><h3>Nog geen recepten</h3>
-      <p>Schrijf je eigen favorieten op, plak een link van een receptensite of laat Claude iets bedenken.</p></div>`;
+      <p>Schrijf je eigen favorieten op, plak een link van een receptensite of laat ${aiName()} iets bedenken.</p></div>`;
     return;
   }
 
@@ -710,7 +757,7 @@ function renderRecipes() {
   $("#recipe-list").innerHTML = `<div class="recipe-grid">${list
     .map(
       (r) => `<button class="tile recipe-card" data-recipe="${r.id}">
-        <span ${plateAttrs(r)}><span class="dish" aria-hidden="true">${dishFor(r)}</span></span>
+        <span ${plateAttrs(r, state.photoBusy.has(r.id) ? "plate busy" : "plate")}><span class="dish" aria-hidden="true">${dishFor(r)}</span></span>
         <span class="tile-body">
           <span class="tile-title">${esc(r.name)}</span>
           ${metaHtml(r)}
@@ -854,10 +901,15 @@ function renderInspirationResults() {
   }
   const head = `<div class="results-head">
     <div><p class="kicker">Collectie</p><h2>${esc(themeTitle(theme))}</h2></div>
-    ${data ? `<button class="btn outline" data-action="refresh">Nieuwe ideeën</button>` : ""}
+    <div class="foot-actions">
+      ${data && data.ideas.some((i) => !i.recipe.image)
+        ? `<button class="btn outline make-photo" data-action="photos" ${[...state.photoBusy].some((k) => String(k).startsWith("idea:")) ? "disabled" : ""}>${ICONS.sparkle}Maak foto's</button>`
+        : ""}
+      ${data ? `<button class="btn outline" data-action="refresh">Nieuwe ideeën</button>` : ""}
+    </div>
   </div>`;
   if (loading) {
-    el.innerHTML = `${head}<p class="results-intro">Claude zoekt zes recepten voor je uit…</p>
+    el.innerHTML = `${head}<p class="results-intro">${aiName()} zoekt zes recepten voor je uit…</p>
       <div class="idea-grid">${Array.from({ length: 6 }, skeletonHtml).join("")}</div>`;
     return;
   }
@@ -870,7 +922,7 @@ function renderInspirationResults() {
       .map(({ recipe, description }, i) => {
         const savedId = saved.get(i);
         return `<article class="tile idea" data-idea="${i}">
-          <button ${plateAttrs(recipe)} data-action="view" aria-label="Bekijk recept ${esc(recipe.name)}">
+          <button ${plateAttrs(recipe, state.photoBusy.has(`idea:${i}`) ? "plate busy" : "plate")} data-action="view" aria-label="Bekijk recept ${esc(recipe.name)}">
             <span class="dish" aria-hidden="true">${dishFor(recipe)}</span>
           </button>
           <div class="tile-body">
@@ -907,10 +959,12 @@ async function saveIdea(index, { quiet = false } = {}) {
 // ---------- instellingen ----------
 
 async function openSettings() {
-  $("#test-result").hidden = true;
-  $("#key-form").reset();
-  $("#key-form").api_key.type = "password";
-  $("#toggle-key").textContent = "Toon";
+  $$(".key-section").forEach((section) => {
+    $("[data-result]", section).hidden = true;
+    $(".key-form", section).reset();
+    $("[name=key]", section).type = "password";
+    $("[data-toggle]", section).textContent = "Toon";
+  });
   await guarded(async () => {
     renderSettings(await api("/api/settings"));
     openSheet("#settings-sheet");
@@ -918,46 +972,79 @@ async function openSettings() {
 }
 
 function renderSettings(settings) {
-  const { sdk_installed: sdk, api_key: key } = settings;
+  state.settings = settings;
+  applyAiName();
+  $$("#provider-choice button").forEach((b) =>
+    b.setAttribute("aria-checked", String(b.dataset.provider === settings.text_provider))
+  );
   const item = (ok, title, detail) => `<li class="${ok ? "ok" : "missing"}">
     <span class="dot">${ok ? ICONS.check : "!"}</span>
     <div><strong>${title}</strong><small>${detail}</small></div>
   </li>`;
-  $("#settings-status").innerHTML = [
-    sdk
-      ? item(true, "Anthropic-pakket geïnstalleerd", "De app kan met Claude praten.")
-      : item(false, "Anthropic-pakket ontbreekt",
-          `Installeer het in de projectmap met <code>python3 -m venv .venv && .venv/bin/pip install -r requirements.txt</code> en start de app opnieuw met <code>./start.sh</code>.`),
-    key.set
-      ? item(true, "API-sleutel ingesteld", `Opgeslagen in de app: <code>${esc(key.hint)}</code>`)
-      : key.env
-        ? item(true, "API-sleutel uit je terminal", "De server gebruikt <code>ANTHROPIC_API_KEY</code>. Een sleutel die je hieronder opslaat, gaat voor.")
-        : item(false, "Nog geen API-sleutel", "Plak hieronder je sleutel om de functies met Claude te gebruiken."),
-  ].join("");
-  $("#key-label").textContent = key.set ? "Andere API-sleutel gebruiken" : "API-sleutel";
-  $("#delete-key").hidden = !key.set;
-  $("#test-connection").disabled = !sdk || !(key.set || key.env);
+
+  const claude = settings.claude;
+  const gemini = settings.gemini;
+  const statuses = {
+    claude: [
+      settings.sdk_installed
+        ? null
+        : item(false, "Anthropic-pakket ontbreekt",
+            "Installeer het met <code>python3 -m venv .venv && .venv/bin/pip install -r requirements.txt</code> en start de app opnieuw met <code>./start.sh</code>."),
+      claude.set
+        ? item(true, "API-sleutel ingesteld", `Opgeslagen in de app: <code>${esc(claude.hint)}</code>`)
+        : claude.env
+          ? item(true, "API-sleutel uit je terminal", "De server gebruikt <code>ANTHROPIC_API_KEY</code>.")
+          : item(false, "Nog geen API-sleutel", "Plak hieronder je sleutel om Claude te gebruiken."),
+    ],
+    gemini: [
+      gemini.set
+        ? item(true, "API-sleutel ingesteld", `Opgeslagen in de app: <code>${esc(gemini.hint)}</code>`)
+        : gemini.env
+          ? item(true, "API-sleutel uit je terminal", "De server gebruikt <code>GEMINI_API_KEY</code>.")
+          : item(false, "Nog geen API-sleutel", "Plak hieronder je sleutel om Gemini en foto's te gebruiken."),
+    ],
+  };
+  for (const section of $$(".key-section")) {
+    const provider = section.dataset.provider;
+    const info = settings[provider];
+    $("[data-status]", section).innerHTML = statuses[provider].filter(Boolean).join("");
+    $("[data-key-label]", section).textContent = info.set ? "Andere API-sleutel gebruiken" : "API-sleutel";
+    $("[data-delete]", section).hidden = !info.set;
+    $("[data-test]", section).disabled = !(info.set || info.env) || (provider === "claude" && !settings.sdk_installed);
+  }
+  const form = $('.key-section[data-provider="gemini"] .key-form');
+  form.gemini_text_model.value = gemini.text_model === gemini.default_text_model ? "" : gemini.text_model;
+  form.gemini_image_model.value = gemini.image_model === gemini.default_image_model ? "" : gemini.image_model;
+  form.gemini_text_model.placeholder = gemini.default_text_model;
+  form.gemini_image_model.placeholder = gemini.default_image_model;
 }
 
-async function saveKey(event) {
-  event.preventDefault();
-  const form = event.target;
+async function saveSettings(section) {
+  const provider = section.dataset.provider;
+  const form = $(".key-form", section);
+  const body = {};
+  const key = form.key.value.trim();
+  if (key) body[`${provider}_api_key`] = key;
+  if (provider === "gemini") {
+    body.gemini_text_model = form.gemini_text_model.value.trim();
+    body.gemini_image_model = form.gemini_image_model.value.trim();
+  }
   await guarded(async () => {
-    const settings = await api("/api/settings", { method: "PUT", body: { api_key: form.api_key.value } });
-    form.reset();
+    const settings = await api("/api/settings", { method: "PUT", body });
+    form.key.value = "";
     renderSettings(settings);
-    toast("API-sleutel opgeslagen");
-    if (settings.sdk_installed) await testConnection();
+    toast("Instellingen opgeslagen");
+    if (key && !$("[data-test]", section).disabled) await testConnection(section);
   });
 }
 
-async function testConnection() {
-  const el = $("#test-result");
-  const button = $("#test-connection");
+async function testConnection(section) {
+  const el = $("[data-result]", section);
+  const button = $("[data-test]", section);
   button.disabled = true;
   button.textContent = "Bezig met testen…";
   try {
-    const res = await api("/api/settings/test", { method: "POST" });
+    const res = await api("/api/settings/test", { method: "POST", body: { provider: section.dataset.provider } });
     el.className = "test-result ok";
     el.textContent = `✓ ${res.message}`;
   } catch (err) {
@@ -970,13 +1057,119 @@ async function testConnection() {
   }
 }
 
-async function deleteKey() {
-  if (!confirm("De opgeslagen API-sleutel verwijderen?")) return;
+async function deleteKey(section) {
+  const name = section.dataset.provider === "gemini" ? "Gemini" : "Claude";
+  if (!confirm(`De opgeslagen API-sleutel van ${name} verwijderen?`)) return;
   await guarded(async () => {
-    renderSettings(await api("/api/settings/api-key", { method: "DELETE" }));
-    $("#test-result").hidden = true;
+    renderSettings(await api(`/api/settings/key/${section.dataset.provider}`, { method: "DELETE" }));
+    $("[data-result]", section).hidden = true;
     toast("API-sleutel verwijderd");
   });
+}
+
+async function setProvider(provider) {
+  await guarded(async () => {
+    renderSettings(await api("/api/settings", { method: "PUT", body: { text_provider: provider } }));
+    toast(`Recepten worden nu geschreven door ${aiName()}`);
+  });
+}
+
+// ---------- foto's maken met Gemini ----------
+
+async function photoForRecipe(recipe) {
+  state.photoBusy.add(recipe.id);
+  markPhotoBusy();
+  try {
+    const updated = await api(`/api/recipes/${recipe.id}/photo`, { method: "POST" });
+    const index = state.recipes.findIndex((r) => r.id === updated.id);
+    if (index >= 0) state.recipes[index] = updated;
+    return updated;
+  } finally {
+    state.photoBusy.delete(recipe.id);
+  }
+}
+
+async function photoForIdea(index) {
+  const key = `idea:${index}`;
+  state.photoBusy.add(key);
+  renderInspirationResults();
+  try {
+    const { image } = await api("/api/inspiration/photo", {
+      method: "POST",
+      body: { theme: state.inspiration.theme, servings: state.household, index },
+    });
+    state.inspiration.data.ideas[index].recipe.image = image;
+  } finally {
+    state.photoBusy.delete(key);
+    renderInspirationResults();
+  }
+}
+
+// Zet de "Foto maken…"-laag op kaarten waarvoor nu een foto gemaakt wordt.
+function markPhotoBusy() {
+  $$(".recipe-card").forEach((card) =>
+    $(".plate", card).classList.toggle("busy", state.photoBusy.has(Number(card.dataset.recipe)))
+  );
+}
+
+async function makeMissingPhotos() {
+  const todo = state.recipes.filter((r) => !r.image);
+  const button = $("#photos-missing");
+  button.disabled = true;
+  let made = 0;
+  try {
+    for (const recipe of todo) state.photoBusy.add(recipe.id);
+    markPhotoBusy();
+    for (const recipe of todo) {
+      await photoForRecipe(recipe);
+      made += 1;
+      renderRecipes();
+    }
+    toast(`${made} ${made === 1 ? "foto" : "foto's"} gemaakt`);
+  } catch (err) {
+    toast(made ? `${made} foto's gemaakt, daarna ging het mis: ${err.message}` : err.message, true);
+  } finally {
+    state.photoBusy.clear();
+    button.disabled = false;
+    renderRecipes();
+  }
+}
+
+async function makeIdeaPhotos() {
+  const ideas = state.inspiration.data.ideas;
+  let made = 0;
+  try {
+    for (let i = 0; i < ideas.length; i++) {
+      if (ideas[i].recipe.image) continue;
+      await photoForIdea(i);
+      made += 1;
+    }
+    toast(`${made} ${made === 1 ? "foto" : "foto's"} gemaakt`);
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+async function photoForDraft() {
+  const form = $("#edit-form");
+  const button = $("#photo-generate");
+  const recipe = {
+    name: form.name.value,
+    tags: form.tags.value,
+    ingredients: $$(".ingredient-edit").map((row) => ({ name: $("[name=ing]", row).value })).filter((i) => i.name),
+  };
+  if (!recipe.name.trim()) return toast("Geef het recept eerst een naam", true);
+  button.disabled = true;
+  button.lastChild.textContent = "Foto maken…";
+  try {
+    const { image } = await api("/api/photos/draft", { method: "POST", body: { recipe } });
+    setEditPhoto(image);
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    button.disabled = false;
+    button.lastChild.textContent = "Maak foto met Gemini";
+  }
 }
 
 // ---------- boodschappen ----------
@@ -1076,7 +1269,7 @@ $("#welcome").addEventListener("click", (e) => {
   if (action === "welcome-recipe") openEdit();
 });
 
-// Aanvullen met Claude
+// Aanvullen met AI
 $("#per-day").addEventListener("click", (e) => {
   const value = Number(e.target.closest("button")?.dataset.value);
   if (!value) return;
@@ -1087,8 +1280,8 @@ $("#per-day").addEventListener("click", (e) => {
 $("#fill-form").addEventListener("submit", fillMenu);
 
 // Receptweergave
-$("#view-foot").addEventListener("click", (e) => {
-  const action = e.target.closest("button")?.dataset.viewAction;
+$("#view-sheet").addEventListener("click", (e) => {
+  const action = e.target.closest("[data-view-action]")?.dataset.viewAction;
   if (action) viewAction(action);
 });
 $("#view-edit").addEventListener("click", () => {
@@ -1154,14 +1347,27 @@ $("#photo-remove").addEventListener("click", () => setEditPhoto(""));
 
 // Instellingen
 $("#open-settings").addEventListener("click", openSettings);
-$("#key-form").addEventListener("submit", saveKey);
-$("#test-connection").addEventListener("click", testConnection);
-$("#delete-key").addEventListener("click", deleteKey);
-$("#toggle-key").addEventListener("click", () => {
-  const input = $("#key-form").api_key;
-  input.type = input.type === "password" ? "text" : "password";
-  $("#toggle-key").textContent = input.type === "password" ? "Toon" : "Verberg";
+$("#provider-choice").addEventListener("click", (e) => {
+  const provider = e.target.closest("[data-provider]")?.dataset.provider;
+  if (provider) setProvider(provider);
 });
+$$(".key-section").forEach((section) => {
+  $(".key-form", section).addEventListener("submit", (e) => {
+    e.preventDefault();
+    saveSettings(section);
+  });
+  $("[data-test]", section).addEventListener("click", () => testConnection(section));
+  $("[data-delete]", section).addEventListener("click", () => deleteKey(section));
+  $("[data-toggle]", section).addEventListener("click", () => {
+    const input = $("[name=key]", section);
+    input.type = input.type === "password" ? "text" : "password";
+    $("[data-toggle]", section).textContent = input.type === "password" ? "Toon" : "Verberg";
+  });
+});
+
+// Foto's
+$("#photo-generate").addEventListener("click", photoForDraft);
+$("#photos-missing").addEventListener("click", makeMissingPhotos);
 
 // Inspiratie
 $("#season-go").addEventListener("click", () => loadInspiration(seasonTheme()));
@@ -1178,6 +1384,7 @@ $("#inspiration-results").addEventListener("click", (e) => {
   const button = e.target.closest("button");
   if (!button) return;
   if (button.dataset.action === "refresh") return loadInspiration(state.inspiration.theme, { refresh: true, scroll: false });
+  if (button.dataset.action === "photos") return makeIdeaPhotos();
   const index = Number(button.closest("[data-idea]")?.dataset.idea);
   if (Number.isNaN(index)) return;
   const idea = state.inspiration.data.ideas[index];
@@ -1212,4 +1419,5 @@ $("#shopping").addEventListener("click", (e) => {
   });
 });
 
+loadSettings();
 showTab("plan");

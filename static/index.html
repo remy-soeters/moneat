@@ -57,7 +57,7 @@
         <div class="summary-actions">
           <button id="open-fill" class="btn primary">
             <svg viewBox="0 0 24 24" aria-hidden="true" class="sparkle"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/></svg>
-            Vul aan met Claude
+            Vul aan met <span class="ai-name">Claude</span>
           </button>
           <button id="copy-previous" class="btn outline">Kopieer vorige week</button>
           <div class="stepper" aria-label="Aantal personen">
@@ -69,7 +69,7 @@
         </div>
         <div id="fill-status" class="fill-status" hidden>
           <span class="spinner" aria-hidden="true"></span>
-          <span>Claude stelt je menu samen. Dit duurt meestal minder dan een minuut…</span>
+          <span><span class="ai-name">Claude</span> stelt je menu samen. Dit duurt meestal minder dan een minuut…</span>
         </div>
       </div>
 
@@ -77,12 +77,12 @@
         <p class="kicker">Zo werkt het</p>
         <h2>In drie stappen je week rond</h2>
         <ol class="steps">
-          <li><span class="step-num">1</span><div><strong>Zet opties op het menu.</strong> Kies per avond uit je eigen recepten, of laat Claude er drie per avond voorstellen.</div></li>
+          <li><span class="step-num">1</span><div><strong>Zet opties op het menu.</strong> Kies per avond uit je eigen recepten, of laat <span class="ai-name">Claude</span> er drie per avond voorstellen.</div></li>
           <li><span class="step-num">2</span><div><strong>Kies wat je eet.</strong> Klik op ‘Kies’ bij het gerecht waar je zin in hebt.</div></li>
           <li><span class="step-num">3</span><div><strong>Doe boodschappen.</strong> De lijst maakt zich vanzelf op basis van je keuzes.</div></li>
         </ol>
         <div class="welcome-actions">
-          <button class="btn primary" data-action="welcome-fill">Laat Claude voorstellen</button>
+          <button class="btn primary" data-action="welcome-fill">Laat <span class="ai-name">Claude</span> voorstellen</button>
           <button class="btn outline" data-action="welcome-recipe">Eigen recept toevoegen</button>
         </div>
       </div>
@@ -109,7 +109,7 @@
         </button>
         <button class="add-option" data-add="generate">
           <span class="add-icon claude"><svg viewBox="0 0 24 24" aria-hidden="true" class="sparkle"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/></svg></span>
-          <span><strong>Laat Claude bedenken</strong><small>Beschrijf waar je zin in hebt</small></span>
+          <span><strong>Laat <span class="ai-name">Claude</span> bedenken</strong><small>Beschrijf waar je zin in hebt</small></span>
         </button>
       </div>
       <label class="search">
@@ -117,6 +117,7 @@
         <input id="recipe-search" type="search" placeholder="Zoek op gerecht of ingrediënt…" autocomplete="off">
       </label>
       <div id="tag-filter" class="chips"></div>
+      <div class="book-tools"><button class="btn outline small make-photo" id="photos-missing" hidden></button></div>
       <div id="recipe-list"></div>
     </section>
 
@@ -198,6 +199,7 @@
               <input type="file" id="photo-input" accept="image/jpeg,image/png,image/gif,image/webp" hidden>
               Foto kiezen
             </label>
+            <button type="button" class="btn link make-photo" id="photo-generate"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>Maak foto met Gemini</button>
             <button type="button" class="btn link" id="photo-remove">Foto verwijderen</button>
           </div>
         </div>
@@ -261,18 +263,18 @@
     </div>
   </dialog>
 
-  <!-- Aanvullen met Claude -->
+  <!-- Aanvullen met AI -->
   <dialog id="fill-sheet" class="modal">
     <form id="fill-form">
       <div class="modal-head">
         <div>
-          <p class="kicker">Hulp van Claude</p>
+          <p class="kicker">Hulp van <span class="ai-name">Claude</span></p>
           <h2>Vul je menu aan</h2>
         </div>
         <button type="button" class="close" data-close aria-label="Sluiten"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
       <div class="modal-scroll">
-        <p class="intro">Claude vult elke komende avond waarvoor je nog niet gekozen hebt aan tot het gekozen aantal opties. Het gebruikt je eigen recepten en bedenkt er nieuwe bij.</p>
+        <p class="intro"><span class="ai-name">Claude</span> vult elke komende avond waarvoor je nog niet gekozen hebt aan tot het gekozen aantal opties. Het gebruikt je eigen recepten en bedenkt er nieuwe bij.</p>
         <div class="field">
           <span>Opties per avond</span>
           <div class="choice-group" id="per-day" role="radiogroup">
@@ -320,12 +322,12 @@
     </form>
   </dialog>
 
-  <!-- Laten bedenken door Claude -->
+  <!-- Laten bedenken door AI -->
   <dialog id="generate-sheet" class="modal">
     <form id="generate-form">
       <div class="modal-head">
         <div>
-          <p class="kicker">Hulp van Claude</p>
+          <p class="kicker">Hulp van <span class="ai-name">Claude</span></p>
           <h2>Laat een recept bedenken</h2>
         </div>
         <button type="button" class="close" data-close aria-label="Sluiten"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
@@ -341,7 +343,7 @@
           <button type="button" class="chip">Vegetarische ovenschotel</button>
           <button type="button" class="chip">Iets met zalm en citroen</button>
         </div>
-        <div class="busy" hidden><span class="spinner" aria-hidden="true"></span><span>Claude schrijft je recept…</span></div>
+        <div class="busy" hidden><span class="spinner" aria-hidden="true"></span><span><span class="ai-name">Claude</span> schrijft je recept…</span></div>
       </div>
       <div class="modal-foot">
         <span class="spacer"></span>
@@ -376,28 +378,68 @@
       <button class="close" data-close aria-label="Sluiten"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
     <div class="modal-scroll">
-      <h3 class="settings-title">Claude (AI)</h3>
-      <p class="intro">Claude vult je menu aan, bedenkt recepten en zoekt inspiratie. Daarvoor heeft de app een Anthropic API-sleutel nodig.</p>
+      <h3 class="settings-title">Recepten schrijven</h3>
+      <p class="intro">Welke AI vult je menu aan, bedenkt recepten en zoekt inspiratie?</p>
+      <div class="provider-choice" id="provider-choice" role="radiogroup">
+        <button type="button" role="radio" data-provider="gemini" aria-checked="false">
+          <strong>Gemini</strong><small>Gratis (met limieten)</small>
+        </button>
+        <button type="button" role="radio" data-provider="claude" aria-checked="false">
+          <strong>Claude</strong><small>Betaald, beste kwaliteit</small>
+        </button>
+      </div>
 
-      <ul class="status-list" id="settings-status"></ul>
+      <section class="key-section" data-provider="gemini">
+        <h3 class="settings-title">Google Gemini</h3>
+        <p class="intro">Voor recepten (gratis met limieten) en voor <strong>foto's bij je recepten</strong>. Foto's maken is bij Google niet gratis: daarvoor moet je betalen instellen in AI Studio. Bij gratis gebruik mag Google je invoer gebruiken om hun diensten te verbeteren.</p>
+        <ul class="status-list" data-status></ul>
+        <form class="key-form">
+          <label class="field">
+            <span data-key-label>API-sleutel</span>
+            <span class="key-input">
+              <input name="key" type="password" autocomplete="off" spellcheck="false" placeholder="AIza…">
+              <button type="button" class="btn link" data-toggle>Toon</button>
+            </span>
+          </label>
+          <p class="help">Maak een sleutel aan op <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">aistudio.google.com</a>. De sleutel wordt alleen op deze computer bewaard.</p>
+          <details class="models">
+            <summary>Modellen</summary>
+            <label class="field"><span>Model voor recepten</span><input name="gemini_text_model" spellcheck="false"></label>
+            <label class="field"><span>Model voor foto's</span><input name="gemini_image_model" spellcheck="false"></label>
+            <p class="help">Laat leeg voor het standaardmodel.</p>
+          </details>
+          <div class="key-actions">
+            <button type="submit" class="btn primary">Opslaan</button>
+            <button type="button" class="btn outline" data-test>Test verbinding</button>
+            <span class="spacer"></span>
+            <button type="button" class="btn link danger" data-delete>Sleutel verwijderen</button>
+          </div>
+        </form>
+        <p class="test-result" data-result hidden></p>
+      </section>
 
-      <form id="key-form" class="key-form">
-        <label class="field">
-          <span id="key-label">API-sleutel</span>
-          <span class="key-input">
-            <input name="api_key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…">
-            <button type="button" class="btn link" id="toggle-key">Toon</button>
-          </span>
-        </label>
-        <p class="help">Maak een sleutel aan op <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">console.anthropic.com</a> onder <em>API Keys</em>. De sleutel wordt alleen op deze computer bewaard en daarna nooit meer volledig getoond.</p>
-        <div class="key-actions">
-          <button type="submit" class="btn primary">Sleutel opslaan</button>
-          <button type="button" class="btn outline" id="test-connection">Test verbinding</button>
-          <span class="spacer"></span>
-          <button type="button" class="btn link danger" id="delete-key">Sleutel verwijderen</button>
-        </div>
-      </form>
-      <p class="test-result" id="test-result" hidden></p>
+      <section class="key-section" data-provider="claude">
+        <h3 class="settings-title">Claude</h3>
+        <p class="intro">De beste kwaliteit voor recepten en menu's. Betaald per gebruik via Anthropic.</p>
+        <ul class="status-list" data-status></ul>
+        <form class="key-form">
+          <label class="field">
+            <span data-key-label>API-sleutel</span>
+            <span class="key-input">
+              <input name="key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…">
+              <button type="button" class="btn link" data-toggle>Toon</button>
+            </span>
+          </label>
+          <p class="help">Maak een sleutel aan op <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">console.anthropic.com</a> onder <em>API Keys</em>. De sleutel wordt alleen op deze computer bewaard.</p>
+          <div class="key-actions">
+            <button type="submit" class="btn primary">Opslaan</button>
+            <button type="button" class="btn outline" data-test>Test verbinding</button>
+            <span class="spacer"></span>
+            <button type="button" class="btn link danger" data-delete>Sleutel verwijderen</button>
+          </div>
+        </form>
+        <p class="test-result" data-result hidden></p>
+      </section>
     </div>
   </dialog>
 
