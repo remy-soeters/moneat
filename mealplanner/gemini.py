@@ -45,7 +45,7 @@ def _error_message(error):
 
 def _explain(status, message):
     if status in (401, 403) and "billing" not in message.lower():
-        return "Deze Gemini API-sleutel wordt niet geaccepteerd. Controleer hem bij Instellingen (tandwiel rechtsboven)."
+        return "Deze Gemini API-sleutel wordt niet geaccepteerd. Controleer hem bij Instellingen in het menu."
     if status == 429 or "billing" in message.lower() or "free tier" in message.lower():
         return (
             "Gemini weigert dit verzoek vanwege een limiet of omdat betalen nodig is "

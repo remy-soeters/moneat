@@ -30,8 +30,8 @@ python3 -m venv .venv
 ./start.sh
 ```
 
-Open daarna http://127.0.0.1:8000 en voeg je Anthropic API-sleutel toe via **Instellingen**
-(tandwiel rechtsboven). De database komt in `data/mealplanner.db`, foto's in `data/images/`.
+Open daarna http://127.0.0.1:8000 en voeg je API-sleutel(s) toe via **Instellingen** in het menu.
+De database komt in `data/mealplanner.db`, foto's in `data/images/`.
 Opties: `./start.sh --port 8080`, `--host 0.0.0.0` (bereikbaar op je netwerk), `--db pad/naar/bestand.db`.
 
 Zonder `.venv` start de app ook met `python3 -m mealplanner.server`; alles werkt dan behalve de
@@ -39,7 +39,7 @@ functies met Claude.
 
 ### AI: Claude en Gemini
 
-In **Instellingen** (tandwiel rechtsboven) kies je wie de recepten schrijft en voeg je de API-sleutels toe:
+In **Instellingen** in het menu kies je wie de recepten schrijft en voeg je de API-sleutels toe:
 
 - **Gemini** (Google): recepten schrijven is gratis met limieten (`gemini-3.8-flash`). Gemini maakt ook
   de **foto's** bij recepten (`gemini-3.1-flash-image`); dat is bij Google niet gratis, daarvoor moet je

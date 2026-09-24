@@ -221,9 +221,14 @@ function closeSheet(id) {
 
 // ---------- navigatie ----------
 
+const TABS = ["inspiration", "plan", "recipes", "shopping", "settings"];
+
 function showTab(tab) {
   state.tab = tab;
+  save("tab", tab);
   $$(".nav-tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === tab)));
+  // Op smalle schermen schuift het menu; houd het actieve onderdeel in beeld.
+  $(`.nav-tabs [data-tab="${tab}"]`)?.scrollIntoView({ inline: "center", block: "nearest" });
   $$(".page").forEach((p) => (p.hidden = p.id !== `page-${tab}`));
   window.scrollTo({ top: 0 });
   refresh();
@@ -246,6 +251,8 @@ async function refresh() {
       renderRecipes();
     } else if (state.tab === "inspiration") {
       renderInspiration();
+    } else if (state.tab === "settings") {
+      await loadSettingsPage();
     } else {
       renderShopping(await api(`/api/shopping?week=${state.week}`));
     }
@@ -435,12 +442,6 @@ function openView({ option = null, recipe = null, idea = null }) {
   if (!source) return;
   state.view = { option, idea, recipe: option?.saved || recipe ? source : null };
 
-  const facts = [
-    source.prep_minutes ? ["Bereidingstijd", `${source.prep_minutes} min`] : null,
-    ["Personen", source.servings],
-    source.ingredients?.length ? ["Ingrediënten", source.ingredients.length] : null,
-    option ? ["Op het menu", `${dayName(option.date)} ${formatShort(option.date)}`] : null,
-  ].filter(Boolean);
   const methodSteps = steps(source.instructions);
   const tags = tagList(source.tags);
   const note = option?.reason || idea?.description;
@@ -450,43 +451,55 @@ function openView({ option = null, recipe = null, idea = null }) {
     sourceHost = source.source_url ? new URL(source.source_url).hostname.replace(/^www\./, "") : "";
   } catch {}
 
+  const facts = [
+    source.prep_minutes ? ["Bereidingstijd", `${source.prep_minutes} minuten`] : null,
+    ["Personen", source.servings],
+    option ? ["Op het menu", `${dayName(option.date).toLowerCase()} ${formatShort(option.date)}`] : null,
+  ].filter(Boolean);
+  const pageNumber = source.id ? source.id * 2 : null;
+  const badges = option ? badgesHtml(option) : idea ? `<span class="badge claude">${ICONS.sparkle}AI</span>` : "";
+  const canMakePhoto = option?.saved || recipe || idea;
+
   $("#view-body").innerHTML = `
-    <div ${plateAttrs(source, "recipe-hero")}>
-      <span class="dish" aria-hidden="true">${dishFor(source)}</span>
-      ${option ? `<span class="plate-badges">${badgesHtml(option)}</span>` : ""}
-      ${idea ? `<span class="plate-badges"><span class="badge claude">${ICONS.sparkle}AI</span></span>` : ""}
-      ${option?.saved || recipe || idea
-        ? `<button class="btn small on-image make-photo hero-photo-btn" data-view-action="photo">${ICONS.sparkle}${source.image ? "Nieuwe foto" : "Maak foto"}</button>`
-        : ""}
-    </div>
-    <div class="recipe-intro">
-      ${tags.length ? `<p class="kicker">${esc(tags.join(" · "))}</p>` : ""}
-      <h2>${esc(source.name)}</h2>
-      <div class="recipe-facts">
-        ${facts.map(([label, value]) => `<div class="fact"><small>${label}</small><strong>${esc(value)}</strong></div>`).join("")}
-      </div>
-      ${note ? `<p class="recipe-why"><small>${noteLabel}</small>${esc(note)}</p>` : ""}
-      ${sourceHost ? `<p class="recipe-source">Bron: <a href="${esc(source.source_url)}" target="_blank" rel="noopener noreferrer">${esc(sourceHost)} ↗</a></p>` : ""}
-    </div>
-    <div class="recipe-columns">
-      <div>
-        <h3>Ingrediënten</h3>
+    <div class="book-spread">
+      <article class="book-page left">
+        <figure class="book-photo${source.image ? " photo" : ""}" style="${
+          source.image ? `background-image: url('${esc(source.image)}')` : `--plate: ${plateFor(source)}`
+        }">
+          ${source.image ? "" : `<span class="dish" aria-hidden="true">${dishFor(source)}</span>`}
+          ${badges ? `<span class="plate-badges">${badges}</span>` : ""}
+          ${canMakePhoto
+            ? `<button class="btn small on-image make-photo hero-photo-btn" data-view-action="photo">${ICONS.sparkle}${source.image ? "Nieuwe foto" : "Maak foto"}</button>`
+            : ""}
+        </figure>
+        ${tags.length ? `<p class="book-kicker">${esc(tags.join(" · "))}</p>` : ""}
+        <h2 class="book-title">${esc(source.name)}</h2>
+        <div class="book-ornament" aria-hidden="true">✻ ✻ ✻</div>
+        <dl class="book-facts">
+          ${facts.map(([label, value]) => `<div><dt>${label}</dt><dd>${esc(value)}</dd></div>`).join("")}
+        </dl>
+        ${note ? `<aside class="book-note"><small>${noteLabel}</small>${esc(note)}</aside>` : ""}
+        ${sourceHost ? `<p class="book-source">Bron: <a href="${esc(source.source_url)}" target="_blank" rel="noopener noreferrer">${esc(sourceHost)}</a></p>` : ""}
+        ${pageNumber ? `<span class="page-no">${pageNumber}</span>` : ""}
+      </article>
+      <article class="book-page right">
+        <h3 class="book-heading">Ingrediënten <small>voor ${esc(source.servings)} ${Number(source.servings) === 1 ? "persoon" : "personen"}</small></h3>
         ${
           source.ingredients?.length
-            ? `<ul class="ing-list">${source.ingredients
-                .map((i) => `<li><span class="qty">${esc(`${formatQty(i.quantity)} ${i.unit}`.trim())}</span><span>${esc(i.name)}</span></li>`)
+            ? `<ul class="book-ingredients">${source.ingredients
+                .map((i) => `<li><span class="name">${esc(i.name)}</span><span class="leader" aria-hidden="true"></span><span class="qty">${esc(`${formatQty(i.quantity)} ${i.unit}`.trim())}</span></li>`)
                 .join("")}</ul>`
             : `<p class="muted">Geen ingrediënten ingevuld.</p>`
         }
-      </div>
-      <div>
-        <h3>Bereiding</h3>
+        <h3 class="book-heading">Bereiding</h3>
         ${
           methodSteps.length
-            ? `<ol class="method">${methodSteps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol>`
+            ? `<ol class="book-method">${methodSteps.map((step) => `<li>${esc(step)}</li>`).join("")}</ol>`
             : `<p class="muted">Geen bereiding ingevuld.</p>`
         }
-      </div>
+        <p class="book-end" aria-hidden="true">~ ✻ ~</p>
+        ${pageNumber ? `<span class="page-no">${pageNumber + 1}</span>` : ""}
+      </article>
     </div>`;
 
   $("#view-edit").hidden = !state.view.recipe;
@@ -530,7 +543,7 @@ async function viewAction(action) {
     const button = $("#view-body .hero-photo-btn");
     button.disabled = true;
     button.lastChild.textContent = "Foto maken…";
-    $("#view-body .recipe-hero").classList.add("busy");
+    $("#view-body .book-photo").classList.add("busy");
     try {
       if (idea) {
         await photoForIdea(idea.index);
@@ -545,7 +558,7 @@ async function viewAction(action) {
       toast(err.message, true);
       button.disabled = false;
       button.lastChild.textContent = "Maak foto";
-      $("#view-body .recipe-hero").classList.remove("busy");
+      $("#view-body .book-photo").classList.remove("busy");
     }
   } else if (action === "plan") {
     closeSheet("#view-sheet");
@@ -958,17 +971,14 @@ async function saveIdea(index, { quiet = false } = {}) {
 
 // ---------- instellingen ----------
 
-async function openSettings() {
+async function loadSettingsPage() {
   $$(".key-section").forEach((section) => {
     $("[data-result]", section).hidden = true;
     $(".key-form", section).reset();
     $("[name=key]", section).type = "password";
     $("[data-toggle]", section).textContent = "Toon";
   });
-  await guarded(async () => {
-    renderSettings(await api("/api/settings"));
-    openSheet("#settings-sheet");
-  });
+  renderSettings(await api("/api/settings"));
 }
 
 function renderSettings(settings) {
@@ -1346,7 +1356,6 @@ $("#photo-input").addEventListener("change", (e) => {
 $("#photo-remove").addEventListener("click", () => setEditPhoto(""));
 
 // Instellingen
-$("#open-settings").addEventListener("click", openSettings);
 $("#provider-choice").addEventListener("click", (e) => {
   const provider = e.target.closest("[data-provider]")?.dataset.provider;
   if (provider) setProvider(provider);
@@ -1420,4 +1429,4 @@ $("#shopping").addEventListener("click", (e) => {
 });
 
 loadSettings();
-showTab("plan");
+showTab(TABS.includes(load("tab")) ? load("tab") : "plan");

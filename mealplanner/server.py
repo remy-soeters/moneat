@@ -29,7 +29,8 @@ MAX_BODY = 1_000_000
 KEY_SETTINGS = {"claude": ai.CLAUDE_KEY, "gemini": ai.GEMINI_KEY}
 KEY_PATTERNS = {
     "claude": (r"sk-ant-[A-Za-z0-9_\-]{20,}", "Dit lijkt geen Anthropic API-sleutel. Die begint met ‘sk-ant-’ en is lang."),
-    "gemini": (r"[A-Za-z0-9_\-]{30,}", "Dit lijkt geen Gemini API-sleutel. Kopieer hem volledig uit Google AI Studio."),
+    # Google gebruikt zowel het oude formaat (AIza…) als het nieuwere met een punt (AQ.…).
+    "gemini": (r"[A-Za-z0-9_.\-]{30,}", "Dit lijkt geen Gemini API-sleutel. Kopieer hem volledig uit Google AI Studio."),
 }
 
 

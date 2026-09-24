@@ -58,6 +58,11 @@ class SettingsApiTest(unittest.TestCase):
             self.assertEqual(self.call("PUT", "/api/settings", {"claude_api_key": bad})[0], 400, bad)
         self.assertEqual(self.call("PUT", "/api/settings", {"gemini_api_key": "kort"})[0], 400)
 
+    def test_accepts_new_gemini_key_format(self):
+        new_style = "AQ.Ab8" + "x" * 40 + "_-yZ"
+        status, settings = self.call("PUT", "/api/settings", {"gemini_api_key": new_style})
+        self.assertEqual((status, settings["gemini"]["hint"]), (200, "AQ.Ab8x…_-yZ"))
+
     def test_provider_and_models(self):
         status, settings = self.call("PUT", "/api/settings", {"text_provider": "gemini", "gemini_text_model": "gemini-9-flash"})
         self.assertEqual((settings["text_provider"], settings["gemini"]["text_model"]), ("gemini", "gemini-9-flash"))

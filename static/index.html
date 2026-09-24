@@ -8,7 +8,7 @@
   <title>Mealplanner</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400&family=Work+Sans:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400&family=Work+Sans:wght@400;500;600&family=Caveat:wght@500;600&display=swap">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -19,14 +19,12 @@
         <span>Mealplanner</span>
       </a>
       <nav class="nav-tabs" role="tablist" aria-label="Onderdelen">
+        <button role="tab" data-tab="inspiration" aria-selected="false">Inspiratie</button>
         <button role="tab" data-tab="plan" aria-selected="true">Weekmenu</button>
         <button role="tab" data-tab="recipes" aria-selected="false">Receptenboek</button>
-        <button role="tab" data-tab="inspiration" aria-selected="false">Inspiratie</button>
         <button role="tab" data-tab="shopping" aria-selected="false">Boodschappen</button>
+        <button role="tab" data-tab="settings" aria-selected="false">Instellingen</button>
       </nav>
-      <button class="icon-btn settings-btn" id="open-settings" aria-label="Instellingen" title="Instellingen">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
-      </button>
     </div>
   </header>
 
@@ -171,10 +169,82 @@
       </div>
       <div id="shopping"></div>
     </section>
+
+    <!-- Instellingen -->
+    <section id="page-settings" class="page settings-page" hidden>
+      <div class="page-head">
+        <div>
+          <p class="kicker">Mealplanner</p>
+          <h1 class="page-title">Instellingen</h1>
+        </div>
+      </div>
+      <h3 class="settings-title">Recepten schrijven</h3>
+      <p class="intro">Welke AI vult je menu aan, bedenkt recepten en zoekt inspiratie?</p>
+      <div class="provider-choice" id="provider-choice" role="radiogroup">
+        <button type="button" role="radio" data-provider="gemini" aria-checked="false">
+          <strong>Gemini</strong><small>Gratis (met limieten)</small>
+        </button>
+        <button type="button" role="radio" data-provider="claude" aria-checked="false">
+          <strong>Claude</strong><small>Betaald, beste kwaliteit</small>
+        </button>
+      </div>
+
+      <section class="key-section" data-provider="gemini">
+        <h3 class="settings-title">Google Gemini</h3>
+        <p class="intro">Voor recepten (gratis met limieten) en voor <strong>foto's bij je recepten</strong>. Foto's maken is bij Google niet gratis: daarvoor moet je betalen instellen in AI Studio. Bij gratis gebruik mag Google je invoer gebruiken om hun diensten te verbeteren.</p>
+        <ul class="status-list" data-status></ul>
+        <form class="key-form">
+          <label class="field">
+            <span data-key-label>API-sleutel</span>
+            <span class="key-input">
+              <input name="key" type="password" autocomplete="off" spellcheck="false" placeholder="AQ.… of AIza…">
+              <button type="button" class="btn link" data-toggle>Toon</button>
+            </span>
+          </label>
+          <p class="help">Maak een sleutel aan op <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">aistudio.google.com</a>. De sleutel wordt alleen op deze computer bewaard.</p>
+          <details class="models">
+            <summary>Modellen</summary>
+            <label class="field"><span>Model voor recepten</span><input name="gemini_text_model" spellcheck="false"></label>
+            <label class="field"><span>Model voor foto's</span><input name="gemini_image_model" spellcheck="false"></label>
+            <p class="help">Laat leeg voor het standaardmodel.</p>
+          </details>
+          <div class="key-actions">
+            <button type="submit" class="btn primary">Opslaan</button>
+            <button type="button" class="btn outline" data-test>Test verbinding</button>
+            <span class="spacer"></span>
+            <button type="button" class="btn link danger" data-delete>Sleutel verwijderen</button>
+          </div>
+        </form>
+        <p class="test-result" data-result hidden></p>
+      </section>
+
+      <section class="key-section" data-provider="claude">
+        <h3 class="settings-title">Claude</h3>
+        <p class="intro">De beste kwaliteit voor recepten en menu's. Betaald per gebruik via Anthropic.</p>
+        <ul class="status-list" data-status></ul>
+        <form class="key-form">
+          <label class="field">
+            <span data-key-label>API-sleutel</span>
+            <span class="key-input">
+              <input name="key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…">
+              <button type="button" class="btn link" data-toggle>Toon</button>
+            </span>
+          </label>
+          <p class="help">Maak een sleutel aan op <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">console.anthropic.com</a> onder <em>API Keys</em>. De sleutel wordt alleen op deze computer bewaard.</p>
+          <div class="key-actions">
+            <button type="submit" class="btn primary">Opslaan</button>
+            <button type="button" class="btn outline" data-test>Test verbinding</button>
+            <span class="spacer"></span>
+            <button type="button" class="btn link danger" data-delete>Sleutel verwijderen</button>
+          </div>
+        </form>
+        <p class="test-result" data-result hidden></p>
+      </section>
+    </section>
   </main>
 
   <!-- Recept bekijken -->
-  <dialog id="view-sheet" class="modal wide">
+  <dialog id="view-sheet" class="modal wide book">
     <button class="close" data-close aria-label="Sluiten"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     <div class="modal-scroll" id="view-body"></div>
     <div class="modal-foot">
@@ -368,80 +438,6 @@
     </div>
   </dialog>
 
-  <!-- Instellingen -->
-  <dialog id="settings-sheet" class="modal">
-    <div class="modal-head">
-      <div>
-        <p class="kicker">Mealplanner</p>
-        <h2>Instellingen</h2>
-      </div>
-      <button class="close" data-close aria-label="Sluiten"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-    </div>
-    <div class="modal-scroll">
-      <h3 class="settings-title">Recepten schrijven</h3>
-      <p class="intro">Welke AI vult je menu aan, bedenkt recepten en zoekt inspiratie?</p>
-      <div class="provider-choice" id="provider-choice" role="radiogroup">
-        <button type="button" role="radio" data-provider="gemini" aria-checked="false">
-          <strong>Gemini</strong><small>Gratis (met limieten)</small>
-        </button>
-        <button type="button" role="radio" data-provider="claude" aria-checked="false">
-          <strong>Claude</strong><small>Betaald, beste kwaliteit</small>
-        </button>
-      </div>
-
-      <section class="key-section" data-provider="gemini">
-        <h3 class="settings-title">Google Gemini</h3>
-        <p class="intro">Voor recepten (gratis met limieten) en voor <strong>foto's bij je recepten</strong>. Foto's maken is bij Google niet gratis: daarvoor moet je betalen instellen in AI Studio. Bij gratis gebruik mag Google je invoer gebruiken om hun diensten te verbeteren.</p>
-        <ul class="status-list" data-status></ul>
-        <form class="key-form">
-          <label class="field">
-            <span data-key-label>API-sleutel</span>
-            <span class="key-input">
-              <input name="key" type="password" autocomplete="off" spellcheck="false" placeholder="AIza…">
-              <button type="button" class="btn link" data-toggle>Toon</button>
-            </span>
-          </label>
-          <p class="help">Maak een sleutel aan op <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">aistudio.google.com</a>. De sleutel wordt alleen op deze computer bewaard.</p>
-          <details class="models">
-            <summary>Modellen</summary>
-            <label class="field"><span>Model voor recepten</span><input name="gemini_text_model" spellcheck="false"></label>
-            <label class="field"><span>Model voor foto's</span><input name="gemini_image_model" spellcheck="false"></label>
-            <p class="help">Laat leeg voor het standaardmodel.</p>
-          </details>
-          <div class="key-actions">
-            <button type="submit" class="btn primary">Opslaan</button>
-            <button type="button" class="btn outline" data-test>Test verbinding</button>
-            <span class="spacer"></span>
-            <button type="button" class="btn link danger" data-delete>Sleutel verwijderen</button>
-          </div>
-        </form>
-        <p class="test-result" data-result hidden></p>
-      </section>
-
-      <section class="key-section" data-provider="claude">
-        <h3 class="settings-title">Claude</h3>
-        <p class="intro">De beste kwaliteit voor recepten en menu's. Betaald per gebruik via Anthropic.</p>
-        <ul class="status-list" data-status></ul>
-        <form class="key-form">
-          <label class="field">
-            <span data-key-label>API-sleutel</span>
-            <span class="key-input">
-              <input name="key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…">
-              <button type="button" class="btn link" data-toggle>Toon</button>
-            </span>
-          </label>
-          <p class="help">Maak een sleutel aan op <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">console.anthropic.com</a> onder <em>API Keys</em>. De sleutel wordt alleen op deze computer bewaard.</p>
-          <div class="key-actions">
-            <button type="submit" class="btn primary">Opslaan</button>
-            <button type="button" class="btn outline" data-test>Test verbinding</button>
-            <span class="spacer"></span>
-            <button type="button" class="btn link danger" data-delete>Sleutel verwijderen</button>
-          </div>
-        </form>
-        <p class="test-result" data-result hidden></p>
-      </section>
-    </div>
-  </dialog>
 
   <div id="toast" class="toast" role="status" hidden></div>
   <script src="/app.js" type="module"></script>

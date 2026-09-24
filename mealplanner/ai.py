@@ -142,7 +142,7 @@ def _gemini_key():
     key = _setting(GEMINI_KEY) or os.environ.get("GEMINI_API_KEY")
     if not key:
         raise AIUnavailable(
-            "Er is nog geen Gemini API-sleutel ingesteld. Voeg er een toe via Instellingen (tandwiel rechtsboven)."
+            "Er is nog geen Gemini API-sleutel ingesteld. Voeg er een toe via Instellingen in het menu."
         )
     return key
 
@@ -160,7 +160,7 @@ def _client():
         import anthropic
     except ImportError:
         raise AIUnavailable(
-            "Het pakket 'anthropic' is niet geïnstalleerd. Kijk bij Instellingen (tandwiel rechtsboven) hoe je dat oplost."
+            "Het pakket 'anthropic' is niet geïnstalleerd. Kijk bij Instellingen in het menu hoe je dat oplost."
         )
     key = _setting(CLAUDE_KEY)
     try:
@@ -170,7 +170,7 @@ def _client():
         raise AIUnavailable(NO_KEY)
 
 
-NO_KEY = "Er is nog geen Anthropic API-sleutel ingesteld. Voeg er een toe via Instellingen (tandwiel rechtsboven)."
+NO_KEY = "Er is nog geen Anthropic API-sleutel ingesteld. Voeg er een toe via Instellingen in het menu."
 
 
 def check_gemini():
@@ -234,7 +234,7 @@ def _ask_claude(system, user_message, schema, effort):
         ) as stream:
             response = stream.get_final_message()
     except anthropic.AuthenticationError:
-        raise AIUnavailable("De API-sleutel wordt niet geaccepteerd. Controleer hem bij Instellingen (tandwiel rechtsboven).")
+        raise AIUnavailable("De API-sleutel wordt niet geaccepteerd. Controleer hem bij Instellingen in het menu.")
     except anthropic.RateLimitError:
         raise AIUnavailable("Te veel verzoeken aan Claude; probeer het over een minuut opnieuw.")
     except anthropic.APIStatusError as e:
