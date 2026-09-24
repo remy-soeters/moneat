@@ -25,7 +25,7 @@ class FakeGemini(BaseHTTPRequestHandler):
     mode = "ok"
 
     def do_GET(self):
-        self._reply(200, {"models": [{"name": "models/gemini-3.8-flash"}, {"name": "models/gemini-3.1-flash-image"}]})
+        self._reply(200, {"models": [{"name": "models/gemini-3.8-flash"}, {"name": "models/gemini-3.1-flash-lite-image"}]})
 
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))

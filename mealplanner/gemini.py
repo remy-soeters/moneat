@@ -11,7 +11,7 @@ import urllib.request
 
 BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 DEFAULT_TEXT_MODEL = "gemini-3.8-flash"
-DEFAULT_IMAGE_MODEL = "gemini-3.1-flash-image"
+DEFAULT_IMAGE_MODEL = "gemini-3.1-flash-lite-image"
 TIMEOUT = 180
 
 

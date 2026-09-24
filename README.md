@@ -50,7 +50,7 @@ functies met Claude.
 In **Instellingen** in het menu kies je wie de recepten schrijft en voeg je de API-sleutels toe:
 
 - **Gemini** (Google): recepten schrijven is gratis met limieten (`gemini-3.8-flash`). Gemini maakt ook
-  de **foto's** bij recepten (`gemini-3.1-flash-image`); dat is bij Google niet gratis, daarvoor moet je
+  de **foto's** bij recepten (`gemini-3.1-flash-lite-image`, "Nano Banana 2 Lite", ongeveer $0,03 per foto); dat is bij Google niet gratis, daarvoor moet je
   betalen instellen in AI Studio. Sleutel via https://aistudio.google.com/apikey.
 - **Claude** (Anthropic): betaald, beste kwaliteit. Sleutel via https://console.anthropic.com.
 
