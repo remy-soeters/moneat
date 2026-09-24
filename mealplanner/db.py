@@ -74,11 +74,33 @@ CREATE TABLE IF NOT EXISTS settings (
     value  TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS shopping_checks (
-    week_start  TEXT NOT NULL,
-    item_key    TEXT NOT NULL,
-    PRIMARY KEY (week_start, item_key)
+-- Eén doorlopende boodschappenlijst. Regels komen van een gekozen avondeten (source_date + recipe)
+-- of zijn zelf toegevoegd (geen bron). Gelijke producten worden in de weergave samengevoegd.
+CREATE TABLE IF NOT EXISTS shopping_items (
+    id                INTEGER PRIMARY KEY,
+    name              TEXT NOT NULL,
+    quantity          REAL,
+    unit              TEXT NOT NULL DEFAULT '',
+    checked           INTEGER NOT NULL DEFAULT 0,
+    source_date       TEXT,
+    source_recipe_id  INTEGER,
+    created_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- Iconen per product (door Gemini getekend), één keer gemaakt en daarna hergebruikt.
+CREATE TABLE IF NOT EXISTS product_icons (
+    key    TEXT PRIMARY KEY,
+    image  TEXT NOT NULL
+);
+
+-- Hoe vaak iets gekocht is, voor de suggesties "vaak gekocht".
+CREATE TABLE IF NOT EXISTS purchase_counts (
+    key      TEXT PRIMARY KEY,
+    name     TEXT NOT NULL,
+    count    INTEGER NOT NULL DEFAULT 0,
+    last_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 """
 
 
@@ -95,11 +117,28 @@ class Database:
         # Een geheugendatabase (tests) deelt één verbinding; laat threads die om de beurt gebruiken.
         self._memory_lock = threading.RLock()
         with self.connect() as conn:
+            had_list = conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'shopping_items'"
+            ).fetchone() is not None
             _rename_old_menu_options(conn)
             _add_missing_recipe_columns(conn)
             conn.executescript(SCHEMA)
             _migrate_old_menu_options(conn)
             _migrate_plan_entries(conn)
+            if _migrate_week_shopping(conn) or not had_list:
+                self._pending_list_migration = True
+        self._finish_migrations()
+
+    _pending_list_migration = False
+
+    def _finish_migrations(self):
+        """Na het omzetten naar één lijst: zet gekozen avondeten vanaf vandaag er één keer op."""
+        if self._pending_list_migration:
+            self._pending_list_migration = False
+            with self.connect() as conn:
+                days = [r["date"] for r in conn.execute("SELECT date FROM dinner_choices WHERE date >= date('now')")]
+            for day in days:
+                self._sync_dinner_to_list(day)
 
     @contextmanager
     def connect(self):
@@ -161,10 +200,14 @@ class Database:
             if cur.rowcount == 0:
                 raise NotFound(f"Recept {recipe_id} bestaat niet")
             self._replace_ingredients(conn, recipe_id, recipe["ingredients"])
+            days = [r["date"] for r in conn.execute("SELECT date FROM dinner_choices WHERE recipe_id = ?", (recipe_id,))]
+        for day in days:  # gewijzigde ingrediënten ook op de boodschappenlijst doorvoeren
+            self._sync_dinner_to_list(day)
         return self.get_recipe(recipe_id)
 
     def delete_recipe(self, recipe_id):
         with self.connect() as conn:
+            conn.execute("DELETE FROM shopping_items WHERE source_recipe_id = ? AND checked = 0", (recipe_id,))
             cur = conn.execute("DELETE FROM recipes WHERE id = ?", (recipe_id,))
             if cur.rowcount == 0:
                 raise NotFound(f"Recept {recipe_id} bestaat niet")
@@ -259,6 +302,7 @@ class Database:
                 conn.execute(
                     "DELETE FROM dinner_choices WHERE date = ? AND recipe_id = ?", (option["date"], option["recipe_id"])
                 )
+        self._sync_dinner_to_list(option["date"])
 
     def save_option_recipe(self, option_id):
         """Bewaar het voorstel achter een optie in het receptenboek. Geeft het recept-id terug."""
@@ -287,10 +331,45 @@ class Database:
                    ON CONFLICT (date) DO UPDATE SET recipe_id = excluded.recipe_id, servings = excluded.servings""",
                 (day, recipe_id, servings),
             )
+        self._sync_dinner_to_list(day)
 
     def clear_dinner_choice(self, day):
         with self.connect() as conn:
             conn.execute("DELETE FROM dinner_choices WHERE date = ?", (day,))
+        self._sync_dinner_to_list(day)
+
+    def _sync_dinner_to_list(self, day):
+        """Zet de ingrediënten van het gekozen avondeten van `day` op de boodschappenlijst.
+
+        Nog niet gekochte regels van die avond worden vervangen (andere keuze of ander aantal personen);
+        wat al gekocht is blijft staan en komt niet nog eens op de lijst.
+        """
+        with self.connect() as conn:
+            conn.execute("DELETE FROM shopping_items WHERE source_date = ? AND checked = 0", (day,))
+            choice = conn.execute(
+                """SELECT c.recipe_id, c.servings, r.servings AS base FROM dinner_choices c
+                   JOIN recipes r ON r.id = c.recipe_id WHERE c.date = ?""",
+                (day,),
+            ).fetchone()
+            if choice is None:
+                return
+            bought = {
+                (r["name"].lower(), r["unit"].lower())
+                for r in conn.execute(
+                    "SELECT name, unit FROM shopping_items WHERE source_date = ? AND source_recipe_id = ? AND checked = 1",
+                    (day, choice["recipe_id"]),
+                )
+            }
+            factor = choice["servings"] / choice["base"]
+            for ing in conn.execute("SELECT name, quantity, unit FROM ingredients WHERE recipe_id = ? ORDER BY position", (choice["recipe_id"],)):
+                if (ing["name"].lower(), ing["unit"].lower()) in bought:
+                    continue
+                quantity = round(ing["quantity"] * factor, 2) if ing["quantity"] is not None else None
+                conn.execute(
+                    """INSERT INTO shopping_items (name, quantity, unit, source_date, source_recipe_id)
+                       VALUES (?, ?, ?, ?, ?)""",
+                    (ing["name"].strip(), quantity, ing["unit"].strip(), day, choice["recipe_id"]),
+                )
 
     def copy_menu_from_previous_week(self, any_day):
         """Zet de opties van vorige week (zonder keuzes) op dezelfde weekdagen van deze week."""
@@ -312,6 +391,8 @@ class Database:
         """Wordt deze afbeelding nog gebruikt door een recept, een voorstel op het menu of inspiratie?"""
         with self.connect() as conn:
             if conn.execute("SELECT 1 FROM recipes WHERE image = ?", (image,)).fetchone():
+                return True
+            if conn.execute("SELECT 1 FROM product_icons WHERE image = ?", (image,)).fetchone():
                 return True
             pattern = f'%"image": "{image}"%'
             return (
@@ -448,54 +529,124 @@ class Database:
 
     # ---------- boodschappenlijst ----------
 
-    def shopping_list(self, week_start):
-        days = week_dates(week_start)
+    def shopping_list(self):
+        """De hele lijst, met gelijke producten (naam + eenheid) samengevoegd tot één regel."""
         with self.connect() as conn:
             rows = conn.execute(
-                """SELECT i.name, i.quantity, i.unit, p.servings AS planned, r.servings AS base, r.name AS recipe
-                   FROM dinner_choices p
-                   JOIN recipes r ON r.id = p.recipe_id
-                   JOIN ingredients i ON i.recipe_id = r.id
-                   WHERE p.date BETWEEN ? AND ?
-                   ORDER BY i.name COLLATE NOCASE, r.name COLLATE NOCASE""",
-                (days[0], days[-1]),
+                """SELECT s.*, r.name AS recipe FROM shopping_items s
+                   LEFT JOIN recipes r ON r.id = s.source_recipe_id
+                   ORDER BY s.id"""
             ).fetchall()
-            checked = {
-                r["item_key"]
-                for r in conn.execute("SELECT item_key FROM shopping_checks WHERE week_start = ?", (days[0],))
-            }
-
-        items = {}
+        groups = {}
         for row in rows:
-            key = f"{row['name'].strip().lower()}|{row['unit'].strip().lower()}"
-            item = items.setdefault(
-                key, {"key": key, "name": row["name"].strip(), "unit": row["unit"].strip(), "quantity": None, "recipes": []}
-            )
+            key = f"{'bought' if row['checked'] else 'buy'}:{row['name'].strip().lower()}|{row['unit'].strip().lower()}"
+            item = groups.setdefault(key, {
+                "key": key, "name": row["name"].strip(), "unit": row["unit"].strip(), "quantity": None,
+                "recipes": [], "checked": bool(row["checked"]), "manual": False,
+            })
             if row["quantity"] is not None:
-                scaled = row["quantity"] * row["planned"] / row["base"]
-                item["quantity"] = (item["quantity"] or 0) + scaled
-            if row["recipe"] not in item["recipes"]:
+                item["quantity"] = round((item["quantity"] or 0) + row["quantity"], 2)
+            if row["recipe"] and row["recipe"] not in item["recipes"]:
                 item["recipes"].append(row["recipe"])
+            if row["source_date"] is None:
+                item["manual"] = True
+        return list(groups.values())
 
-        result = []
-        for item in items.values():
-            if item["quantity"] is not None:
-                item["quantity"] = round(item["quantity"], 2)
-            item["checked"] = item["key"] in checked
-            result.append(item)
-        return result
+    def _group_rows(self, conn, key):
+        state, _, rest = key.partition(":")
+        name, _, unit = rest.partition("|")
+        if state not in ("buy", "bought") or not name:
+            raise NotFound("Dit product staat niet (meer) op de lijst")
+        rows = conn.execute(
+            "SELECT id, name FROM shopping_items WHERE lower(trim(name)) = ? AND lower(trim(unit)) = ? AND checked = ?",
+            (name, unit, int(state == "bought")),
+        ).fetchall()
+        if not rows:
+            raise NotFound("Dit product staat niet (meer) op de lijst")
+        return rows
 
-    def set_shopping_check(self, week_start, item_key, checked):
-        week_start = week_dates(week_start)[0]
+    def add_shopping_item(self, name, quantity=None, unit=""):
+        name = str(name or "").strip()
+        if not name:
+            raise ValueError("Wat wil je op de lijst zetten?")
         with self.connect() as conn:
-            if checked:
-                conn.execute(
-                    "INSERT OR IGNORE INTO shopping_checks (week_start, item_key) VALUES (?, ?)", (week_start, item_key)
-                )
-            else:
-                conn.execute(
-                    "DELETE FROM shopping_checks WHERE week_start = ? AND item_key = ?", (week_start, item_key)
-                )
+            # Al zelf toegevoegd en nog niet gekocht? Dan de hoeveelheid ophogen in plaats van dubbel toevoegen.
+            existing = conn.execute(
+                """SELECT id FROM shopping_items WHERE source_date IS NULL AND checked = 0
+                   AND lower(name) = lower(?) AND unit = ?""",
+                (name, unit),
+            ).fetchone()
+            if existing:
+                if quantity is not None:
+                    conn.execute(
+                        "UPDATE shopping_items SET quantity = COALESCE(quantity, 0) + ? WHERE id = ?", (quantity, existing["id"])
+                    )
+                return existing["id"]
+            return conn.execute(
+                "INSERT INTO shopping_items (name, quantity, unit) VALUES (?, ?, ?)", (name[:80], quantity, unit)
+            ).lastrowid
+
+    def remove_shopping_item(self, key):
+        """Haal een (samengevoegd) product van de lijst."""
+        with self.connect() as conn:
+            ids = [r["id"] for r in self._group_rows(conn, key)]
+            conn.execute(f"DELETE FROM shopping_items WHERE id IN ({','.join('?' * len(ids))})", ids)
+
+    def clear_bought_items(self):
+        """Haal alles wat al gekocht is van de lijst."""
+        with self.connect() as conn:
+            return conn.execute("DELETE FROM shopping_items WHERE checked = 1").rowcount
+
+    def set_shopping_check(self, key, checked):
+        """Markeer een (samengevoegd) product als gekocht of zet het terug; telt mee voor "vaak gekocht"."""
+        with self.connect() as conn:
+            rows = self._group_rows(conn, key)
+            if key.startswith("bought:") == bool(checked):
+                return  # staat al zo
+            ids = [r["id"] for r in rows]
+            conn.execute(
+                f"UPDATE shopping_items SET checked = ? WHERE id IN ({','.join('?' * len(ids))})", [int(bool(checked)), *ids]
+            )
+            self._count_purchase(conn, rows[0]["name"], 1 if checked else -1)
+
+    def frequent_purchases(self, limit=24):
+        with self.connect() as conn:
+            rows = conn.execute(
+                "SELECT name, count FROM purchase_counts WHERE count > 0 ORDER BY count DESC, last_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [{"name": r["name"], "count": r["count"]} for r in rows]
+
+    def product_icons(self, names):
+        """{naam: afbeelding} voor de producten die al een icoon hebben."""
+        keys = {icon_key(n): n for n in names if icon_key(n)}
+        if not keys:
+            return {}
+        with self.connect() as conn:
+            rows = conn.execute(
+                f"SELECT key, image FROM product_icons WHERE key IN ({','.join('?' * len(keys))})", list(keys)
+            ).fetchall()
+        return {keys[r["key"]]: r["image"] for r in rows}
+
+    def set_product_icon(self, name, image):
+        with self.connect() as conn:
+            conn.execute(
+                "INSERT INTO product_icons (key, image) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET image = excluded.image",
+                (icon_key(name), image),
+            )
+
+    def _count_purchase(self, conn, name, delta):
+        key = name.strip().lower()
+        if not key:
+            return
+        if delta > 0:
+            conn.execute(
+                """INSERT INTO purchase_counts (key, name, count) VALUES (?, ?, 1)
+                   ON CONFLICT (key) DO UPDATE SET count = count + 1, name = excluded.name, last_at = datetime('now')""",
+                (key, name.strip()),
+            )
+        else:
+            conn.execute("UPDATE purchase_counts SET count = MAX(count - 1, 0) WHERE key = ?", (key,))
 
 
 # ---------- hulpfuncties ----------
@@ -559,6 +710,11 @@ def _clean_url(value):
     return value[:2000]
 
 
+def icon_key(name):
+    """Eén icoon per product, ongeacht hoofdletters of spaties: 'Rode ui ' en 'rode ui' delen er een."""
+    return " ".join(str(name or "").lower().split())[:60]
+
+
 def _card(row):
     return {
         "id": row["id"],
@@ -568,6 +724,21 @@ def _card(row):
         "status": row["status"],
         "recipe_id": row["recipe_id"],
     }
+
+
+def _migrate_week_shopping(conn):
+    """Eerdere versie had een lijst per week. Zet zelf toegevoegde producten over; geeft True als er omgezet is."""
+    columns = [r[1] for r in conn.execute("PRAGMA table_info(shopping_items)")]
+    if "week_start" not in columns:
+        return False
+    conn.execute("ALTER TABLE shopping_items RENAME TO shopping_items_week")
+    conn.executescript(SCHEMA)
+    conn.execute(
+        """INSERT INTO shopping_items (name, quantity, unit, checked, created_at)
+           SELECT name, quantity, unit, checked, created_at FROM shopping_items_week"""
+    )
+    conn.execute("DROP TABLE shopping_items_week")
+    return True
 
 
 def _rename_old_menu_options(conn):

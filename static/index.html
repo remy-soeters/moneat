@@ -170,18 +170,17 @@
     <section id="page-shopping" class="page" hidden>
       <div class="page-head">
         <div>
-          <p class="kicker week-label"></p>
+          <p class="kicker" id="shop-kicker">Boodschappen</p>
           <h1 class="page-title">Boodschappenlijst</h1>
         </div>
-        <div class="week-nav">
-          <button class="icon-btn" data-week-step="-1" aria-label="Vorige week">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
-          </button>
-          <button class="btn ghost small this-week" data-week-step="0">Deze week</button>
-          <button class="icon-btn" data-week-step="1" aria-label="Volgende week">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
-          </button>
-        </div>
+      </div>
+      <div class="shop-add" id="shop-add">
+        <form class="shop-input" id="shop-add-form" autocomplete="off">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          <input name="text" placeholder="Wat heb je nodig?" aria-label="Product toevoegen" enterkeyhint="done">
+          <button type="button" class="btn link" id="shop-add-done" hidden>Klaar</button>
+        </form>
+        <div class="shop-suggest" id="shop-suggest" hidden></div>
       </div>
       <div id="shopping"></div>
     </section>

@@ -18,7 +18,8 @@ from urllib.parse import parse_qs, urlparse
 from . import ai, gemini
 from .db import Database, NotFound
 from .images import MAX_IMAGE_BYTES, ImageStore
-from .importer import ImportFailed, import_recipe
+from .icons import IconMaker
+from .importer import ImportFailed, import_recipe, parse_ingredient
 from .preloader import DEFAULT_PRELOAD, PRELOAD_OPTIONS, SwipePreloader
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -35,6 +36,12 @@ KEY_PATTERNS = {
 }
 
 
+# Gangbare boodschappen als startpunt voor de suggesties, zolang er nog weinig geschiedenis is.
+STAPLES = [
+    "Melk", "Brood", "Eieren", "Kaas", "Boter", "Yoghurt", "Bananen", "Appels", "Tomaten", "Uien",
+    "Knoflook", "Aardappelen", "Wortels", "Komkommer", "Paprika", "Sla", "Pasta", "Rijst", "Koffie",
+    "Thee", "Olijfolie", "Hagelslag", "Pindakaas", "Wc-papier",
+]
 PREFERENCES_SETTING = "food_preferences"
 SWIPE_PRELOAD_SETTING = "swipe_preload"
 MAX_MINUTES = (None, 20, 30, 45, 60)
@@ -101,6 +108,22 @@ def make_handler(db, images=None):
         return value if value in PRELOAD_OPTIONS else DEFAULT_PRELOAD
 
     preloader = SwipePreloader(db, images, release_image, load_preferences, preload_target)
+    icon_maker = IconMaker(db, images)
+
+    def with_icons(items):
+        """Voeg aan elk product het icoon toe (als dat er al is) en laat ontbrekende iconen tekenen."""
+        names = [i["name"] for i in items]
+        icons = db.product_icons(names)
+        for item in items:
+            item["icon"] = icons.get(item["name"], "")
+        icon_maker.request([n for n in names if n not in icons])
+        return items
+
+    def shopping_response():
+        return {
+            "items": with_icons(db.shopping_list()),
+            "icons": {"pending": icon_maker.pending(), "enabled": icon_maker.enabled(), "failed": icon_maker.failed},
+        }
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "mealplanner/0.1"
@@ -392,12 +415,31 @@ def make_handler(db, images=None):
         # ---------- boodschappen ----------
 
         def get_shopping(self, query):
-            return db.shopping_list(self._require(query, "week"))
+            return shopping_response()
 
         def check_shopping(self, query):
             body = self._body()
-            db.set_shopping_check(body.get("week"), str(body.get("key") or ""), bool(body.get("checked")))
+            db.set_shopping_check(str(body.get("key") or ""), bool(body.get("checked")))
             return {"ok": True}
+
+        def add_shopping_item(self, query):
+            parsed = parse_ingredient(str(self._body().get("text") or ""))
+            db.add_shopping_item(parsed["name"], parsed["quantity"], parsed["unit"])
+            return shopping_response()
+
+        def remove_shopping_item(self, query):
+            db.remove_shopping_item(self._require(query, "key"))
+            return {"ok": True}
+
+        def clear_bought(self, query):
+            return {"removed": db.clear_bought_items()}
+
+        def shopping_suggestions(self, query):
+            """Vaak gekochte producten, aangevuld met gangbare boodschappen zolang er weinig geschiedenis is."""
+            frequent = [f["name"] for f in db.frequent_purchases(24)]
+            seen = {n.lower() for n in frequent}
+            names = frequent + [n for n in STAPLES if n.lower() not in seen]
+            return {"suggestions": with_icons([{"name": n} for n in names[:30]]), "has_history": bool(frequent)}
 
         # ---------- AI ----------
 
@@ -521,6 +563,10 @@ def make_handler(db, images=None):
         ("POST", re.compile(r"/api/menu/fill"), Handler.fill_menu),
         ("GET", re.compile(r"/api/shopping"), Handler.get_shopping),
         ("POST", re.compile(r"/api/shopping/check"), Handler.check_shopping),
+        ("POST", re.compile(r"/api/shopping/items"), Handler.add_shopping_item),
+        ("DELETE", re.compile(r"/api/shopping/items"), Handler.remove_shopping_item),
+        ("POST", re.compile(r"/api/shopping/clear-bought"), Handler.clear_bought),
+        ("GET", re.compile(r"/api/shopping/suggestions"), Handler.shopping_suggestions),
     ]
 
     return Handler

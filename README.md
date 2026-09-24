@@ -11,6 +11,10 @@ recepten van Claude komen pas in je receptenboek als je ze kiest of bewaart.
   liever niet) en swipe door gerechten met foto en korte omschrijving. Naar rechts bewaart het recept
   in je receptenboek, naar links slaat het over; gezien gerechten komen niet terug. De server zet op de
   achtergrond een voorraad gerechten mét foto klaar (instelbaar: 5, 10, 15 of 20), zodat je niet hoeft te wachten.
+- **Boodschappen:** één doorlopende lijst met tegels (zoals Bring!), in de secties *Kopen* en *Gekocht*.
+  Kies je een avondeten, dan komen de ingrediënten er vanzelf op (voor het gekozen aantal personen);
+  gelijke producten worden één tegel. Zelf iets toevoegen kan met suggesties van wat je vaak koopt, en
+  Gemini tekent voor elk product één keer een icoon.
 - **Inspiratie:** wat er deze maand in het seizoen is, en collecties van 6 recepten per thema
   (of zelf ingetypt) die je bewaart of direct op het menu zet.
 
@@ -71,6 +75,7 @@ kun je in de instellingen aanpassen als Google nieuwe versies uitbrengt.
 | `mealplanner/importer.py` | Recepten van websites importeren (schema.org/Recipe) |
 | `mealplanner/images.py` | Opslag van receptfoto's |
 | `mealplanner/preloader.py` | Houdt op de achtergrond swipekaarten mét foto klaar |
+| `mealplanner/icons.py` | Laat Gemini op de achtergrond iconen voor producten tekenen |
 | `static/` | Frontend |
 | `tests/` | Unittests voor database en API |
 
@@ -106,5 +111,9 @@ kun je in de instellingen aanpassen als Google nieuwe versies uitbrengt.
 | DELETE | `/api/menu/choice?date=…` | Keuze ongedaan maken |
 | POST | `/api/menu/copy-previous` | `{week}` opties van vorige week overnemen |
 | POST | `/api/menu/fill` | `{week, wishes, servings, per_day}` Claude vult komende avonden zonder keuze aan tot `per_day` opties |
-| GET | `/api/shopping?week=…` | Boodschappenlijst van de gekozen maaltijden, geschaald naar aantal personen |
-| POST | `/api/shopping/check` | `{week, key, checked}` afvinken |
+| GET | `/api/shopping` | De hele boodschappenlijst (samengevoegd per product, met iconen) |
+| POST | `/api/shopping/check` | `{key, checked}` product als gekocht markeren of terugzetten |
+| POST | `/api/shopping/items` | `{text}` zelf iets toevoegen, bijv. "2 liter melk" |
+| DELETE | `/api/shopping/items?key=…` | Product van de lijst halen |
+| POST | `/api/shopping/clear-bought` | Alles wat gekocht is van de lijst halen |
+| GET | `/api/shopping/suggestions` | Vaak gekochte producten (aangevuld met gangbare boodschappen) |

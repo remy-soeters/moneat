@@ -381,3 +381,20 @@ def generate_photo(recipe):
         return gemini.generate_image(_gemini_key(), gemini_models()[1], photo_prompt(recipe))
     except gemini.GeminiError as e:
         raise AIUnavailable(str(e))
+
+
+def icon_prompt(name):
+    return (
+        f"A single grocery item: \"{name}\" (a Dutch supermarket product name). "
+        "Simple, friendly flat illustration icon of just this item, centered, filling most of the frame, "
+        "on a plain warm cream background (#FBF7F2). Soft colors, subtle shading, rounded shapes, consistent "
+        "sticker-like style. No text, no letters, no brand names, no packaging labels, no people."
+    )
+
+
+def generate_icon(name):
+    """Laat Gemini een vierkant icoon voor een product tekenen; geeft de afbeeldingsbytes terug."""
+    try:
+        return gemini.generate_image(_gemini_key(), gemini_models()[1], icon_prompt(name), aspect_ratio="1:1")
+    except gemini.GeminiError as e:
+        raise AIUnavailable(str(e))

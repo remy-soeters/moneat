@@ -167,6 +167,37 @@ function tagList(tags) {
     .filter(Boolean);
 }
 
+// Hoeveelheid omrekenen naar een ander aantal personen, afgerond zoals je het in een kookboek zou schrijven.
+const FRACTIONS = [[0.25, "¼"], [0.5, "½"], [0.75, "¾"]];
+const WEIGHT_UNITS = new Set(["g", "gr", "gram", "kg", "ml", "cl", "dl", "l", "liter"]);
+
+function scaledQty(quantity, unit, factor) {
+  if (quantity == null) return "";
+  const value = quantity * factor;
+  if (WEIGHT_UNITS.has(String(unit).toLowerCase())) {
+    const step = value >= 500 ? 10 : value >= 100 ? 5 : value >= 10 ? 1 : 0.1;
+    return formatQty(Math.round(value / step) * step);
+  }
+  // Stuks, lepels, teentjes: in kwarten, met breuken.
+  const quarters = Math.max(1, Math.round(value * 4)) / 4;
+  const whole = Math.floor(quarters);
+  const fraction = FRACTIONS.find(([f]) => Math.abs(quarters - whole - f) < 0.01)?.[1] ?? "";
+  return whole ? `${whole}${fraction}` : fraction || "¼";
+}
+
+function ingredientItems(ingredients, factor) {
+  return ingredients
+    .map((i) => {
+      const qty = factor === 1 ? formatQty(i.quantity) : scaledQty(i.quantity, i.unit, factor);
+      return `<li><span class="name">${esc(i.name)}</span><span class="leader" aria-hidden="true"></span><span class="qty">${esc(`${qty} ${i.unit}`.trim())}</span></li>`;
+    })
+    .join("");
+}
+
+function personen(n) {
+  return `${n} ${Number(n) === 1 ? "persoon" : "personen"}`;
+}
+
 function metaHtml(item) {
   const parts = [];
   if (item.prep_minutes) parts.push(`<span>${ICONS.clock}${item.prep_minutes} min</span>`);
@@ -256,7 +287,7 @@ async function refresh() {
     } else if (state.tab === "settings") {
       await loadSettingsPage();
     } else {
-      renderShopping(await api(`/api/shopping?week=${state.week}`));
+      applyShopping(await api("/api/shopping"));
     }
   });
 }
@@ -353,12 +384,12 @@ function isChosen(option) {
   return Boolean(choice && option.saved && choice.recipe_id === option.recipe_id);
 }
 
-async function toggleChoice(option) {
+async function toggleChoice(option, servings = state.household) {
   await guarded(async () => {
     if (isChosen(option)) {
       await api(`/api/menu/choice?date=${option.date}`, { method: "DELETE" });
     } else {
-      await api(`/api/menu/options/${option.id}/choose`, { method: "POST", body: { servings: state.household } });
+      await api(`/api/menu/options/${option.id}/choose`, { method: "POST", body: { servings } });
       if (!option.saved) toast(`${option.name} is bewaard in je recepten`);
     }
     await refresh();
@@ -444,7 +475,12 @@ function openView({ option = null, recipe = null, idea = null, card = null }) {
         ? { ...card.recipe, image: card.image }
         : recipe;
   if (!source) return;
-  state.view = { option, idea, card, recipe: option?.saved || recipe ? source : null };
+  const chosen = option && isChosen(option) ? state.menu.choices.find((c) => c.date === option.date) : null;
+  state.view = {
+    option, idea, card, source,
+    recipe: option?.saved || recipe ? source : null,
+    servings: chosen?.servings ?? state.household,
+  };
 
   const methodSteps = steps(source.instructions);
   const tags = tagList(source.tags);
@@ -457,7 +493,7 @@ function openView({ option = null, recipe = null, idea = null, card = null }) {
 
   const facts = [
     source.prep_minutes ? ["Bereidingstijd", `${source.prep_minutes} minuten`] : null,
-    ["Personen", source.servings],
+    ["Personen", state.view.servings],
     option ? ["Op het menu", `${dayName(option.date).toLowerCase()} ${formatShort(option.date)}`] : null,
   ].filter(Boolean);
   const pageNumber = source.id ? source.id * 2 : null;
@@ -480,32 +516,45 @@ function openView({ option = null, recipe = null, idea = null, card = null }) {
         <h2 class="book-title">${esc(source.name)}</h2>
         <div class="book-ornament" aria-hidden="true">✻ ✻ ✻</div>
         <dl class="book-facts">
-          ${facts.map(([label, value]) => `<div><dt>${label}</dt><dd>${esc(value)}</dd></div>`).join("")}
+          ${facts.map(([label, value]) => `<div><dt>${label}</dt><dd${label === "Personen" ? ' id="view-servings-fact"' : ""}>${esc(value)}</dd></div>`).join("")}
         </dl>
         ${note ? `<aside class="book-note"><small>${noteLabel}</small>${esc(note)}</aside>` : ""}
         ${sourceHost ? `<p class="book-source">Bron: <a href="${esc(source.source_url)}" target="_blank" rel="noopener noreferrer">${esc(sourceHost)}</a></p>` : ""}
         ${pageNumber ? `<span class="page-no">${pageNumber}</span>` : ""}
       </article>
       <article class="book-page right">
-        <h3 class="book-heading">Ingrediënten <small>voor ${esc(source.servings)} ${Number(source.servings) === 1 ? "persoon" : "personen"}</small></h3>
-        ${
-          source.ingredients?.length
-            ? `<ul class="book-ingredients">${source.ingredients
-                .map((i) => `<li><span class="name">${esc(i.name)}</span><span class="leader" aria-hidden="true"></span><span class="qty">${esc(`${formatQty(i.quantity)} ${i.unit}`.trim())}</span></li>`)
-                .join("")}</ul>`
-            : `<p class="muted">Geen ingrediënten ingevuld.</p>`
-        }
-        <h3 class="book-heading">Bereiding</h3>
-        ${
-          methodSteps.length
-            ? `<ol class="book-method">${methodSteps.map((step) => `<li>${esc(step)}</li>`).join("")}</ol>`
-            : `<p class="muted">Geen bereiding ingevuld.</p>`
-        }
-        <p class="book-end" aria-hidden="true">~ ✻ ~</p>
+        <div class="book-cols">
+          <section class="book-col">
+            <div class="book-heading ingredients-heading">
+              <h3>Ingrediënten</h3>
+              <div class="servings-control" role="group" aria-label="Aantal personen">
+                <button type="button" data-view-action="servings-down" aria-label="Minder personen">−</button>
+                <output id="view-servings">${personen(state.view.servings)}</output>
+                <button type="button" data-view-action="servings-up" aria-label="Meer personen">+</button>
+              </div>
+            </div>
+            <p class="servings-note" id="view-servings-note"></p>
+            ${
+              source.ingredients?.length
+                ? `<ul class="book-ingredients" id="view-ingredients"></ul>`
+                : `<p class="muted">Geen ingrediënten ingevuld.</p>`
+            }
+          </section>
+          <section class="book-col">
+            <h3 class="book-heading">Bereiding</h3>
+            ${
+              methodSteps.length
+                ? `<ol class="book-method">${methodSteps.map((step) => `<li>${esc(step)}</li>`).join("")}</ol>`
+                : `<p class="muted">Geen bereiding ingevuld.</p>`
+            }
+            <p class="book-end" aria-hidden="true">~ ✻ ~</p>
+          </section>
+        </div>
         ${pageNumber ? `<span class="page-no">${pageNumber + 1}</span>` : ""}
       </article>
     </div>`;
 
+  renderViewServings();
   $("#view-edit").hidden = !state.view.recipe;
   const foot = [];
   if (option) {
@@ -529,13 +578,62 @@ function openView({ option = null, recipe = null, idea = null, card = null }) {
   $("#view-foot").innerHTML = foot.join("");
   openSheet("#view-sheet");
   $("#view-body").scrollTop = 0;
+  fitBook();
+}
+
+// Laat het hele recept op het scherm passen: begin ruim en maak de letters stapje voor stapje kleiner
+// tot geen van beide pagina's meer overloopt. Op de telefoon scrol je gewoon door één pagina.
+const FIT_MIN = 0.62;
+const FIT_MAX = 1.2; // korte recepten mogen iets groter, handig tijdens het koken
+const phoneLayout = window.matchMedia("(max-width: 720px)");
+
+function fitBook() {
+  const spread = $("#view-body .book-spread");
+  if (!spread || !$("#view-sheet").open) return;
+  spread.style.setProperty("--fit", 1);
+  spread.classList.remove("overflowing");
+  if (phoneLayout.matches) return;
+  const pages = $$(".book-page", spread);
+  const overflows = () => pages.some((page) => page.scrollHeight > page.clientHeight + 1);
+  let fit = FIT_MAX;
+  spread.style.setProperty("--fit", fit);
+  while (overflows() && fit > FIT_MIN) {
+    fit = Math.round((fit - 0.03) * 100) / 100;
+    spread.style.setProperty("--fit", fit);
+  }
+  // Uitzonderlijk lang recept: dan mag die ene pagina toch scrollen.
+  spread.classList.toggle("overflowing", overflows());
+}
+
+let fitTimer;
+window.addEventListener("resize", () => {
+  clearTimeout(fitTimer);
+  fitTimer = setTimeout(fitBook, 120);
+});
+document.fonts?.ready.then(fitBook);
+
+function renderViewServings() {
+  const { source, servings } = state.view;
+  const base = Number(source.servings) || 1;
+  $("#view-servings").textContent = personen(servings);
+  $("#view-servings-fact").textContent = servings;
+  $("#view-servings-note").textContent = servings === base ? "" : `Omgerekend; het originele recept is voor ${personen(base)}.`;
+  const list = $("#view-ingredients");
+  if (list) list.innerHTML = ingredientItems(source.ingredients, servings / base);
+  $('[data-view-action="servings-down"]').disabled = servings <= 1;
+  $('[data-view-action="servings-up"]').disabled = servings >= 20;
+  fitBook();
 }
 
 async function viewAction(action) {
   const { option, idea, recipe } = state.view;
+  if (action === "servings-up" || action === "servings-down") {
+    state.view.servings = Math.min(20, Math.max(1, state.view.servings + (action === "servings-up" ? 1 : -1)));
+    return renderViewServings();
+  }
   if (action === "choose") {
     closeSheet("#view-sheet");
-    await toggleChoice(option);
+    await toggleChoice(option, state.view.servings);
   } else if (action === "save") {
     await guarded(async () => {
       await api(`/api/menu/options/${option.id}/save`, { method: "POST" });
@@ -1448,45 +1546,201 @@ async function renderSwipeTeaser() {
 
 // ---------- boodschappen ----------
 
-let shoppingItems = [];
+const shop = { items: [], icons: null, suggestions: [], poll: null };
 
-function renderShopping(items) {
-  shoppingItems = items;
+// Emoji als icoon zolang Gemini nog geen eigen icoon getekend heeft (of als dat niet kan).
+const PRODUCT_EMOJI = [
+  [/melk|karnemelk/, "🥛"], [/yoghurt|kwark|vla/, "🥣"], [/kaas|mozzarella|feta|parmezaan/, "🧀"], [/boter/, "🧈"],
+  [/ei\b|eieren/, "🥚"], [/brood|stokbrood|bolletje|wrap|tortilla/, "🍞"], [/croissant/, "🥐"],
+  [/aardappel|krieler/, "🥔"], [/appel/, "🍎"], [/peer/, "🍐"], [/banaan|bananen/, "🍌"], [/citroen|limoen/, "🍋"], [/sinaasappel|mandarijn/, "🍊"],
+  [/druif|druiven/, "🍇"], [/aardbei/, "🍓"], [/bes|bessen|bramen/, "🫐"], [/avocado/, "🥑"], [/kokos/, "🥥"],
+  [/tomaat|tomaten/, "🍅"], [/ui\b|uien|sjalot/, "🧅"], [/knoflook/, "🧄"],
+  [/wortel|peen/, "🥕"], [/paprika/, "🫑"], [/komkommer|courgette/, "🥒"], [/sla\b|spinazie|andijvie|boerenkool|rucola/, "🥬"],
+  [/broccoli|bloemkool/, "🥦"], [/champignon|paddenstoel/, "🍄"], [/mais|maïs/, "🌽"], [/pompoen/, "🎃"], [/aubergine/, "🍆"],
+  [/chili|peper\b/, "🌶️"], [/kip|kalkoen/, "🍗"], [/gehakt|biefstuk|rund|varken|spek|ham|worst/, "🥩"], [/zalm|vis|tonijn|kabeljauw/, "🐟"],
+  [/garnaal|garnalen|scampi/, "🦐"], [/rijst/, "🍚"], [/pasta|spaghetti|penne|macaroni|noedel/, "🍝"], [/meel|bloem\b/, "🌾"],
+  [/suiker|honing/, "🍯"], [/zout|peper/, "🧂"], [/olie/, "🫒"], [/koffie/, "☕"], [/thee/, "🍵"], [/wijn/, "🍷"], [/bier/, "🍺"],
+  [/water|spa\b/, "💧"], [/sap\b|jus/, "🧃"], [/chocola|hagelslag/, "🍫"], [/pindakaas|noten|pinda/, "🥜"], [/koek|stroopwafel|koekjes/, "🍪"],
+  [/chips/, "🍿"], [/wc-papier|toiletpapier|keukenrol/, "🧻"], [/zeep|afwasmiddel|wasmiddel/, "🧼"], [/tandpasta/, "🪥"],
+];
+
+function productEmoji(name) {
+  const text = String(name).toLowerCase();
+  return PRODUCT_EMOJI.find(([re]) => re.test(text))?.[1] ?? "🛒";
+}
+
+function applyShopping(data) {
+  shop.items = data.items;
+  shop.icons = data.icons;
+  renderShopping();
+  pollIcons();
+}
+
+// Zolang Gemini nog iconen tekent, af en toe verversen zodat ze vanzelf verschijnen.
+function pollIcons() {
+  clearTimeout(shop.poll);
+  if (!shop.icons?.pending || state.tab !== "shopping") return;
+  shop.poll = setTimeout(async () => {
+    if (state.tab !== "shopping") return;
+    try {
+      const data = await api("/api/shopping");
+      shop.items = data.items.map((fresh) => {
+        const local = shop.items.find((i) => i.key === fresh.key);
+        return local ? { ...fresh, checked: local.checked } : fresh; // lokale (net getikte) status behouden
+      });
+      shop.icons = data.icons;
+      renderShopping();
+      if (!$("#shop-suggest").hidden) await loadSuggestions();
+    } catch {}
+    pollIcons();
+  }, 3000);
+}
+
+function tileIcon(item) {
+  return item.icon ? `<img src="${esc(item.icon)}" alt="" loading="lazy">` : productEmoji(item.name);
+}
+
+function shopTileHtml(item) {
+  const qty = `${formatQty(item.quantity)} ${item.unit}`.trim();
+  const title = item.recipes?.length ? `Voor: ${item.recipes.join(", ")}` : item.name;
+  return `<div class="shop-tile ${item.checked ? "bought" : ""}" role="button" tabindex="0" data-key="${esc(item.key)}"
+      aria-pressed="${item.checked}" title="${esc(title)}">
+    <span class="tile-icon" aria-hidden="true">${tileIcon(item)}</span>
+    <span class="tile-name">${esc(item.name)}</span>
+    ${qty ? `<span class="tile-qty">${esc(qty)}</span>` : ""}
+    <button type="button" class="tile-remove" data-remove="${esc(item.key)}" aria-label="${esc(item.name)} verwijderen">${ICONS.x}</button>
+  </div>`;
+}
+
+function renderShopping() {
   const el = $("#shopping");
-  if (!items.length) {
-    el.innerHTML = `<div class="empty"><div class="dish">🧺</div><h3>Nog niets te halen</h3>
-      <p>Kies eerst in het weekmenu wat je deze week eet.</p>
-      <button class="btn primary" data-action="to-menu">Naar het weekmenu</button></div>`;
+  const byName = (a, b) => a.name.localeCompare(b.name, "nl");
+  const toBuy = shop.items.filter((i) => !i.checked).sort(byName);
+  const bought = shop.items.filter((i) => i.checked).sort(byName);
+  $("#shop-kicker").textContent = toBuy.length
+    ? `Nog ${toBuy.length} ${toBuy.length === 1 ? "product" : "producten"} te halen`
+    : "Boodschappen";
+  const iconsNote = shop.icons?.pending && shop.icons?.enabled
+    ? `<p class="icons-note"><span class="spinner" aria-hidden="true"></span>Gemini tekent iconen voor je producten…</p>`
+    : "";
+
+  if (!shop.items.length) {
+    el.innerHTML = `<div class="shop-empty">
+      <p>Je lijst is leeg. Voeg hierboven iets toe, of kies in het weekmenu wat je eet: de ingrediënten komen dan vanzelf op je lijst.</p>
+      <button class="btn outline" data-action="to-menu">Naar het weekmenu</button></div>`;
     return;
   }
-  const byName = (a, b) => a.name.localeCompare(b.name, "nl");
-  const open = items.filter((i) => !i.checked).sort(byName);
-  const done = items.filter((i) => i.checked).sort(byName);
-  const rows = (list) =>
-    `<ul class="shop-list">${list
-      .map(
-        (i) => `<li><button class="shop-row ${i.checked ? "checked" : ""}" data-key="${esc(i.key)}" aria-pressed="${i.checked}">
-          <span class="box">${ICONS.check}</span>
-          <span class="qty">${esc(`${formatQty(i.quantity)} ${i.unit}`.trim()) || "—"}</span>
-          <span class="name">${esc(i.name)}</span>
-          <span class="from">${esc(i.recipes.join(", "))}</span>
-        </button></li>`
-      )
-      .join("")}</ul>`;
-
-  el.innerHTML = `
-    <div class="shop-card">
-      <div class="shop-head">
-        <h2>${open.length ? `Nog ${open.length} te halen` : "Alles is binnen 🎉"}</h2>
-        ${open.length ? `<button class="btn link" data-action="copy-list">Kopieer lijst</button>` : ""}
+  el.innerHTML = `${iconsNote}
+    <section class="shop-section">
+      <div class="shop-section-head">
+        <h2>Kopen <small>${toBuy.length}</small></h2>
+        ${toBuy.length ? `<button class="btn link" data-action="copy-list">Kopieer lijst</button>` : ""}
       </div>
-      ${open.length ? rows(open) : ""}
-    </div>
-    ${done.length ? `<div class="shop-card shop-done"><div class="shop-head"><h2>In je mandje</h2><span>${done.length} afgevinkt</span></div>${rows(done)}</div>` : ""}`;
+      ${toBuy.length
+        ? `<div class="tiles-grid">${toBuy.map(shopTileHtml).join("")}</div>`
+        : `<div class="shop-empty">Alles is binnen 🎉</div>`}
+    </section>
+    ${bought.length ? `<section class="shop-section">
+      <div class="shop-section-head">
+        <h2>Gekocht <small>${bought.length}</small></h2>
+        <button class="btn link" data-action="clear-bought">Opruimen</button>
+      </div>
+      <div class="tiles-grid">${bought.map(shopTileHtml).join("")}</div>
+    </section>` : ""}`;
+}
+
+const shopSaving = new Set(); // tegels die nog worden opgeslagen
+
+async function toggleShopItem(key) {
+  const item = shop.items.find((i) => i.key === key);
+  if (!item || shopSaving.has(item.name.toLowerCase())) return;
+  shopSaving.add(item.name.toLowerCase());
+  item.checked = !item.checked; // meteen tonen, daarna opslaan
+  renderShopping();
+  $(`.shop-tile[data-key="${CSS.escape(key)}"]`)?.classList.add("pop");
+  try {
+    await api("/api/shopping/check", { method: "POST", body: { key, checked: item.checked } });
+    applyShopping(await api("/api/shopping")); // de sleutel verandert (kopen ↔ gekocht)
+  } catch (err) {
+    item.checked = !item.checked;
+    renderShopping();
+    toast(err.message, true);
+  } finally {
+    shopSaving.delete(item.name.toLowerCase());
+  }
+}
+
+async function addShopItem(text) {
+  text = text.trim();
+  if (!text) return;
+  await guarded(async () => {
+    applyShopping(await api("/api/shopping/items", { method: "POST", body: { text } }));
+    const input = $("#shop-add-form").text;
+    input.value = "";
+    renderSuggestions();
+  });
+}
+
+async function removeShopItem(key) {
+  shop.items = shop.items.filter((i) => i.key !== key);
+  renderShopping();
+  await guarded(() => api(`/api/shopping/items?key=${encodeURIComponent(key)}`, { method: "DELETE" }));
+}
+
+async function clearBought() {
+  await guarded(async () => {
+    const { removed } = await api("/api/shopping/clear-bought", { method: "POST", body: {} });
+    toast(`${removed} ${removed === 1 ? "product" : "producten"} opgeruimd`);
+    await refresh();
+  });
+}
+
+// ---- suggesties bij het invoerveld ----
+
+async function loadSuggestions() {
+  const data = await api("/api/shopping/suggestions");
+  shop.suggestions = data.suggestions;
+  shop.hasHistory = data.has_history;
+  renderSuggestions();
+}
+
+function renderSuggestions() {
+  const panel = $("#shop-suggest");
+  if (panel.hidden) return;
+  const typed = $("#shop-add-form").text.value.trim();
+  const q = typed.toLowerCase();
+  const onList = new Set(shop.items.filter((i) => !i.checked).map((i) => i.name.toLowerCase()));
+  const matches = shop.suggestions.filter((s) => !onList.has(s.name.toLowerCase()) && (!q || s.name.toLowerCase().includes(q)));
+  const exact = matches.some((s) => s.name.toLowerCase() === q);
+  const tiles = [];
+  if (typed && !exact) {
+    tiles.push(`<button type="button" class="shop-tile add-typed" data-suggest="${esc(typed)}">
+      <span class="tile-icon" aria-hidden="true">${productEmoji(typed)}</span>
+      <span class="tile-name">“${esc(typed)}” toevoegen</span></button>`);
+  }
+  tiles.push(...matches.slice(0, typed ? 11 : 16).map((s) => `<button type="button" class="shop-tile" data-suggest="${esc(s.name)}">
+      <span class="tile-icon" aria-hidden="true">${tileIcon(s)}</span>
+      <span class="tile-name">${esc(s.name)}</span></button>`));
+  panel.innerHTML = `<h3>${typed ? "Toevoegen" : shop.hasHistory ? "Vaak gekocht" : "Veelgekochte boodschappen"}</h3>
+    ${tiles.length ? `<div class="tiles-grid">${tiles.join("")}</div>` : `<p class="muted">Druk op Enter om “${esc(typed)}” toe te voegen.</p>`}`;
+}
+
+async function openSuggestions() {
+  const panel = $("#shop-suggest");
+  if (!panel.hidden) return;
+  panel.hidden = false;
+  $("#shop-add-done").hidden = false;
+  panel.innerHTML = `<p class="muted">Suggesties laden…</p>`;
+  await guarded(loadSuggestions);
+}
+
+function closeSuggestions() {
+  $("#shop-suggest").hidden = true;
+  $("#shop-add-done").hidden = true;
 }
 
 async function copyShoppingList() {
-  const text = shoppingItems
+  const text = shop.items
     .filter((i) => !i.checked)
     .map((i) => `- ${[`${formatQty(i.quantity)} ${i.unit}`.trim(), i.name].filter(Boolean).join(" ")}`)
     .join("\n");
@@ -1723,17 +1977,42 @@ $("#recipe-list").addEventListener("click", (e) => {
 
 // Boodschappen
 $("#shopping").addEventListener("click", (e) => {
-  const button = e.target.closest("button");
-  if (!button) return;
-  if (button.dataset.action === "to-menu") return showTab("plan");
-  if (button.dataset.action === "copy-list") return copyShoppingList();
-  const key = button.dataset.key;
-  if (!key) return;
-  const checked = button.getAttribute("aria-pressed") !== "true";
-  guarded(async () => {
-    await api("/api/shopping/check", { method: "POST", body: { week: state.week, key, checked } });
-    await refresh();
-  });
+  const remove = e.target.closest("[data-remove]");
+  if (remove) return removeShopItem(remove.dataset.remove);
+  const action = e.target.closest("[data-action]")?.dataset.action;
+  if (action === "to-menu") return showTab("plan");
+  if (action === "copy-list") return copyShoppingList();
+  if (action === "clear-bought") return clearBought();
+  const tile = e.target.closest(".shop-tile[data-key]");
+  if (tile) toggleShopItem(tile.dataset.key);
+});
+$("#shopping").addEventListener("keydown", (e) => {
+  const tile = e.target.closest(".shop-tile[data-key]");
+  if (tile && (e.key === "Enter" || e.key === " ")) {
+    e.preventDefault();
+    toggleShopItem(tile.dataset.key);
+  }
+});
+$("#shop-add-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  addShopItem(e.target.text.value);
+});
+$("#shop-add-form").text.addEventListener("focus", openSuggestions);
+$("#shop-add-form").text.addEventListener("input", renderSuggestions);
+$("#shop-add-form").text.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    closeSuggestions();
+    e.target.blur();
+  }
+});
+$("#shop-add-done").addEventListener("click", closeSuggestions);
+$("#shop-suggest").addEventListener("mousedown", (e) => e.preventDefault()); // focus in het veld houden
+$("#shop-suggest").addEventListener("click", (e) => {
+  const name = e.target.closest("[data-suggest]")?.dataset.suggest;
+  if (name) addShopItem(name);
+});
+document.addEventListener("click", (e) => {
+  if (!$("#shop-suggest").hidden && !e.target.closest("#shop-add")) closeSuggestions();
 });
 
 loadSettings();
