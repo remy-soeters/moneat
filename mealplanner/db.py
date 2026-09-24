@@ -586,6 +586,28 @@ class Database:
                 "INSERT INTO shopping_items (name, quantity, unit) VALUES (?, ?, ?)", (name[:80], quantity, unit)
             ).lastrowid
 
+    def add_ingredients_to_list(self, ingredients, recipe_id=None):
+        """Zet ingrediënten (al omgerekend naar het gewenste aantal personen) op de boodschappenlijst.
+        Met een bewaard recept erbij zie je op de tegel voor welk recept het is."""
+        rows = []
+        for ing in ingredients:
+            name = str(ing.get("name") or "").strip()[:80]
+            if not name:
+                continue
+            quantity = ing.get("quantity")
+            quantity = round(float(quantity), 2) if quantity not in (None, "") else None
+            rows.append((name, quantity, str(ing.get("unit") or "").strip()[:20]))
+        if not rows:
+            raise ValueError("Dit recept heeft geen ingrediënten om op de lijst te zetten")
+        with self.connect() as conn:
+            if recipe_id is not None and not conn.execute("SELECT 1 FROM recipes WHERE id = ?", (recipe_id,)).fetchone():
+                recipe_id = None
+            conn.executemany(
+                "INSERT INTO shopping_items (name, quantity, unit, source_recipe_id) VALUES (?, ?, ?, ?)",
+                [(*row, recipe_id) for row in rows],
+            )
+        return len(rows)
+
     def remove_shopping_item(self, key):
         """Haal een (samengevoegd) product van de lijst."""
         with self.connect() as conn:

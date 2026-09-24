@@ -4,6 +4,7 @@ const ICONS = {
   check: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`,
   x: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>`,
   plus: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>`,
+  cart: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2.5l2.2 10.5h10.6L20.5 7H7"/><circle cx="9.5" cy="19" r="1.4"/><circle cx="17" cy="19" r="1.4"/></svg>`,
   clock: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>`,
   tag: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12.5V4.5a1 1 0 0 1 1-1h8l8 8-9 9z"/><circle cx="8.5" cy="8.5" r="1.3"/></svg>`,
   sparkle: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>`,
@@ -575,6 +576,10 @@ function openView({ option = null, recipe = null, idea = null, card = null }) {
   } else if (recipe) {
     foot.push(`<button class="btn primary" data-view-action="plan">Op het menu zetten</button>`);
   }
+  // Gekozen avondeten staat al vanzelf op de lijst; dan geen losse knop.
+  if (source.ingredients?.length && !(option && isChosen(option))) {
+    foot.unshift(`<button class="btn outline" data-view-action="to-shopping">${ICONS.cart}Op boodschappenlijst</button>`);
+  }
   $("#view-foot").innerHTML = foot.join("");
   openSheet("#view-sheet");
   $("#view-body").scrollTop = 0;
@@ -625,12 +630,35 @@ function renderViewServings() {
   fitBook();
 }
 
+async function addViewToShopping() {
+  const { source, servings, recipe, option } = state.view;
+  const factor = servings / (Number(source.servings) || 1);
+  const ingredients = source.ingredients.map((ing) => ({
+    name: ing.name,
+    unit: ing.unit || "",
+    quantity: ing.quantity == null ? null : Math.round(ing.quantity * factor * 100) / 100,
+  }));
+  const button = $('[data-view-action="to-shopping"]');
+  button.disabled = true;
+  await guarded(async () => {
+    const res = await api("/api/shopping/recipe", {
+      method: "POST",
+      body: { ingredients, recipe_id: recipe?.id ?? (option?.saved ? option.recipe_id : null) },
+    });
+    applyShopping(res);
+    button.textContent = "✓ Op je lijst";
+    toast(`${res.added} ${res.added === 1 ? "ingrediënt" : "ingrediënten"} voor ${personen(servings)} op je boodschappenlijst`);
+  });
+  if (button.textContent !== "✓ Op je lijst") button.disabled = false;
+}
+
 async function viewAction(action) {
   const { option, idea, recipe } = state.view;
   if (action === "servings-up" || action === "servings-down") {
     state.view.servings = Math.min(20, Math.max(1, state.view.servings + (action === "servings-up" ? 1 : -1)));
     return renderViewServings();
   }
+  if (action === "to-shopping") return addViewToShopping();
   if (action === "choose") {
     closeSheet("#view-sheet");
     await toggleChoice(option, state.view.servings);

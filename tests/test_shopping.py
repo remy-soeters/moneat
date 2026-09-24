@@ -120,6 +120,24 @@ class ShoppingApiTest(unittest.TestCase):
         except urllib.error.HTTPError as e:
             return e.code, json.loads(e.read())
 
+    def test_recipe_ingredients_go_on_the_list(self):
+        soup = self.db.create_recipe({"name": "Soep", "ingredients": [{"name": "Ui", "quantity": 2, "unit": ""}]})
+        self.db.add_shopping_item("ui", 1)
+        status, result = self.call("POST", "/api/shopping/recipe", {
+            "recipe_id": soup["id"],
+            "ingredients": [{"name": "Ui", "quantity": 3, "unit": ""}, {"name": "zout", "quantity": None, "unit": ""},
+                            {"name": " ", "quantity": 1, "unit": ""}],
+        })
+        self.assertEqual((status, result["added"]), (200, 2))
+        items = {i["name"].lower(): i for i in result["items"]}
+        self.assertEqual((items["ui"]["quantity"], items["ui"]["recipes"]), (4, ["Soep"]))
+        self.assertIsNone(items["zout"]["quantity"])
+        # Een idee dat (nog) geen recept is, kan ook; en een leeg recept geeft een nette melding.
+        self.assertEqual(self.call("POST", "/api/shopping/recipe", {"ingredients": [{"name": "Prei", "quantity": 1, "unit": ""}]})[1]["added"], 1)
+        self.assertEqual(self.call("POST", "/api/shopping/recipe", {"ingredients": []})[0], 400)
+        self.db.delete_recipe(soup["id"])  # verwijderd recept: de niet-gekochte regels gaan mee
+        self.assertEqual(sorted(i["name"].lower() for i in self.db.shopping_list()), ["prei", "ui"])
+
     def test_add_parses_quantity_and_returns_icons(self):
         self.db.set_product_icon("melk", "/images/" + "b" * 32 + ".png")
         status, result = self.call("POST", "/api/shopping/items", {"text": "2 liter melk"})

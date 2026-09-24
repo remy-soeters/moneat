@@ -483,6 +483,15 @@ def make_handler(db, images=None):
             db.add_shopping_item(parsed["name"], parsed["quantity"], parsed["unit"])
             return shopping_response()
 
+        def add_recipe_to_shopping(self, query):
+            body = self._body()
+            ingredients = body.get("ingredients")
+            if not isinstance(ingredients, list):
+                raise ApiError(HTTPStatus.BAD_REQUEST, "Geen ingrediënten meegestuurd")
+            recipe_id = body.get("recipe_id")
+            added = db.add_ingredients_to_list(ingredients, int(recipe_id) if recipe_id else None)
+            return {"added": added, **shopping_response()}
+
         def remove_shopping_item(self, query):
             db.remove_shopping_item(self._require(query, "key"))
             return {"ok": True}
@@ -673,6 +682,7 @@ def make_handler(db, images=None):
         ("GET", re.compile(r"/api/shopping"), Handler.get_shopping),
         ("POST", re.compile(r"/api/shopping/check"), Handler.check_shopping),
         ("POST", re.compile(r"/api/shopping/items"), Handler.add_shopping_item),
+        ("POST", re.compile(r"/api/shopping/recipe"), Handler.add_recipe_to_shopping),
         ("DELETE", re.compile(r"/api/shopping/items"), Handler.remove_shopping_item),
         ("POST", re.compile(r"/api/shopping/clear-bought"), Handler.clear_bought),
         ("GET", re.compile(r"/api/shopping/suggestions"), Handler.shopping_suggestions),
