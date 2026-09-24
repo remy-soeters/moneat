@@ -1,0 +1,534 @@
+"""SQLite-opslag voor recepten, weekmenu (avondeten) en boodschappenlijst."""
+
+import json
+import re
+import sqlite3
+from contextlib import contextmanager
+from datetime import date, timedelta
+from pathlib import Path
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS recipes (
+    id            INTEGER PRIMARY KEY,
+    name          TEXT NOT NULL,
+    servings      INTEGER NOT NULL DEFAULT 2 CHECK (servings > 0),
+    prep_minutes  INTEGER,
+    instructions  TEXT NOT NULL DEFAULT '',
+    tags          TEXT NOT NULL DEFAULT '',
+    image         TEXT NOT NULL DEFAULT '',
+    source_url    TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS ingredients (
+    id         INTEGER PRIMARY KEY,
+    recipe_id  INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+    position   INTEGER NOT NULL DEFAULT 0,
+    name       TEXT NOT NULL,
+    quantity   REAL,
+    unit       TEXT NOT NULL DEFAULT ''
+);
+
+-- Opties op het weekmenu: per avond een paar gerechten waaruit je kiest. Een optie is een eigen
+-- recept (recipe_id) of een voorstel van Claude dat nog niet in het receptenboek staat (suggestion).
+CREATE TABLE IF NOT EXISTS menu_options (
+    id          INTEGER PRIMARY KEY,
+    date        TEXT NOT NULL,
+    recipe_id   INTEGER REFERENCES recipes(id) ON DELETE CASCADE,
+    suggestion  TEXT,
+    source      TEXT NOT NULL DEFAULT 'eigen' CHECK (source IN ('eigen', 'claude')),
+    reason      TEXT NOT NULL DEFAULT '',
+    position    INTEGER NOT NULL DEFAULT 0,
+    CHECK ((recipe_id IS NULL) <> (suggestion IS NULL)),
+    UNIQUE (date, recipe_id)
+);
+
+-- De gekozen maaltijd per avond.
+CREATE TABLE IF NOT EXISTS dinner_choices (
+    date       TEXT PRIMARY KEY,
+    recipe_id  INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+    servings   INTEGER NOT NULL CHECK (servings > 0)
+);
+
+-- Bewaarde inspiratie van Claude, zodat een thema niet elke keer opnieuw gegenereerd hoeft te worden.
+CREATE TABLE IF NOT EXISTS inspiration (
+    key         TEXT PRIMARY KEY,
+    created_at  TEXT NOT NULL,
+    payload     TEXT NOT NULL
+);
+
+-- Instellingen van de app, zoals de Anthropic API-sleutel.
+CREATE TABLE IF NOT EXISTS settings (
+    key    TEXT PRIMARY KEY,
+    value  TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS shopping_checks (
+    week_start  TEXT NOT NULL,
+    item_key    TEXT NOT NULL,
+    PRIMARY KEY (week_start, item_key)
+);
+"""
+
+
+class NotFound(Exception):
+    pass
+
+
+class Database:
+    def __init__(self, path):
+        self.path = str(path)
+        if self.path != ":memory:":
+            Path(self.path).parent.mkdir(parents=True, exist_ok=True)
+        self._memory_conn = sqlite3.connect(":memory:", check_same_thread=False) if self.path == ":memory:" else None
+        with self.connect() as conn:
+            _rename_old_menu_options(conn)
+            _add_missing_recipe_columns(conn)
+            conn.executescript(SCHEMA)
+            _migrate_old_menu_options(conn)
+            _migrate_plan_entries(conn)
+
+    @contextmanager
+    def connect(self):
+        """Verbinding binnen één transactie; commit bij succes, rollback bij een fout."""
+        conn = self._memory_conn or sqlite3.connect(self.path)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys = ON")
+        try:
+            with conn:
+                yield conn
+        finally:
+            if conn is not self._memory_conn:
+                conn.close()
+
+    # ---------- recepten ----------
+
+    def list_recipes(self):
+        with self.connect() as conn:
+            rows = conn.execute("SELECT * FROM recipes ORDER BY name COLLATE NOCASE").fetchall()
+            return [self._recipe_with_ingredients(conn, row) for row in rows]
+
+    def get_recipe(self, recipe_id):
+        with self.connect() as conn:
+            row = conn.execute("SELECT * FROM recipes WHERE id = ?", (recipe_id,)).fetchone()
+            if row is None:
+                raise NotFound(f"Recept {recipe_id} bestaat niet")
+            return self._recipe_with_ingredients(conn, row)
+
+    def create_recipe(self, data):
+        recipe = _clean_recipe(data)
+        with self.connect() as conn:
+            cur = conn.execute(
+                """INSERT INTO recipes (name, servings, prep_minutes, instructions, tags, image, source_url)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (recipe["name"], recipe["servings"], recipe["prep_minutes"], recipe["instructions"], recipe["tags"],
+                 recipe["image"], recipe["source_url"]),
+            )
+            self._replace_ingredients(conn, cur.lastrowid, recipe["ingredients"])
+            recipe_id = cur.lastrowid
+        return self.get_recipe(recipe_id)
+
+    def update_recipe(self, recipe_id, data):
+        recipe = _clean_recipe(data)
+        with self.connect() as conn:
+            cur = conn.execute(
+                """UPDATE recipes SET name = ?, servings = ?, prep_minutes = ?, instructions = ?, tags = ?,
+                                      image = ?, source_url = ?
+                   WHERE id = ?""",
+                (recipe["name"], recipe["servings"], recipe["prep_minutes"], recipe["instructions"], recipe["tags"],
+                 recipe["image"], recipe["source_url"], recipe_id),
+            )
+            if cur.rowcount == 0:
+                raise NotFound(f"Recept {recipe_id} bestaat niet")
+            self._replace_ingredients(conn, recipe_id, recipe["ingredients"])
+        return self.get_recipe(recipe_id)
+
+    def delete_recipe(self, recipe_id):
+        with self.connect() as conn:
+            cur = conn.execute("DELETE FROM recipes WHERE id = ?", (recipe_id,))
+            if cur.rowcount == 0:
+                raise NotFound(f"Recept {recipe_id} bestaat niet")
+
+    def _replace_ingredients(self, conn, recipe_id, ingredients):
+        conn.execute("DELETE FROM ingredients WHERE recipe_id = ?", (recipe_id,))
+        conn.executemany(
+            "INSERT INTO ingredients (recipe_id, position, name, quantity, unit) VALUES (?, ?, ?, ?, ?)",
+            [(recipe_id, i, ing["name"], ing["quantity"], ing["unit"]) for i, ing in enumerate(ingredients)],
+        )
+
+    def _recipe_with_ingredients(self, conn, row):
+        recipe = dict(row)
+        recipe["ingredients"] = [
+            {"name": r["name"], "quantity": r["quantity"], "unit": r["unit"]}
+            for r in conn.execute(
+                "SELECT name, quantity, unit FROM ingredients WHERE recipe_id = ? ORDER BY position", (row["id"],)
+            )
+        ]
+        return recipe
+
+    # ---------- weekmenu ----------
+
+    def get_week_menu(self, any_day):
+        days = week_dates(any_day)
+        with self.connect() as conn:
+            rows = conn.execute(
+                """SELECT o.*, r.name AS recipe_name, r.tags, r.prep_minutes, r.image AS recipe_image
+                   FROM menu_options o LEFT JOIN recipes r ON r.id = o.recipe_id
+                   WHERE o.date BETWEEN ? AND ?
+                   ORDER BY o.date, o.position, o.id""",
+                (days[0], days[-1]),
+            ).fetchall()
+            choices = conn.execute(
+                """SELECT c.date, c.recipe_id, c.servings, r.name AS recipe_name
+                   FROM dinner_choices c JOIN recipes r ON r.id = c.recipe_id
+                   WHERE c.date BETWEEN ? AND ?""",
+                (days[0], days[-1]),
+            ).fetchall()
+        return {"days": days, "options": [_option(r) for r in rows], "choices": [dict(r) for r in choices]}
+
+    def get_option(self, option_id):
+        with self.connect() as conn:
+            row = conn.execute(
+                """SELECT o.*, r.name AS recipe_name, r.tags, r.prep_minutes, r.image AS recipe_image
+                   FROM menu_options o LEFT JOIN recipes r ON r.id = o.recipe_id WHERE o.id = ?""",
+                (option_id,),
+            ).fetchone()
+        if row is None:
+            raise NotFound(f"Optie {option_id} bestaat niet")
+        return _option(row)
+
+    def add_menu_option(self, day, recipe_id, reason="", source="eigen"):
+        """Zet een eigen recept op het menu van `day`; staat het er al, dan gebeurt er niets."""
+        _check_date(day)
+        self.get_recipe(recipe_id)
+        with self.connect() as conn:
+            conn.execute(
+                """INSERT INTO menu_options (date, recipe_id, source, reason, position)
+                   VALUES (?, ?, ?, ?, (SELECT COALESCE(MAX(position), -1) + 1 FROM menu_options WHERE date = ?))
+                   ON CONFLICT (date, recipe_id) DO NOTHING""",
+                (day, recipe_id, source, str(reason or "").strip(), day),
+            )
+            return conn.execute(
+                "SELECT id FROM menu_options WHERE date = ? AND recipe_id = ?", (day, recipe_id)
+            ).fetchone()["id"]
+
+    def add_suggested_option(self, day, recipe_data, reason=""):
+        """Zet een voorstel van Claude op het menu, zonder het al in het receptenboek te bewaren.
+
+        Geeft None terug als er die avond al een gerecht met dezelfde naam op het menu staat.
+        """
+        _check_date(day)
+        recipe = _clean_recipe(recipe_data)
+        existing = {o["name"].strip().lower() for o in self.get_week_menu(day)["options"] if o["date"] == day}
+        if recipe["name"].lower() in existing:
+            return None
+        with self.connect() as conn:
+            cur = conn.execute(
+                """INSERT INTO menu_options (date, suggestion, source, reason, position)
+                   VALUES (?, ?, 'claude', ?, (SELECT COALESCE(MAX(position), -1) + 1 FROM menu_options WHERE date = ?))""",
+                (day, json.dumps(recipe, ensure_ascii=False), str(reason or "").strip(), day),
+            )
+            return cur.lastrowid
+
+    def remove_menu_option(self, option_id):
+        option = self.get_option(option_id)
+        with self.connect() as conn:
+            conn.execute("DELETE FROM menu_options WHERE id = ?", (option_id,))
+            # Een gekozen maaltijd die van het menu verdwijnt, is ook niet meer gekozen.
+            if option["recipe_id"] is not None:
+                conn.execute(
+                    "DELETE FROM dinner_choices WHERE date = ? AND recipe_id = ?", (option["date"], option["recipe_id"])
+                )
+
+    def save_option_recipe(self, option_id):
+        """Bewaar het voorstel achter een optie in het receptenboek. Geeft het recept-id terug."""
+        option = self.get_option(option_id)
+        if option["recipe_id"] is not None:
+            return option["recipe_id"]
+        recipe = self.create_recipe(option["suggestion"])
+        with self.connect() as conn:
+            conn.execute(
+                "UPDATE menu_options SET recipe_id = ?, suggestion = NULL WHERE id = ?", (recipe["id"], option_id)
+            )
+        return recipe["id"]
+
+    def choose_option(self, option_id, servings=None):
+        option = self.get_option(option_id)
+        self.choose_dinner(option["date"], self.save_option_recipe(option_id), servings)
+
+    def choose_dinner(self, day, recipe_id, servings=None):
+        """Kies het avondeten; staat het recept nog niet op het menu, dan komt het erbij."""
+        self.add_menu_option(day, recipe_id)
+        recipe = self.get_recipe(recipe_id)
+        servings = _positive_int(servings, recipe["servings"], "Aantal personen")
+        with self.connect() as conn:
+            conn.execute(
+                """INSERT INTO dinner_choices (date, recipe_id, servings) VALUES (?, ?, ?)
+                   ON CONFLICT (date) DO UPDATE SET recipe_id = excluded.recipe_id, servings = excluded.servings""",
+                (day, recipe_id, servings),
+            )
+
+    def clear_dinner_choice(self, day):
+        with self.connect() as conn:
+            conn.execute("DELETE FROM dinner_choices WHERE date = ?", (day,))
+
+    def copy_menu_from_previous_week(self, any_day):
+        """Zet de opties van vorige week (zonder keuzes) op dezelfde weekdagen van deze week."""
+        days = week_dates(any_day)
+        previous = week_dates((date.fromisoformat(days[0]) - timedelta(days=7)).isoformat())
+        copied = 0
+        for option in self.get_week_menu(previous[0])["options"]:
+            day = days[previous.index(option["date"])]
+            if option["recipe_id"] is not None:
+                self.add_menu_option(day, option["recipe_id"], option["reason"], option["source"])
+                copied += 1
+            elif self.add_suggested_option(day, option["suggestion"], option["reason"]) is not None:
+                copied += 1
+        return copied
+
+    # ---------- afbeeldingen en inspiratie ----------
+
+    def image_in_use(self, image):
+        """Wordt deze afbeelding nog gebruikt door een recept of een voorstel op het menu?"""
+        with self.connect() as conn:
+            if conn.execute("SELECT 1 FROM recipes WHERE image = ?", (image,)).fetchone():
+                return True
+            return conn.execute(
+                "SELECT 1 FROM menu_options WHERE suggestion LIKE ?", (f'%"image": "{image}"%',)
+            ).fetchone() is not None
+
+    def get_inspiration(self, key):
+        with self.connect() as conn:
+            row = conn.execute("SELECT created_at, payload FROM inspiration WHERE key = ?", (key,)).fetchone()
+        if row is None:
+            return None
+        return {**json.loads(row["payload"]), "created_at": row["created_at"]}
+
+    def save_inspiration(self, key, payload):
+        created = date.today().isoformat()
+        with self.connect() as conn:
+            conn.execute(
+                """INSERT INTO inspiration (key, created_at, payload) VALUES (?, ?, ?)
+                   ON CONFLICT (key) DO UPDATE SET created_at = excluded.created_at, payload = excluded.payload""",
+                (key, created, json.dumps(payload, ensure_ascii=False)),
+            )
+        return {**payload, "created_at": created}
+
+    # ---------- instellingen ----------
+
+    def get_setting(self, key, default=None):
+        with self.connect() as conn:
+            row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+        return row["value"] if row else default
+
+    def set_setting(self, key, value):
+        with self.connect() as conn:
+            if value is None:
+                conn.execute("DELETE FROM settings WHERE key = ?", (key,))
+            else:
+                conn.execute(
+                    """INSERT INTO settings (key, value) VALUES (?, ?)
+                       ON CONFLICT (key) DO UPDATE SET value = excluded.value""",
+                    (key, value),
+                )
+
+    # ---------- boodschappenlijst ----------
+
+    def shopping_list(self, week_start):
+        days = week_dates(week_start)
+        with self.connect() as conn:
+            rows = conn.execute(
+                """SELECT i.name, i.quantity, i.unit, p.servings AS planned, r.servings AS base, r.name AS recipe
+                   FROM dinner_choices p
+                   JOIN recipes r ON r.id = p.recipe_id
+                   JOIN ingredients i ON i.recipe_id = r.id
+                   WHERE p.date BETWEEN ? AND ?
+                   ORDER BY i.name COLLATE NOCASE, r.name COLLATE NOCASE""",
+                (days[0], days[-1]),
+            ).fetchall()
+            checked = {
+                r["item_key"]
+                for r in conn.execute("SELECT item_key FROM shopping_checks WHERE week_start = ?", (days[0],))
+            }
+
+        items = {}
+        for row in rows:
+            key = f"{row['name'].strip().lower()}|{row['unit'].strip().lower()}"
+            item = items.setdefault(
+                key, {"key": key, "name": row["name"].strip(), "unit": row["unit"].strip(), "quantity": None, "recipes": []}
+            )
+            if row["quantity"] is not None:
+                scaled = row["quantity"] * row["planned"] / row["base"]
+                item["quantity"] = (item["quantity"] or 0) + scaled
+            if row["recipe"] not in item["recipes"]:
+                item["recipes"].append(row["recipe"])
+
+        result = []
+        for item in items.values():
+            if item["quantity"] is not None:
+                item["quantity"] = round(item["quantity"], 2)
+            item["checked"] = item["key"] in checked
+            result.append(item)
+        return result
+
+    def set_shopping_check(self, week_start, item_key, checked):
+        week_start = week_dates(week_start)[0]
+        with self.connect() as conn:
+            if checked:
+                conn.execute(
+                    "INSERT OR IGNORE INTO shopping_checks (week_start, item_key) VALUES (?, ?)", (week_start, item_key)
+                )
+            else:
+                conn.execute(
+                    "DELETE FROM shopping_checks WHERE week_start = ? AND item_key = ?", (week_start, item_key)
+                )
+
+
+# ---------- hulpfuncties ----------
+
+
+def week_dates(any_day):
+    """De zeven datums (ma t/m zo) van de week waarin `any_day` valt."""
+    d = _check_date(any_day)
+    monday = d - timedelta(days=d.weekday())
+    return [(monday + timedelta(days=i)).isoformat() for i in range(7)]
+
+
+def _option(row):
+    """Een menu-optie als dict, met naam/tijd/tags uit het recept of uit het voorstel."""
+    option = {
+        "id": row["id"],
+        "date": row["date"],
+        "recipe_id": row["recipe_id"],
+        "source": row["source"],
+        "reason": row["reason"],
+        "saved": row["recipe_id"] is not None,
+        "suggestion": None,
+    }
+    if row["recipe_id"] is not None:
+        option.update(
+            name=row["recipe_name"], tags=row["tags"], prep_minutes=row["prep_minutes"], image=row["recipe_image"]
+        )
+    else:
+        suggestion = json.loads(row["suggestion"])
+        option.update(
+            name=suggestion["name"],
+            tags=suggestion["tags"],
+            prep_minutes=suggestion["prep_minutes"],
+            image=suggestion.get("image", ""),
+            suggestion=suggestion,
+        )
+    return option
+
+
+def _add_missing_recipe_columns(conn):
+    """Oudere databases hebben nog geen kolommen voor foto en bron."""
+    columns = [r[1] for r in conn.execute("PRAGMA table_info(recipes)")]
+    if not columns:
+        return
+    for column in ("image", "source_url"):
+        if column not in columns:
+            conn.execute(f"ALTER TABLE recipes ADD COLUMN {column} TEXT NOT NULL DEFAULT ''")
+
+
+def _clean_image(value):
+    value = str(value or "").strip()
+    if value and not re.fullmatch(r"/images/[0-9a-f]{32}\.(jpg|png|gif|webp)", value):
+        raise ValueError("Ongeldige afbeelding")
+    return value
+
+
+def _clean_url(value):
+    value = str(value or "").strip()
+    if value and not re.match(r"https?://", value):
+        raise ValueError("De bron moet een http- of https-link zijn")
+    return value[:2000]
+
+
+def _rename_old_menu_options(conn):
+    """De eerste versie van menu_options had geen id-kolom; zet die tabel opzij om over te nemen."""
+    columns = [r[1] for r in conn.execute("PRAGMA table_info(menu_options)")]
+    if columns and "id" not in columns:
+        conn.execute("ALTER TABLE menu_options RENAME TO menu_options_v1")
+
+
+def _migrate_old_menu_options(conn):
+    exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'menu_options_v1'").fetchone()
+    if not exists:
+        return
+    conn.execute(
+        """INSERT OR IGNORE INTO menu_options (date, recipe_id, reason, position)
+           SELECT date, recipe_id, reason, position FROM menu_options_v1"""
+    )
+    conn.execute("DROP TABLE menu_options_v1")
+
+
+def _migrate_plan_entries(conn):
+    """Oudere databases hadden `plan_entries` met ontbijt/lunch/diner; neem het avondeten over."""
+    exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'plan_entries'").fetchone()
+    if not exists:
+        return
+    conn.execute(
+        """INSERT OR IGNORE INTO dinner_choices (date, recipe_id, servings)
+           SELECT date, recipe_id, servings FROM plan_entries WHERE slot = 'diner'"""
+    )
+    conn.execute(
+        """INSERT OR IGNORE INTO menu_options (date, recipe_id)
+           SELECT date, recipe_id FROM plan_entries WHERE slot = 'diner'"""
+    )
+    conn.execute("DROP TABLE plan_entries")
+
+
+def _check_date(value):
+    try:
+        return date.fromisoformat(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"Ongeldige datum: {value!r} (verwacht JJJJ-MM-DD)")
+
+
+def _positive_int(value, default, label):
+    if value in (None, ""):
+        return default
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{label} moet een geheel getal zijn")
+    if number <= 0:
+        raise ValueError(f"{label} moet groter dan 0 zijn")
+    return number
+
+
+def _clean_recipe(data):
+    if not isinstance(data, dict):
+        raise ValueError("Recept moet een object zijn")
+    name = str(data.get("name") or "").strip()
+    if not name:
+        raise ValueError("Een recept heeft een naam nodig")
+
+    prep = data.get("prep_minutes")
+    prep = None if prep in (None, "") else _positive_int(prep, None, "Bereidingstijd")
+
+    ingredients = []
+    for ing in data.get("ingredients") or []:
+        ing_name = str(ing.get("name") or "").strip()
+        if not ing_name:
+            continue
+        qty = ing.get("quantity")
+        if qty in (None, ""):
+            qty = None
+        else:
+            try:
+                qty = float(str(qty).replace(",", "."))
+            except ValueError:
+                raise ValueError(f"Ongeldige hoeveelheid voor {ing_name}: {qty!r}")
+        ingredients.append({"name": ing_name, "quantity": qty, "unit": str(ing.get("unit") or "").strip()})
+
+    return {
+        "name": name,
+        "servings": _positive_int(data.get("servings"), 2, "Aantal personen"),
+        "prep_minutes": prep,
+        "instructions": str(data.get("instructions") or "").strip(),
+        "tags": str(data.get("tags") or "").strip(),
+        "image": _clean_image(data.get("image")),
+        "source_url": _clean_url(data.get("source_url")),
+        "ingredients": ingredients,
+    }

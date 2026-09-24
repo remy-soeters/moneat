@@ -1,0 +1,1215 @@
+const DAY_NAMES = ["Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag", "Zondag"];
+
+const ICONS = {
+  check: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`,
+  x: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>`,
+  plus: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>`,
+  clock: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>`,
+  tag: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12.5V4.5a1 1 0 0 1 1-1h8l8 8-9 9z"/><circle cx="8.5" cy="8.5" r="1.3"/></svg>`,
+  sparkle: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>`,
+};
+
+// Zonder foto's geeft een passend gerecht-icoon op een warme achtergrond elk recept een eigen gezicht.
+const DISHES = [
+  [/pasta|spaghetti|lasagne|penne|macaroni|tagliatelle|ravioli|gnocchi/, "🍝"],
+  [/ramen|noedel|noodle|mie\b|pho|wok|pad thai/, "🍜"],
+  [/curry|dahl|dal\b|korma|masala/, "🍛"],
+  [/soep|bouillon|chili/, "🍲"],
+  [/salade|bowl/, "🥗"],
+  [/zalm|vis|kabeljauw|tonijn|garnal|mossel|scampi|schelvis|pangasius/, "🐟"],
+  [/pizza|flammkuchen/, "🍕"],
+  [/burger/, "🍔"],
+  [/taco|wrap|burrito|quesadilla|fajita|tortilla/, "🌮"],
+  [/shakshuka|omelet|frittata|\bei\b|eieren|quiche/, "🍳"],
+  [/stamppot|aardappel|puree|hutspot|zuurkool/, "🥔"],
+  [/kip|chicken|kalkoen/, "🍗"],
+  [/biefstuk|steak|rund|gehakt|worst|varken|lam|stoof/, "🥩"],
+  [/rijst|risotto|nasi|paella|sushi/, "🍚"],
+  [/ovenschotel|stoofpot|tajine|casserole/, "🥘"],
+  [/brood|tosti|sandwich|pannenkoek/, "🥪"],
+  [/tofu|tempeh|vegan|groente|linzen|kikkererwt|bonen/, "🥦"],
+];
+const PLATES = ["#f4dccf", "#f3e6c4", "#dde8d5", "#f1d7d3", "#e6dcef", "#d7e5ea", "#f5e1c8", "#e9e2d0"];
+const PLATES_DARK = ["#4a3329", "#4a4028", "#2f3e2c", "#4a2f2c", "#3b3247", "#2c3c42", "#4a3a26", "#3f3a2c"];
+const darkMode = window.matchMedia("(prefers-color-scheme: dark)");
+
+function dishFor(item) {
+  const text = `${item.name} ${item.tags ?? ""}`.toLowerCase();
+  return DISHES.find(([re]) => re.test(text))?.[1] ?? "🍽️";
+}
+
+function plateAttrs(item, cls = "plate") {
+  return item.image
+    ? `class="${cls} photo" style="background-image: url('${esc(item.image)}')"`
+    : `class="${cls}" style="--plate: ${plateFor(item)}"`;
+}
+
+function plateFor(item) {
+  let hash = 0;
+  for (const ch of item.name) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  const palette = darkMode.matches ? PLATES_DARK : PLATES;
+  return palette[hash % palette.length];
+}
+
+const state = {
+  tab: "plan",
+  week: mondayOf(new Date()),
+  recipes: [],
+  menu: { days: [], options: [], choices: [] },
+  household: Number(load("household")) || 2,
+  perDay: Number(load("perDay")) || 3,
+  filling: null, // {datum: aantal} terwijl Claude bezig is
+  picker: { date: null, selected: new Set() },
+  view: null, // {option?, recipe?} in de receptweergave
+  editMenuDate: null,
+  tagFilter: null,
+  planTarget: null, // {recipeId, name} of {idea: index} in het inplanvenster
+  inspiration: { theme: null, data: null, loading: false, saved: new Map() },
+};
+
+const $ = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+
+// ---------- hulpfuncties ----------
+
+function load(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function save(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {}
+}
+
+function isoDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function parseIso(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function mondayOf(d) {
+  const copy = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  copy.setDate(copy.getDate() - ((copy.getDay() + 6) % 7));
+  return isoDate(copy);
+}
+
+function addDays(iso, n) {
+  const d = parseIso(iso);
+  d.setDate(d.getDate() + n);
+  return isoDate(d);
+}
+
+function formatShort(iso) {
+  return parseIso(iso).toLocaleDateString("nl-NL", { day: "numeric", month: "short" });
+}
+
+function isoWeek(iso) {
+  const d = parseIso(iso);
+  d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
+  const firstThursday = new Date(d.getFullYear(), 0, 4);
+  return 1 + Math.round(((d - firstThursday) / 86400000 - 3 + ((firstThursday.getDay() + 6) % 7)) / 7);
+}
+
+function weekLabel(monday) {
+  const start = parseIso(monday);
+  const end = parseIso(addDays(monday, 6));
+  const range =
+    start.getMonth() === end.getMonth()
+      ? `${start.getDate()} – ${end.toLocaleDateString("nl-NL", { day: "numeric", month: "long" })}`
+      : `${formatShort(monday)} – ${formatShort(addDays(monday, 6))}`;
+  return `Week ${isoWeek(monday)} · ${range}`;
+}
+
+function dayName(iso) {
+  return DAY_NAMES[(parseIso(iso).getDay() + 6) % 7];
+}
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+}
+
+function formatQty(q) {
+  if (q == null) return "";
+  return Number.isInteger(q) ? String(q) : q.toLocaleString("nl-NL", { maximumFractionDigits: 2 });
+}
+
+function tagList(tags) {
+  return String(tags ?? "")
+    .split(",")
+    .map((t) => t.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function metaHtml(item) {
+  const parts = [];
+  if (item.prep_minutes) parts.push(`<span>${ICONS.clock}${item.prep_minutes} min</span>`);
+  const tags = tagList(item.tags).slice(0, 2).join(", ");
+  if (tags) parts.push(`<span>${ICONS.tag}${esc(tags)}</span>`);
+  return parts.length ? `<div class="tile-meta">${parts.join("")}</div>` : "";
+}
+
+function steps(instructions) {
+  return String(instructions ?? "")
+    .split(/\n+/)
+    .map((line) => line.replace(/^\s*(\d+[.)]|[-•*])\s*/, "").trim())
+    .filter(Boolean);
+}
+
+async function api(path, options = {}) {
+  const res = await fetch(path, {
+    ...options,
+    headers: { "Content-Type": "application/json" },
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Er ging iets mis (${res.status})`);
+  return data;
+}
+
+let toastTimer;
+function toast(message, isError = false) {
+  const el = $("#toast");
+  el.hidden = true;
+  el.textContent = message;
+  el.className = isError ? "toast error" : "toast";
+  void el.offsetWidth; // animatie opnieuw starten
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => (el.hidden = true), isError ? 6000 : 2600);
+}
+
+async function guarded(fn) {
+  try {
+    await fn();
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+function openSheet(id) {
+  $(id).showModal();
+}
+
+function closeSheet(id) {
+  $(id).close();
+}
+
+// ---------- navigatie ----------
+
+function showTab(tab) {
+  state.tab = tab;
+  $$(".nav-tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === tab)));
+  $$(".page").forEach((p) => (p.hidden = p.id !== `page-${tab}`));
+  window.scrollTo({ top: 0 });
+  refresh();
+}
+
+function setWeek(week) {
+  state.week = week;
+  refresh();
+}
+
+async function refresh() {
+  $$(".week-label").forEach((el) => (el.textContent = weekLabel(state.week)));
+  $$(".this-week").forEach((el) => (el.hidden = state.week === mondayOf(new Date())));
+  await guarded(async () => {
+    if (state.tab === "plan") {
+      [state.recipes, state.menu] = await Promise.all([api("/api/recipes"), api(`/api/menu?week=${state.week}`)]);
+      renderMenu();
+    } else if (state.tab === "recipes") {
+      state.recipes = await api("/api/recipes");
+      renderRecipes();
+    } else if (state.tab === "inspiration") {
+      renderInspiration();
+    } else {
+      renderShopping(await api(`/api/shopping?week=${state.week}`));
+    }
+  });
+}
+
+// ---------- weekmenu ----------
+
+function renderMenu() {
+  const today = isoDate(new Date());
+  const choices = new Map(state.menu.choices.map((c) => [c.date, c]));
+
+  const chosen = state.menu.days.filter((d) => choices.has(d)).length;
+  $("#chosen-count").textContent = `${chosen} van 7`;
+  $("#progress-bar").style.width = `${(chosen / 7) * 100}%`;
+  $("#household").textContent = state.household;
+  $("#fill-status").hidden = !state.filling;
+  $("#open-fill").disabled = Boolean(state.filling);
+  $("#welcome").hidden = state.recipes.length > 0 || state.menu.options.length > 0 || Boolean(state.filling);
+
+  $("#days").innerHTML = state.menu.days
+    .map((day) => {
+      const choice = choices.get(day);
+      const options = state.menu.options.filter((o) => o.date === day);
+      const skeletons = state.filling?.[day] ?? 0;
+      const status = choice
+        ? `<span class="day-status done">${ICONS.check}${esc(choice.recipe_name)}</span>`
+        : options.length
+          ? `<span class="day-status">Kies uit ${options.length} ${options.length === 1 ? "optie" : "opties"}</span>`
+          : `<span class="day-status">Nog geen opties</span>`;
+      return `<section class="day ${day < today ? "past" : ""} ${choice ? "decided" : ""}">
+        <div class="day-head">
+          <h2 class="day-name">${dayName(day)}</h2>
+          <span class="day-date">${formatShort(day)}</span>
+          ${day === today ? `<span class="today-pill">Vandaag</span>` : ""}
+          <span class="day-rule"></span>
+          ${status}
+        </div>
+        <div class="tiles">
+          ${options.map((o) => tileHtml(o, choice)).join("")}
+          ${Array.from({ length: skeletons }, skeletonHtml).join("")}
+          <button class="tile add" data-action="add" data-date="${day}">${ICONS.plus}<span>Optie toevoegen</span></button>
+        </div>
+      </section>`;
+    })
+    .join("");
+}
+
+function badgesHtml(option) {
+  return [
+    option.source === "claude" ? `<span class="badge claude">${ICONS.sparkle}Claude</span>` : "",
+    option.saved ? "" : `<span class="badge">Nieuw</span>`,
+  ].join("");
+}
+
+function tileHtml(option, choice) {
+  const isChosen = choice && option.saved && choice.recipe_id === option.recipe_id;
+  return `<article class="tile ${isChosen ? "chosen" : ""}" data-option="${option.id}">
+    <button ${plateAttrs(option)} data-action="view" aria-label="Bekijk recept ${esc(option.name)}">
+      <span class="dish" aria-hidden="true">${dishFor(option)}</span>
+      <span class="plate-badges">${badgesHtml(option)}</span>
+      ${isChosen ? `<span class="ribbon">${ICONS.check}Op het menu</span>` : ""}
+    </button>
+    <button class="remove" data-action="remove" aria-label="Haal ${esc(option.name)} van het menu">${ICONS.x}</button>
+    <div class="tile-body">
+      <h3 class="tile-title">${esc(option.name)}</h3>
+      ${metaHtml(option)}
+      ${option.reason ? `<p class="tile-reason">${esc(option.reason)}</p>` : ""}
+      <div class="tile-actions">
+        <button class="btn small choose ${isChosen ? "is-chosen" : ""}" data-action="choose" aria-pressed="${Boolean(isChosen)}">
+          ${isChosen ? `${ICONS.check}Gekozen` : "Kies"}
+        </button>
+        <button class="btn link" data-action="view">Bekijk recept</button>
+      </div>
+    </div>
+  </article>`;
+}
+
+function skeletonHtml() {
+  return `<div class="tile skeleton" aria-hidden="true">
+    <div class="plate"></div>
+    <div class="tile-body">
+      <div class="skeleton-line" style="width: 70%; height: 18px"></div>
+      <div class="skeleton-line" style="width: 45%"></div>
+      <div class="skeleton-line" style="width: 90%; margin-top: 8px"></div>
+    </div>
+  </div>`;
+}
+
+function findOption(id) {
+  return state.menu.options.find((o) => o.id === Number(id));
+}
+
+function isChosen(option) {
+  const choice = state.menu.choices.find((c) => c.date === option.date);
+  return Boolean(choice && option.saved && choice.recipe_id === option.recipe_id);
+}
+
+async function toggleChoice(option) {
+  await guarded(async () => {
+    if (isChosen(option)) {
+      await api(`/api/menu/choice?date=${option.date}`, { method: "DELETE" });
+    } else {
+      await api(`/api/menu/options/${option.id}/choose`, { method: "POST", body: { servings: state.household } });
+      if (!option.saved) toast(`${option.name} is bewaard in je recepten`);
+    }
+    await refresh();
+  });
+}
+
+async function removeOption(option) {
+  await guarded(async () => {
+    await api(`/api/menu/options/${option.id}`, { method: "DELETE" });
+    await refresh();
+  });
+}
+
+function setHousehold(n) {
+  state.household = Math.min(20, Math.max(1, n));
+  save("household", state.household);
+  $("#household").textContent = state.household;
+}
+
+async function copyPreviousWeek() {
+  await guarded(async () => {
+    const { copied } = await api("/api/menu/copy-previous", { method: "POST", body: { week: state.week } });
+    toast(copied ? `${copied} ${copied === 1 ? "optie" : "opties"} overgenomen van vorige week` : "Vorige week stond er niets op het menu");
+    await refresh();
+  });
+}
+
+// ---------- aanvullen met Claude ----------
+
+function openFillSheet() {
+  $$("#per-day button").forEach((b) => b.setAttribute("aria-checked", String(Number(b.dataset.value) === state.perDay)));
+  $("#fill-form").wishes.value = load("wishes") || "";
+  openSheet("#fill-sheet");
+}
+
+async function fillMenu(event) {
+  event.preventDefault();
+  const wishes = $("#fill-form").wishes.value;
+  save("wishes", wishes);
+  closeSheet("#fill-sheet");
+
+  // Laat meteen zien waar opties bij komen.
+  const chosen = new Set(state.menu.choices.map((c) => c.date));
+  const today = isoDate(new Date());
+  state.filling = {};
+  for (const day of state.menu.days) {
+    const count = state.menu.options.filter((o) => o.date === day).length;
+    if (day >= today && !chosen.has(day) && count < state.perDay) state.filling[day] = state.perDay - count;
+  }
+  if (!Object.keys(state.filling).length) {
+    state.filling = null;
+    toast("Elke komende avond heeft al genoeg opties of een keuze");
+    return;
+  }
+  renderMenu();
+
+  await guarded(async () => {
+    try {
+      const res = await api("/api/menu/fill", {
+        method: "POST",
+        body: { week: state.week, wishes, servings: state.household, per_day: state.perDay },
+      });
+      toast(res.added ? `Claude heeft ${res.added} opties toegevoegd` : res.message || "Claude had geen nieuwe opties");
+    } finally {
+      state.filling = null;
+      await refresh();
+    }
+  });
+}
+
+// ---------- recept bekijken ----------
+
+// Toont een recept. Precies één van: `option` (menu-optie), `recipe` (uit het receptenboek)
+// of `idea` (inspiratie van Claude die nog niet bewaard is: {recipe, description, index}).
+function openView({ option = null, recipe = null, idea = null }) {
+  const source = option
+    ? option.saved
+      ? state.recipes.find((r) => r.id === option.recipe_id)
+      : option.suggestion
+    : idea
+      ? idea.recipe
+      : recipe;
+  if (!source) return;
+  state.view = { option, idea, recipe: option?.saved || recipe ? source : null };
+
+  const facts = [
+    source.prep_minutes ? ["Bereidingstijd", `${source.prep_minutes} min`] : null,
+    ["Personen", source.servings],
+    source.ingredients?.length ? ["Ingrediënten", source.ingredients.length] : null,
+    option ? ["Op het menu", `${dayName(option.date)} ${formatShort(option.date)}`] : null,
+  ].filter(Boolean);
+  const methodSteps = steps(source.instructions);
+  const tags = tagList(source.tags);
+  const note = option?.reason || idea?.description;
+  const noteLabel = option?.source === "claude" ? "Waarom Claude dit voorstelt" : idea ? "Inspiratie van Claude" : "Notitie";
+  let sourceHost = "";
+  try {
+    sourceHost = source.source_url ? new URL(source.source_url).hostname.replace(/^www\./, "") : "";
+  } catch {}
+
+  $("#view-body").innerHTML = `
+    <div ${plateAttrs(source, "recipe-hero")}>
+      <span class="dish" aria-hidden="true">${dishFor(source)}</span>
+      ${option ? `<span class="plate-badges">${badgesHtml(option)}</span>` : ""}
+      ${idea ? `<span class="plate-badges"><span class="badge claude">${ICONS.sparkle}Claude</span></span>` : ""}
+    </div>
+    <div class="recipe-intro">
+      ${tags.length ? `<p class="kicker">${esc(tags.join(" · "))}</p>` : ""}
+      <h2>${esc(source.name)}</h2>
+      <div class="recipe-facts">
+        ${facts.map(([label, value]) => `<div class="fact"><small>${label}</small><strong>${esc(value)}</strong></div>`).join("")}
+      </div>
+      ${note ? `<p class="recipe-why"><small>${noteLabel}</small>${esc(note)}</p>` : ""}
+      ${sourceHost ? `<p class="recipe-source">Bron: <a href="${esc(source.source_url)}" target="_blank" rel="noopener noreferrer">${esc(sourceHost)} ↗</a></p>` : ""}
+    </div>
+    <div class="recipe-columns">
+      <div>
+        <h3>Ingrediënten</h3>
+        ${
+          source.ingredients?.length
+            ? `<ul class="ing-list">${source.ingredients
+                .map((i) => `<li><span class="qty">${esc(`${formatQty(i.quantity)} ${i.unit}`.trim())}</span><span>${esc(i.name)}</span></li>`)
+                .join("")}</ul>`
+            : `<p class="muted">Geen ingrediënten ingevuld.</p>`
+        }
+      </div>
+      <div>
+        <h3>Bereiding</h3>
+        ${
+          methodSteps.length
+            ? `<ol class="method">${methodSteps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol>`
+            : `<p class="muted">Geen bereiding ingevuld.</p>`
+        }
+      </div>
+    </div>`;
+
+  $("#view-edit").hidden = !state.view.recipe;
+  const foot = [];
+  if (option) {
+    if (!option.saved) foot.push(`<button class="btn outline" data-view-action="save">Bewaar in receptenboek</button>`);
+    foot.push(
+      isChosen(option)
+        ? `<button class="btn outline" data-view-action="choose">Keuze ongedaan maken</button>`
+        : `<button class="btn primary" data-view-action="choose">Kies voor ${dayName(option.date).toLowerCase()}</button>`
+    );
+  } else if (idea) {
+    if (!state.inspiration.saved.has(idea.index)) {
+      foot.push(`<button class="btn outline" data-view-action="save-idea">Bewaar in receptenboek</button>`);
+    }
+    foot.push(`<button class="btn primary" data-view-action="plan">Op het menu zetten</button>`);
+  } else if (recipe) {
+    foot.push(`<button class="btn primary" data-view-action="plan">Op het menu zetten</button>`);
+  }
+  $("#view-foot").innerHTML = foot.join("");
+  openSheet("#view-sheet");
+  $("#view-body").scrollTop = 0;
+}
+
+async function viewAction(action) {
+  const { option, idea, recipe } = state.view;
+  if (action === "choose") {
+    closeSheet("#view-sheet");
+    await toggleChoice(option);
+  } else if (action === "save") {
+    await guarded(async () => {
+      await api(`/api/menu/options/${option.id}/save`, { method: "POST" });
+      closeSheet("#view-sheet");
+      toast(`${option.name} is bewaard in je receptenboek`);
+      await refresh();
+    });
+  } else if (action === "save-idea") {
+    closeSheet("#view-sheet");
+    await saveIdea(idea.index);
+  } else if (action === "plan") {
+    closeSheet("#view-sheet");
+    openPlanSheet(idea ? { idea: idea.index } : { recipeId: recipe.id, name: recipe.name });
+  }
+}
+
+// ---------- op het menu zetten vanuit receptenboek of inspiratie ----------
+
+function openPlanSheet(target) {
+  state.planTarget = target;
+  const name = target.idea != null ? state.inspiration.data.ideas[target.idea].recipe.name : target.name;
+  $("#plan-title").textContent = name;
+  const today = isoDate(new Date());
+  $("#day-picker").innerHTML = Array.from({ length: 8 }, (_, i) => addDays(today, i))
+    .map(
+      (day, i) => `<button data-date="${day}">
+        <strong>${i === 0 ? "Vandaag" : i === 1 ? "Morgen" : dayName(day)}</strong>
+        <small>${dayName(day).toLowerCase()} ${formatShort(day)}</small>
+      </button>`
+    )
+    .join("");
+  openSheet("#plan-sheet");
+}
+
+async function planOn(date) {
+  const target = state.planTarget;
+  await guarded(async () => {
+    const recipeId = target.idea != null ? await saveIdea(target.idea, { quiet: true }) : target.recipeId;
+    if (!recipeId) return;
+    await api("/api/menu/options", { method: "POST", body: { date, recipe_id: recipeId } });
+    closeSheet("#plan-sheet");
+    toast(`Op het menu gezet voor ${dayName(date).toLowerCase()} ${formatShort(date)}`);
+    if (state.tab === "inspiration") renderInspirationResults();
+  });
+}
+
+// ---------- recept bewerken ----------
+
+function ingredientRow(ing = {}) {
+  const row = document.createElement("div");
+  row.className = "ingredient-edit";
+  row.innerHTML = `<input name="qty" placeholder="200" inputmode="decimal" aria-label="Hoeveelheid" value="${esc(formatQty(ing.quantity))}">
+    <input name="unit" placeholder="g" aria-label="Eenheid" value="${esc(ing.unit)}">
+    <input name="ing" placeholder="bijv. pasta" aria-label="Ingrediënt" value="${esc(ing.name)}">
+    <button type="button" class="remove-ing" aria-label="Verwijder ingrediënt">${ICONS.x}</button>`;
+  return row;
+}
+
+// `recipe` zonder id is een concept (geïmporteerd of door Claude bedacht) dat nog bewaard moet worden.
+function openEdit(recipe = null, menuDate = null) {
+  const form = $("#edit-form");
+  form.reset();
+  form.dataset.id = recipe?.id ?? "";
+  state.editMenuDate = menuDate;
+  $("#edit-title").textContent = recipe?.id ? "Recept wijzigen" : recipe ? "Controleer en bewaar" : "Nieuw recept";
+  form.source_url.value = recipe?.source_url ?? "";
+  setEditPhoto(recipe?.image ?? "", recipe?.name ?? "");
+  form.name.value = recipe?.name ?? "";
+  form.servings.value = recipe?.servings ?? state.household;
+  form.prep_minutes.value = recipe?.prep_minutes ?? "";
+  form.tags.value = recipe?.tags ?? "";
+  form.instructions.value = recipe?.instructions ?? "";
+  $("#ingredient-rows").replaceChildren(...(recipe?.ingredients.length ? recipe.ingredients : [{}, {}, {}]).map(ingredientRow));
+  $("#delete-recipe").hidden = !recipe?.id;
+  openSheet("#edit-sheet");
+  if (!recipe) form.name.focus();
+}
+
+function setEditPhoto(image, name = "") {
+  const form = $("#edit-form");
+  form.dataset.image = image;
+  const preview = $("#photo-preview");
+  preview.className = image ? "photo-preview photo" : "photo-preview";
+  preview.style.setProperty("--photo", image ? `url('${image}')` : "none");
+  preview.textContent = image ? "" : dishFor({ name: name || form.name.value || "", tags: form.tags.value });
+  $("#photo-remove").hidden = !image;
+}
+
+async function uploadPhoto(file) {
+  await guarded(async () => {
+    const res = await fetch("/api/images", { method: "POST", headers: { "Content-Type": file.type }, body: file });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Uploaden mislukt");
+    setEditPhoto(data.image);
+  });
+}
+
+async function saveRecipe(event) {
+  event.preventDefault();
+  const form = event.target;
+  const body = {
+    name: form.name.value,
+    servings: form.servings.value,
+    prep_minutes: form.prep_minutes.value,
+    tags: form.tags.value,
+    instructions: form.instructions.value,
+    image: form.dataset.image || "",
+    source_url: form.source_url.value,
+    ingredients: $$(".ingredient-edit").map((row) => ({
+      quantity: $("[name=qty]", row).value,
+      unit: $("[name=unit]", row).value,
+      name: $("[name=ing]", row).value,
+    })),
+  };
+  await guarded(async () => {
+    const id = form.dataset.id;
+    const saved = await api(id ? `/api/recipes/${id}` : "/api/recipes", { method: id ? "PUT" : "POST", body });
+    if (state.editMenuDate) {
+      await api("/api/menu/options", { method: "POST", body: { date: state.editMenuDate, recipe_id: saved.id } });
+    }
+    closeSheet("#edit-sheet");
+    toast(state.editMenuDate ? `${saved.name} staat op het menu` : "Recept opgeslagen");
+    await refresh();
+  });
+}
+
+async function deleteRecipe() {
+  const id = $("#edit-form").dataset.id;
+  if (!confirm("Dit recept verwijderen? Het verdwijnt ook van het weekmenu.")) return;
+  await guarded(async () => {
+    await api(`/api/recipes/${id}`, { method: "DELETE" });
+    closeSheet("#edit-sheet");
+    toast("Recept verwijderd");
+    await refresh();
+  });
+}
+
+// ---------- optie kiezen uit eigen recepten ----------
+
+function openPicker(date) {
+  state.picker = { date, selected: new Set() };
+  $("#picker-title").textContent = `${dayName(date)} ${formatShort(date)}`;
+  $("#picker-search").value = "";
+  renderPicker();
+  openSheet("#picker-sheet");
+}
+
+function renderPicker() {
+  const { date, selected } = state.picker;
+  const q = $("#picker-search").value.trim().toLowerCase();
+  const onMenu = new Set(state.menu.options.filter((o) => o.date === date && o.saved).map((o) => o.recipe_id));
+  const list = state.recipes.filter((r) => !q || `${r.name} ${r.tags}`.toLowerCase().includes(q));
+
+  $("#picker-list").innerHTML = list.length
+    ? `<ul class="pick-list">${list
+        .map((r) => {
+          const already = onMenu.has(r.id);
+          const sub = already ? "Staat al op het menu" : [r.prep_minutes ? `${r.prep_minutes} min` : "", tagList(r.tags).join(", ")].filter(Boolean).join(" · ");
+          return `<li><button type="button" class="pick-row ${selected.has(r.id) ? "checked" : ""}" data-recipe="${r.id}" ${already ? "disabled" : ""}>
+            <span ${plateAttrs(r, "mini-plate")} aria-hidden="true">${r.image ? "" : dishFor(r)}</span>
+            <span class="row-main"><span class="row-title">${esc(r.name)}</span><span class="row-sub">${esc(sub) || "&nbsp;"}</span></span>
+            <span class="box">${ICONS.check}</span>
+          </button></li>`;
+        })
+        .join("")}</ul>`
+    : `<p class="muted" style="margin-top: 20px">${state.recipes.length ? "Geen recepten gevonden." : "Je hebt nog geen eigen recepten."}</p>`;
+
+  const n = selected.size;
+  $("#picker-add").disabled = n === 0;
+  $("#picker-add").textContent = n > 1 ? `Voeg ${n} toe` : "Voeg toe";
+}
+
+async function addPicked() {
+  const { date, selected } = state.picker;
+  await guarded(async () => {
+    for (const id of selected) await api("/api/menu/options", { method: "POST", body: { date, recipe_id: id } });
+    closeSheet("#picker-sheet");
+    await refresh();
+  });
+}
+
+// ---------- recepten ----------
+
+function renderRecipes() {
+  const q = $("#recipe-search").value.trim().toLowerCase();
+  $("#recipe-count").textContent = `${state.recipes.length} ${state.recipes.length === 1 ? "recept" : "recepten"}`;
+
+  // Tag-filters: de meest gebruikte tags eerst.
+  const counts = new Map();
+  for (const r of state.recipes) for (const t of tagList(r.tags)) counts.set(t, (counts.get(t) ?? 0) + 1);
+  const tags = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "nl")).slice(0, 12).map(([t]) => t);
+  if (state.tagFilter && !tags.includes(state.tagFilter)) state.tagFilter = null;
+  $("#tag-filter").innerHTML = tags.length
+    ? [`<button class="chip" data-tag="" aria-pressed="${!state.tagFilter}">Alles</button>`,
+       ...tags.map((t) => `<button class="chip" data-tag="${esc(t)}" aria-pressed="${state.tagFilter === t}">${esc(t)}</button>`)].join("")
+    : "";
+
+  if (!state.recipes.length) {
+    $("#recipe-list").innerHTML = `<div class="empty"><div class="dish">🍲</div><h3>Nog geen recepten</h3>
+      <p>Schrijf je eigen favorieten op, plak een link van een receptensite of laat Claude iets bedenken.</p></div>`;
+    return;
+  }
+
+  const list = state.recipes.filter((r) => {
+    const haystack = `${r.name} ${r.tags} ${r.ingredients.map((i) => i.name).join(" ")}`.toLowerCase();
+    return (!q || haystack.includes(q)) && (!state.tagFilter || tagList(r.tags).includes(state.tagFilter));
+  });
+  if (!list.length) {
+    $("#recipe-list").innerHTML = `<div class="empty"><p>Geen recepten gevonden.</p></div>`;
+    return;
+  }
+  $("#recipe-list").innerHTML = `<div class="recipe-grid">${list
+    .map(
+      (r) => `<button class="tile recipe-card" data-recipe="${r.id}">
+        <span ${plateAttrs(r)}><span class="dish" aria-hidden="true">${dishFor(r)}</span></span>
+        <span class="tile-body">
+          <span class="tile-title">${esc(r.name)}</span>
+          ${metaHtml(r)}
+        </span>
+      </button>`
+    )
+    .join("")}</div>`;
+}
+
+// ---------- recepten toevoegen: importeren en laten bedenken ----------
+
+function setBusy(form, busy) {
+  $(".busy", form).hidden = !busy;
+  $$("button, input, textarea", form).forEach((el) => (el.disabled = busy && !el.matches("[data-close]")));
+}
+
+async function importRecipe(event) {
+  event.preventDefault();
+  const form = event.target;
+  setBusy(form, true);
+  try {
+    const draft = await api("/api/recipes/import", { method: "POST", body: { url: form.url.value } });
+    closeSheet("#import-sheet");
+    openEdit(draft);
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    setBusy(form, false);
+  }
+}
+
+async function generateRecipe(event) {
+  event.preventDefault();
+  const form = event.target;
+  setBusy(form, true);
+  try {
+    const draft = await api("/api/recipes/generate", {
+      method: "POST",
+      body: { prompt: form.prompt.value, servings: state.household },
+    });
+    closeSheet("#generate-sheet");
+    openEdit(draft);
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    setBusy(form, false);
+  }
+}
+
+function openAdd(kind) {
+  if (kind === "write") return openEdit();
+  const sheet = kind === "import" ? "#import-sheet" : "#generate-sheet";
+  const form = $(`${sheet} form`);
+  form.reset();
+  setBusy(form, false);
+  openSheet(sheet);
+  $("input, textarea", form).focus();
+}
+
+// ---------- inspiratie ----------
+
+// Groente en fruit van het seizoen in Nederland, per maand.
+const SEASON = [
+  ["🥬 boerenkool", "🥦 spruitjes", "🥕 pastinaak", "🧅 prei", "🥗 witlof", "🟣 rode kool", "🌰 knolselderij"],
+  ["🥬 boerenkool", "🥦 spruitjes", "🥕 winterpeen", "🧅 prei", "🥗 witlof", "🟣 rode kool", "🌰 knolselderij"],
+  ["🧅 prei", "🥗 witlof", "🍃 spinazie", "🌿 postelein", "🥕 winterpeen", "🌰 knolselderij"],
+  ["🤍 asperges", "🌱 rabarber", "🍃 spinazie", "🔴 radijs", "🌿 raapstelen", "🧅 lente-ui"],
+  ["🤍 asperges", "🌱 rabarber", "🥔 nieuwe aardappelen", "🔴 radijs", "🌿 tuinkruiden", "🍃 spinazie"],
+  ["🍓 aardbeien", "🫛 doperwten", "🫘 tuinbonen", "🥒 courgette", "🥦 bloemkool", "🥔 nieuwe aardappelen"],
+  ["🍅 tomaat", "🥒 courgette", "🫛 sperziebonen", "🫑 paprika", "🍒 kersen", "🥒 komkommer"],
+  ["🍅 tomaat", "🍆 aubergine", "🥒 courgette", "🌽 maïs", "🫑 paprika", "🫐 bramen"],
+  ["🎃 pompoen", "🍄 paddenstoelen", "🍎 appels", "🍐 peren", "🧅 prei", "🫐 bramen"],
+  ["🎃 pompoen", "🍄 paddenstoelen", "🍎 appels", "🍐 peren", "🥕 pastinaak", "🟣 rode kool"],
+  ["🥬 boerenkool", "🎃 pompoen", "🥦 spruitjes", "🥕 pastinaak", "🌰 knolselderij", "🥗 witlof"],
+  ["🥬 boerenkool", "🥦 spruitjes", "🟣 rode kool", "🥗 witlof", "🥕 pastinaak", "🥬 veldsla"],
+];
+const MONTHS = ["januari", "februari", "maart", "april", "mei", "juni", "juli", "augustus", "september", "oktober", "november", "december"];
+const THEMES = [
+  ["⏱️", "Snel doordeweeks", "Binnen 30 minuten op tafel", "Snelle doordeweekse gerechten, binnen 30 minuten klaar"],
+  ["🛋️", "Comfort food", "Warm, romig en troostend", "Comfort food: warme, romige, troostende gerechten"],
+  ["🥦", "Vegetarisch", "Vol smaak, zonder vlees", "Vegetarische hoofdgerechten vol smaak"],
+  ["🌏", "Wereldkeuken", "Van Thai tot Mexicaans", "Gerechten uit de wereldkeuken, van Aziatisch tot Mexicaans"],
+  ["🥘", "Ovenschotels", "Erin, deur dicht, klaar", "Ovenschotels en gerechten uit de oven"],
+  ["💶", "Budgetvriendelijk", "Lekker voor weinig", "Budgetvriendelijke gerechten met goedkope basisingrediënten"],
+  ["🐟", "Vis & zeevruchten", "Licht en fris", "Gerechten met vis en zeevruchten"],
+  ["🥂", "Feestelijk", "Voor een etentje met vrienden", "Feestelijke gerechten voor een etentje met vrienden"],
+];
+
+function seasonTheme() {
+  const month = new Date().getMonth();
+  const produce = SEASON[month].map((p) => p.split(" ").slice(1).join(" "));
+  return `Seizoensgerechten voor ${MONTHS[month]} met Nederlandse seizoensproducten zoals ${produce.join(", ")}`;
+}
+
+function renderInspiration() {
+  const month = new Date().getMonth();
+  $("#season-kicker").textContent = `In het seizoen · ${MONTHS[month]}`;
+  $("#season-title").textContent = `Dit is nu op z'n lekkerst`;
+  $("#season-produce").innerHTML = SEASON[month].map((p) => `<span>${esc(p)}</span>`).join("");
+  $("#themes").innerHTML = THEMES.map(
+    ([emoji, title, sub, theme]) => `<button class="theme" data-theme="${esc(theme)}" aria-pressed="${state.inspiration.theme === theme}">
+      <span class="emoji" aria-hidden="true">${emoji}</span><strong>${esc(title)}</strong><small>${esc(sub)}</small>
+    </button>`
+  ).join("");
+  // Laat bij terugkomst de laatst bekeken collectie weer zien (die staat bewaard op de server).
+  const last = load("inspirationTheme");
+  if (!state.inspiration.data && !state.inspiration.loading && last) loadInspiration(last, { scroll: false });
+  else renderInspirationResults();
+}
+
+function themeTitle(theme) {
+  if (theme.startsWith("Seizoensgerechten")) return `Seizoensrecepten voor ${MONTHS[new Date().getMonth()]}`;
+  return THEMES.find((t) => t[3] === theme)?.[1] ?? theme;
+}
+
+async function loadInspiration(theme, { refresh = false, scroll = true } = {}) {
+  state.inspiration = { theme, data: null, loading: true, saved: new Map() };
+  save("inspirationTheme", theme);
+  $$("#themes .theme").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.theme === theme)));
+  renderInspirationResults();
+  if (scroll) $("#inspiration-results").scrollIntoView({ behavior: "smooth", block: "start" });
+  try {
+    const data = await api("/api/inspiration", { method: "POST", body: { theme, servings: state.household, refresh } });
+    if (state.inspiration.theme !== theme) return; // intussen een ander thema gekozen
+    state.inspiration.data = data;
+  } catch (err) {
+    if (state.inspiration.theme === theme) state.inspiration.theme = null;
+    toast(err.message, true);
+  } finally {
+    if (state.inspiration.theme === theme || !state.inspiration.theme) state.inspiration.loading = false;
+    renderInspirationResults();
+  }
+}
+
+function renderInspirationResults() {
+  const { theme, data, loading, saved } = state.inspiration;
+  const el = $("#inspiration-results");
+  if (!theme) {
+    el.innerHTML = "";
+    return;
+  }
+  const head = `<div class="results-head">
+    <div><p class="kicker">Collectie</p><h2>${esc(themeTitle(theme))}</h2></div>
+    ${data ? `<button class="btn outline" data-action="refresh">Nieuwe ideeën</button>` : ""}
+  </div>`;
+  if (loading) {
+    el.innerHTML = `${head}<p class="results-intro">Claude zoekt zes recepten voor je uit…</p>
+      <div class="idea-grid">${Array.from({ length: 6 }, skeletonHtml).join("")}</div>`;
+    return;
+  }
+  if (!data) {
+    el.innerHTML = "";
+    return;
+  }
+  el.innerHTML = `${head}<p class="results-intro">${esc(data.intro)}</p>
+    <div class="idea-grid">${data.ideas
+      .map(({ recipe, description }, i) => {
+        const savedId = saved.get(i);
+        return `<article class="tile idea" data-idea="${i}">
+          <button ${plateAttrs(recipe)} data-action="view" aria-label="Bekijk recept ${esc(recipe.name)}">
+            <span class="dish" aria-hidden="true">${dishFor(recipe)}</span>
+          </button>
+          <div class="tile-body">
+            <h3 class="tile-title">${esc(recipe.name)}</h3>
+            ${metaHtml(recipe)}
+            <p class="tile-reason">${esc(description)}</p>
+            <div class="tile-actions">
+              <button class="btn small choose" data-action="plan">Op het menu</button>
+              ${savedId
+                ? `<span class="saved-note">${ICONS.check}Bewaard</span>`
+                : `<button class="btn link" data-action="save">Bewaar</button>`}
+            </div>
+          </div>
+        </article>`;
+      })
+      .join("")}</div>`;
+}
+
+// Bewaart een inspiratie-idee in het receptenboek (één keer) en geeft het recept-id terug.
+async function saveIdea(index, { quiet = false } = {}) {
+  const { data, saved } = state.inspiration;
+  if (saved.has(index)) return saved.get(index);
+  let id = null;
+  await guarded(async () => {
+    const recipe = await api("/api/recipes", { method: "POST", body: data.ideas[index].recipe });
+    saved.set(index, recipe.id);
+    id = recipe.id;
+    if (!quiet) toast(`${recipe.name} staat in je receptenboek`);
+    renderInspirationResults();
+  });
+  return id;
+}
+
+// ---------- instellingen ----------
+
+async function openSettings() {
+  $("#test-result").hidden = true;
+  $("#key-form").reset();
+  $("#key-form").api_key.type = "password";
+  $("#toggle-key").textContent = "Toon";
+  await guarded(async () => {
+    renderSettings(await api("/api/settings"));
+    openSheet("#settings-sheet");
+  });
+}
+
+function renderSettings(settings) {
+  const { sdk_installed: sdk, api_key: key } = settings;
+  const item = (ok, title, detail) => `<li class="${ok ? "ok" : "missing"}">
+    <span class="dot">${ok ? ICONS.check : "!"}</span>
+    <div><strong>${title}</strong><small>${detail}</small></div>
+  </li>`;
+  $("#settings-status").innerHTML = [
+    sdk
+      ? item(true, "Anthropic-pakket geïnstalleerd", "De app kan met Claude praten.")
+      : item(false, "Anthropic-pakket ontbreekt",
+          `Installeer het in de projectmap met <code>python3 -m venv .venv && .venv/bin/pip install -r requirements.txt</code> en start de app opnieuw met <code>./start.sh</code>.`),
+    key.set
+      ? item(true, "API-sleutel ingesteld", `Opgeslagen in de app: <code>${esc(key.hint)}</code>`)
+      : key.env
+        ? item(true, "API-sleutel uit je terminal", "De server gebruikt <code>ANTHROPIC_API_KEY</code>. Een sleutel die je hieronder opslaat, gaat voor.")
+        : item(false, "Nog geen API-sleutel", "Plak hieronder je sleutel om de functies met Claude te gebruiken."),
+  ].join("");
+  $("#key-label").textContent = key.set ? "Andere API-sleutel gebruiken" : "API-sleutel";
+  $("#delete-key").hidden = !key.set;
+  $("#test-connection").disabled = !sdk || !(key.set || key.env);
+}
+
+async function saveKey(event) {
+  event.preventDefault();
+  const form = event.target;
+  await guarded(async () => {
+    const settings = await api("/api/settings", { method: "PUT", body: { api_key: form.api_key.value } });
+    form.reset();
+    renderSettings(settings);
+    toast("API-sleutel opgeslagen");
+    if (settings.sdk_installed) await testConnection();
+  });
+}
+
+async function testConnection() {
+  const el = $("#test-result");
+  const button = $("#test-connection");
+  button.disabled = true;
+  button.textContent = "Bezig met testen…";
+  try {
+    const res = await api("/api/settings/test", { method: "POST" });
+    el.className = "test-result ok";
+    el.textContent = `✓ ${res.message}`;
+  } catch (err) {
+    el.className = "test-result error";
+    el.textContent = err.message;
+  } finally {
+    el.hidden = false;
+    button.disabled = false;
+    button.textContent = "Test verbinding";
+  }
+}
+
+async function deleteKey() {
+  if (!confirm("De opgeslagen API-sleutel verwijderen?")) return;
+  await guarded(async () => {
+    renderSettings(await api("/api/settings/api-key", { method: "DELETE" }));
+    $("#test-result").hidden = true;
+    toast("API-sleutel verwijderd");
+  });
+}
+
+// ---------- boodschappen ----------
+
+let shoppingItems = [];
+
+function renderShopping(items) {
+  shoppingItems = items;
+  const el = $("#shopping");
+  if (!items.length) {
+    el.innerHTML = `<div class="empty"><div class="dish">🧺</div><h3>Nog niets te halen</h3>
+      <p>Kies eerst in het weekmenu wat je deze week eet.</p>
+      <button class="btn primary" data-action="to-menu">Naar het weekmenu</button></div>`;
+    return;
+  }
+  const byName = (a, b) => a.name.localeCompare(b.name, "nl");
+  const open = items.filter((i) => !i.checked).sort(byName);
+  const done = items.filter((i) => i.checked).sort(byName);
+  const rows = (list) =>
+    `<ul class="shop-list">${list
+      .map(
+        (i) => `<li><button class="shop-row ${i.checked ? "checked" : ""}" data-key="${esc(i.key)}" aria-pressed="${i.checked}">
+          <span class="box">${ICONS.check}</span>
+          <span class="qty">${esc(`${formatQty(i.quantity)} ${i.unit}`.trim()) || "—"}</span>
+          <span class="name">${esc(i.name)}</span>
+          <span class="from">${esc(i.recipes.join(", "))}</span>
+        </button></li>`
+      )
+      .join("")}</ul>`;
+
+  el.innerHTML = `
+    <div class="shop-card">
+      <div class="shop-head">
+        <h2>${open.length ? `Nog ${open.length} te halen` : "Alles is binnen 🎉"}</h2>
+        ${open.length ? `<button class="btn link" data-action="copy-list">Kopieer lijst</button>` : ""}
+      </div>
+      ${open.length ? rows(open) : ""}
+    </div>
+    ${done.length ? `<div class="shop-card shop-done"><div class="shop-head"><h2>In je mandje</h2><span>${done.length} afgevinkt</span></div>${rows(done)}</div>` : ""}`;
+}
+
+async function copyShoppingList() {
+  const text = shoppingItems
+    .filter((i) => !i.checked)
+    .map((i) => `- ${[`${formatQty(i.quantity)} ${i.unit}`.trim(), i.name].filter(Boolean).join(" ")}`)
+    .join("\n");
+  try {
+    await navigator.clipboard.writeText(text);
+    toast("Boodschappenlijst gekopieerd");
+  } catch {
+    toast("Kopiëren lukte niet in deze browser", true);
+  }
+}
+
+// ---------- events ----------
+
+$$(".nav-tabs button").forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab)));
+$(".logo").addEventListener("click", (e) => {
+  e.preventDefault();
+  showTab("plan");
+});
+$$("[data-week-step]").forEach((b) =>
+  b.addEventListener("click", () => {
+    const step = Number(b.dataset.weekStep);
+    setWeek(step === 0 ? mondayOf(new Date()) : addDays(state.week, step * 7));
+  })
+);
+darkMode.addEventListener("change", () => refresh());
+
+// Sluitknoppen en klikken naast een venster.
+$$("dialog.modal").forEach((dialog) => {
+  dialog.addEventListener("click", (e) => {
+    if (e.target === dialog || e.target.closest("[data-close]")) dialog.close();
+  });
+});
+
+// Weekmenu
+$("#days").addEventListener("click", (e) => {
+  const button = e.target.closest("button");
+  if (!button) return;
+  if (button.dataset.action === "add") return openPicker(button.dataset.date);
+  const option = findOption(button.closest("[data-option]")?.dataset.option);
+  if (!option) return;
+  if (button.dataset.action === "choose") toggleChoice(option);
+  else if (button.dataset.action === "remove") removeOption(option);
+  else if (button.dataset.action === "view") openView({ option });
+});
+$(".stepper").addEventListener("click", (e) => {
+  const step = Number(e.target.closest("button")?.dataset.step);
+  if (step) setHousehold(state.household + step);
+});
+$("#copy-previous").addEventListener("click", copyPreviousWeek);
+$("#open-fill").addEventListener("click", openFillSheet);
+$("#welcome").addEventListener("click", (e) => {
+  const action = e.target.closest("button")?.dataset.action;
+  if (action === "welcome-fill") openFillSheet();
+  if (action === "welcome-recipe") openEdit();
+});
+
+// Aanvullen met Claude
+$("#per-day").addEventListener("click", (e) => {
+  const value = Number(e.target.closest("button")?.dataset.value);
+  if (!value) return;
+  state.perDay = value;
+  save("perDay", value);
+  $$("#per-day button").forEach((b) => b.setAttribute("aria-checked", String(Number(b.dataset.value) === value)));
+});
+$("#fill-form").addEventListener("submit", fillMenu);
+
+// Receptweergave
+$("#view-foot").addEventListener("click", (e) => {
+  const action = e.target.closest("button")?.dataset.viewAction;
+  if (action) viewAction(action);
+});
+$("#view-edit").addEventListener("click", () => {
+  const recipe = state.view.recipe;
+  closeSheet("#view-sheet");
+  openEdit(recipe);
+});
+
+// Recept bewerken
+$("#edit-form").addEventListener("submit", saveRecipe);
+$("#add-ingredient").addEventListener("click", () => {
+  const row = ingredientRow();
+  $("#ingredient-rows").append(row);
+  $("[name=qty]", row).focus();
+});
+$("#ingredient-rows").addEventListener("click", (e) => {
+  if (e.target.closest(".remove-ing")) e.target.closest(".ingredient-edit").remove();
+});
+$("#delete-recipe").addEventListener("click", deleteRecipe);
+
+// Optie kiezen
+$("#picker-search").addEventListener("input", renderPicker);
+$("#picker-list").addEventListener("click", (e) => {
+  const row = e.target.closest("button[data-recipe]");
+  if (!row || row.disabled) return;
+  const id = Number(row.dataset.recipe);
+  const { selected } = state.picker;
+  selected.has(id) ? selected.delete(id) : selected.add(id);
+  renderPicker();
+});
+$("#picker-add").addEventListener("click", addPicked);
+$("#picker-new").addEventListener("click", () => {
+  closeSheet("#picker-sheet");
+  openEdit(null, state.picker.date);
+});
+
+// Recepten
+$("#recipe-search").addEventListener("input", renderRecipes);
+$("#tag-filter").addEventListener("click", (e) => {
+  const chip = e.target.closest(".chip");
+  if (!chip) return;
+  state.tagFilter = chip.dataset.tag || null;
+  renderRecipes();
+});
+$(".add-options").addEventListener("click", (e) => {
+  const kind = e.target.closest("[data-add]")?.dataset.add;
+  if (kind) openAdd(kind);
+});
+$("#import-form").addEventListener("submit", importRecipe);
+$("#generate-form").addEventListener("submit", generateRecipe);
+$("#generate-examples").addEventListener("click", (e) => {
+  const chip = e.target.closest(".chip");
+  if (!chip) return;
+  $("#generate-form").prompt.value = chip.textContent;
+  $("#generate-form").prompt.focus();
+});
+$("#photo-input").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (file) uploadPhoto(file);
+});
+$("#photo-remove").addEventListener("click", () => setEditPhoto(""));
+
+// Instellingen
+$("#open-settings").addEventListener("click", openSettings);
+$("#key-form").addEventListener("submit", saveKey);
+$("#test-connection").addEventListener("click", testConnection);
+$("#delete-key").addEventListener("click", deleteKey);
+$("#toggle-key").addEventListener("click", () => {
+  const input = $("#key-form").api_key;
+  input.type = input.type === "password" ? "text" : "password";
+  $("#toggle-key").textContent = input.type === "password" ? "Toon" : "Verberg";
+});
+
+// Inspiratie
+$("#season-go").addEventListener("click", () => loadInspiration(seasonTheme()));
+$("#themes").addEventListener("click", (e) => {
+  const theme = e.target.closest(".theme")?.dataset.theme;
+  if (theme) loadInspiration(theme);
+});
+$("#theme-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const theme = e.target.theme.value.trim();
+  if (theme) loadInspiration(theme);
+});
+$("#inspiration-results").addEventListener("click", (e) => {
+  const button = e.target.closest("button");
+  if (!button) return;
+  if (button.dataset.action === "refresh") return loadInspiration(state.inspiration.theme, { refresh: true, scroll: false });
+  const index = Number(button.closest("[data-idea]")?.dataset.idea);
+  if (Number.isNaN(index)) return;
+  const idea = state.inspiration.data.ideas[index];
+  if (button.dataset.action === "view") openView({ idea: { ...idea, index } });
+  else if (button.dataset.action === "save") saveIdea(index);
+  else if (button.dataset.action === "plan") openPlanSheet({ idea: index });
+});
+$("#day-picker").addEventListener("click", (e) => {
+  const date = e.target.closest("button[data-date]")?.dataset.date;
+  if (date) planOn(date);
+});
+$("#recipe-list").addEventListener("click", (e) => {
+  const button = e.target.closest("button");
+  if (!button) return;
+  if (button.dataset.action === "new-recipe") return openEdit();
+  const recipe = state.recipes.find((r) => r.id === Number(button.dataset.recipe));
+  if (recipe) openView({ recipe });
+});
+
+// Boodschappen
+$("#shopping").addEventListener("click", (e) => {
+  const button = e.target.closest("button");
+  if (!button) return;
+  if (button.dataset.action === "to-menu") return showTab("plan");
+  if (button.dataset.action === "copy-list") return copyShoppingList();
+  const key = button.dataset.key;
+  if (!key) return;
+  const checked = button.getAttribute("aria-pressed") !== "true";
+  guarded(async () => {
+    await api("/api/shopping/check", { method: "POST", body: { week: state.week, key, checked } });
+    await refresh();
+  });
+});
+
+showTab("plan");

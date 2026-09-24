@@ -1,0 +1,2 @@
+# Alleen nodig voor de AI-suggesties; de rest van de app gebruikt de Python-standaardbibliotheek.
+anthropic>=1.0
