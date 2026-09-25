@@ -7,6 +7,7 @@ Elk verzoek gaat door `App.handle`:
 4. elk antwoord krijgt beveiligingskoppen mee.
 """
 
+import hashlib
 import json
 import mimetypes
 import os
@@ -187,10 +188,17 @@ class App:
         )
 
     def _static(self, req):
+        """Bestanden van de app. index.html verwijst naar /v/<versie>/css/… en /v/<versie>/js/…: elke versie van
+        de app heeft zo eigen adressen, zodat een browser of proxy (bijv. Nginx Proxy Manager met "Cache Assets")
+        na een update nooit oude scripts combineert met de nieuwe pagina."""
         if req.method not in ("GET", "HEAD"):
             return Response.error(HTTPStatus.METHOD_NOT_ALLOWED, "Niet toegestaan")
         static = self.config.static_dir.resolve()
-        path = req.path if req.path not in ("", "/") else "/index.html"
+        path, versioned = req.path, False
+        if path.startswith("/v/"):
+            version, _, rest = path[3:].partition("/")
+            path, versioned = "/" + rest, version == self.asset_version()
+        path = path if path not in ("", "/") else "/index.html"
         file = (static / path.lstrip("/")).resolve()
         hidden = any(part.startswith(".") for part in file.relative_to(static).parts) if file.is_relative_to(static) else True
         if hidden or not file.is_file():
@@ -199,7 +207,24 @@ class App:
         content_type = mimetypes.guess_type(file.name)[0] or "application/octet-stream"
         if content_type.startswith("text/") or content_type in ("application/javascript", "application/manifest+json"):
             content_type += "; charset=utf-8"
-        return Response(HTTPStatus.OK, file.read_bytes(), content_type, [("Cache-Control", "no-cache")])
+        body = file.read_bytes()
+        if file.name == "index.html":
+            prefix = f"/v/{self.asset_version()}"
+            body = body.replace(b'href="/css/', f'href="{prefix}/css/'.encode()).replace(
+                b'src="/js/', f'src="{prefix}/js/'.encode()
+            )
+            return Response(HTTPStatus.OK, body, content_type, [("Cache-Control", "no-cache")])
+        cache = "public, max-age=31536000, immutable" if versioned else "no-cache"
+        return Response(HTTPStatus.OK, body, content_type, [("Cache-Control", cache)])
+
+    def asset_version(self):
+        """Korte vingerafdruk van alle bestanden in static/ (naam, grootte, tijd): verandert bij elke update."""
+        static = self.config.static_dir
+        stamp = sorted(
+            (str(f.relative_to(static)), f.stat().st_size, f.stat().st_mtime_ns)
+            for f in static.rglob("*") if f.is_file()
+        )
+        return hashlib.sha256(repr(stamp).encode()).hexdigest()[:10]
 
 
 def make_handler(app):

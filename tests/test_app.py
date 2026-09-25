@@ -1,5 +1,6 @@
 import json
 import threading
+import re
 import unittest
 import urllib.error
 import urllib.request
@@ -288,6 +289,22 @@ class ApiTest(unittest.TestCase):
         with urllib.request.urlopen(self.base + "/") as res:
             self.assertIn(b"MonEat", res.read())
         with urllib.request.urlopen(self.base + "/../mealplanner/db/base.py") as res:
+            self.assertNotIn(b"sqlite3", res.read())
+
+    def test_scripts_have_a_version_in_their_address(self):
+        """Na een update laadt de pagina nooit oude scripts uit een cache: elke versie heeft eigen adressen."""
+        with urllib.request.urlopen(self.base + "/") as res:
+            page = res.read().decode()
+            self.assertEqual(res.headers["Cache-Control"], "no-cache")
+        match = re.search(r'src="(/v/[0-9a-f]{10}/js/main\.js)"', page)
+        self.assertIsNotNone(match)
+        self.assertNotIn('href="/css/', page)
+        with urllib.request.urlopen(self.base + match.group(1)) as res:
+            self.assertIn(b"import", res.read())
+            self.assertIn("immutable", res.headers["Cache-Control"])
+        with urllib.request.urlopen(self.base + "/v/0000000000/js/main.js") as res:  # oude versie: niet lang bewaren
+            self.assertEqual(res.headers["Cache-Control"], "no-cache")
+        with urllib.request.urlopen(self.base + "/v/x/../../mealplanner/db/base.py") as res:
             self.assertNotIn(b"sqlite3", res.read())
 
 
