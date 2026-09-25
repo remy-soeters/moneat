@@ -5,13 +5,18 @@ dialog.modal.journey { width: min(1040px, calc(100vw - 32px)); height: min(92vh,
   display: flex; align-items: center; gap: 12px; padding: 16px 20px 8px 24px;
   padding-top: calc(16px + env(safe-area-inset-top));
 }
-.journey-dots { flex: 1; display: flex; justify-content: center; gap: 6px; margin: 0; padding: 0; list-style: none; }
+/* voortgang: een bolletje per avond, de huidige avond is een brede groene pil */
+.journey-dots { flex: 1; display: flex; justify-content: center; align-items: center; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .journey-dots button {
-  width: 42px; height: 42px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--paper);
-  font: inherit; font-size: 13px; font-weight: 800; color: var(--ink-2); cursor: pointer; transition: background 0.2s, transform 0.2s;
+  width: 38px; height: 38px; border-radius: 999px; border: 1.5px solid var(--color-accent-200); background: var(--color-accent-50);
+  font: inherit; font-size: 12.5px; font-weight: 800; color: var(--color-accent-700); cursor: pointer;
+  transition: background 0.25s, width 0.3s cubic-bezier(0.3, 0.9, 0.3, 1), color 0.25s;
 }
-.journey-dots button.done { background: var(--second); border-color: var(--second-strong); color: var(--second-on); }
-.journey-dots button.current { background: var(--main); border-color: var(--main-strong); color: var(--primary-ink); transform: scale(1.1); }
+.journey-dots button.done { background: var(--color-accent-100); border-color: var(--color-accent-100); color: var(--color-accent-800); }
+.journey-dots button.current {
+  width: 64px; background: var(--main); border-color: var(--main); color: #fff;
+  box-shadow: 0 4px 12px color-mix(in srgb, oklch(60% 0.11 145) 35%, transparent);
+}
 .journey-dots button.loading { animation: pulse 1.2s ease-in-out infinite; }
 
 .journey-body { flex: 1; overflow-y: auto; padding: 12px 32px 28px; touch-action: pan-y; overscroll-behavior: contain; }
@@ -27,37 +32,46 @@ dialog.modal.journey { width: min(1040px, calc(100vw - 32px)); height: min(92vh,
 
 .journey-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
 .j-card .plate { height: 170px; }
-.journey-busy { display: flex; align-items: center; gap: 10px; margin: 14px 0 0; color: var(--ink-2); font-family: var(--serif); font-style: italic; }
+.journey-busy { display: flex; align-items: center; gap: 10px; margin: 14px 0 0; color: var(--ink-2); }
 
 .journey-picked {
   display: flex; align-items: center; gap: 14px; margin: -4px 0 18px; padding: 12px 16px; border-radius: 16px;
-  background: var(--second-soft); border: 1px solid var(--second-line);
+  background: var(--color-accent-100); border: 1px solid var(--color-accent-200);
 }
 .journey-picked strong, .journey-picked small { display: block; }
-.journey-picked small { color: var(--second-ink); font-weight: 600; }
+.journey-picked small { color: var(--main-ink); font-weight: 600; }
 .journey-picked > span:nth-child(2) { flex: 1; min-width: 0; }
-.picked-check { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--second-strong); color: var(--second-on); flex: none; }
+.picked-check { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--main); color: #fff; flex: none; }
 .picked-check svg { width: 18px; height: 18px; stroke-width: 2.6; }
-.picked-emoji { font-size: 34px; flex: none; }
-.journey-picked.special { background: var(--main-soft); border-color: var(--line); }
-.journey-picked.special small { color: var(--main-ink); }
+.journey-picked.special { background: var(--color-accent-2-50); border-color: var(--color-accent-2-100); }
+.journey-picked.special small { color: var(--second-ink); }
 
 .journey-empty {
   display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin-bottom: 16px; padding: 18px 20px;
-  border: 2px dashed var(--main-strong); border-radius: var(--radius); background: var(--paper);
+  border: 1.5px dashed var(--color-accent-300); border-radius: var(--radius); background: var(--color-accent-50);
 }
 .journey-empty p { margin: 0; color: var(--ink-2); }
 
 .journey-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: -6px 0 18px; }
 .journey-actions .btn { min-height: 38px; padding: 6px 16px; font-size: 14px; }
-.journey-others { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin: -6px 0 18px; }
+.journey-others { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; max-width: 640px; margin: -6px 0 18px; }
 .other-choice {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-height: 84px; padding: 14px 16px;
-  border: 1.5px solid var(--line); border-radius: 16px; background: var(--paper); font: inherit; color: var(--ink); text-align: left; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 8px; min-height: 96px; padding: 14px 10px;
+  border: 1.5px solid transparent; border-radius: var(--radius); background: none; font: inherit; font-size: 14px;
+  color: var(--ink); text-align: center; cursor: pointer; line-height: 1.25;
 }
-.other-choice span { font-size: 28px; line-height: 1; }
-.other-choice:hover { border-color: var(--main-strong); background: var(--main-soft); }
-.other-choice.active { border-color: var(--second-strong); background: var(--second-soft); }
+.other-choice:hover { background: var(--color-accent-2-50); }
+.other-choice.active { border-color: var(--color-accent-2-200); background: var(--color-accent-2-50); }
+/* ronde roze knopjes voor vriezer, uit eten, afhalen en restjes */
+.icon-chip {
+  flex: none; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%;
+  background: var(--color-accent-2-100); color: var(--color-accent-2-800); box-shadow: var(--shadow-sm);
+}
+.icon-chip svg { width: 22px; height: 22px; }
+.icon-chip.green { background: var(--color-accent-100); color: var(--color-accent-800); }
+.journey-picked .icon-chip { width: 38px; height: 38px; }
+.journey-picked .icon-chip svg { width: 19px; height: 19px; }
+.j-card .tag-row { margin-top: 2px; }
 
 /* intro */
 .journey-intro { max-width: 660px; margin: 0 auto; padding-top: 8px; }
@@ -69,8 +83,8 @@ dialog.modal.journey { width: min(1040px, calc(100vw - 32px)); height: min(92vh,
 }
 .day-chip strong { font-size: 15px; }
 .day-chip small { font-size: 12px; }
-.day-chip[aria-pressed="true"] { background: var(--main); border-color: var(--main-strong); color: var(--primary-ink); }
-.day-chip.done:not([aria-pressed="true"]) small { color: var(--second-ink); font-weight: 800; }
+.day-chip[aria-pressed="true"] { background: var(--main); border-color: var(--main); color: var(--primary-ink); }
+.day-chip.done:not([aria-pressed="true"]) small { color: var(--main-ink); font-weight: 800; }
 .day-chip:disabled { opacity: 0.4; cursor: default; }
 .intro-row { display: flex; flex-wrap: wrap; gap: 8px 32px; }
 
@@ -81,12 +95,15 @@ dialog.modal.journey { width: min(1040px, calc(100vw - 32px)); height: min(92vh,
 .done-list li { display: flex; gap: 14px; padding: 12px 18px; }
 .done-list li + li { border-top: 1px solid var(--line); }
 .done-day { flex: none; width: 96px; font-weight: 700; color: var(--ink-2); }
+.done-special { display: inline-flex; align-items: center; gap: 8px; color: var(--second-ink); font-weight: 600; }
+.done-special svg { width: 17px; height: 17px; }
 
 @media (max-width: 767px) {
   dialog.modal.journey { width: 100vw; max-width: 100vw; height: 100vh; height: 100dvh; max-height: none; margin: 0; border-radius: 0; }
   .journey-top { padding: 10px 12px 6px; padding-top: calc(10px + env(safe-area-inset-top)); }
   .journey-dots { justify-content: flex-start; gap: 4px; }
-  .journey-dots button { width: 38px; height: 38px; font-size: 12px; }
+  .journey-dots button { width: 34px; height: 34px; font-size: 11.5px; }
+  .journey-dots button.current { width: 52px; }
   .journey-body { padding: 8px 16px 20px; }
   .journey-title { font-size: 28px; margin-bottom: 14px; }
   /* opties onder elkaar, met de foto links: zo zie je alle drie zonder veel te scrollen */
@@ -100,10 +117,10 @@ dialog.modal.journey { width: min(1040px, calc(100vw - 32px)); height: min(92vh,
   .j-card .tile-title { font-size: 17px; }
   .j-card .tile-reason { font-size: 14px; }
   .j-card .tile-actions { padding-top: 6px; gap: 10px; }
-  .journey-others { grid-template-columns: 1fr 1fr; gap: 8px; }
-  .other-choice { flex-direction: row; align-items: center; gap: 10px; min-height: 56px; padding: 8px 12px; }
-  .other-choice span { font-size: 24px; }
-  .other-choice strong { font-size: 14px; line-height: 1.2; }
+  .journey-others { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px; margin-left: -8px; margin-right: -8px; }
+  .other-choice { gap: 6px; min-height: 0; padding: 8px 2px; }
+  .other-choice strong { font-size: 11.5px; font-weight: 700; }
+  .other-choice .icon-chip { width: 46px; height: 46px; }
   .day-chip { min-height: 54px; }
   .done-day { width: 84px; }
 }

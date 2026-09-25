@@ -28,12 +28,26 @@ export function showTab(tab) {
     if (b.dataset.tab === tab) b.setAttribute("aria-current", "page");
     else b.removeAttribute("aria-current");
   });
+  moveIndicator();
   $$(".page").forEach((p) => (p.hidden = p.id !== `page-${tab}`));
   $("#user-menu").hidden = true;
   document.title = `${TITLES[tab]} · Mealplanner`;
   window.scrollTo({ top: 0 });
   refresh();
 }
+
+// Het groene blokje in de zwevende navigatie schuift naar het gekozen onderdeel.
+export function moveIndicator() {
+  const indicator = $(".nav-indicator");
+  const active = $('.nav-tabs [aria-current="page"]');
+  if (!indicator) return;
+  indicator.style.opacity = active ? "1" : "0";
+  if (!active) return;
+  indicator.style.width = `${active.offsetWidth}px`;
+  indicator.style.transform = `translateX(${active.offsetLeft}px)`;
+}
+window.addEventListener("resize", moveIndicator);
+document.fonts?.ready.then(moveIndicator);
 
 export function setWeek(week) {
   state.week = week;

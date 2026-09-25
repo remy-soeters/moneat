@@ -1,41 +1,62 @@
-/* Basis: kleuren, letters, knoppen, formulieren, vensters. Pastel wit, met groen als hoofdkleur en roze als tweede kleur. */
+/* Basis: kleuren, letters, knoppen, formulieren, vensters. Volgens het designsysteem "Organic". */
 :root {
-  --bg: #f9fbf8;
+  /* Designsysteem "Organic": witte basis, groen als hoofdkleur, roze als tweede kleur (OKLCH-reeksen). */
+  --color-bg: oklch(99% 0.006 145);
+  --color-text: oklch(24% 0.02 150);
+  --color-soft: oklch(46% 0.03 150);
+  --color-faint: oklch(66% 0.025 150);
+  --color-divider: color-mix(in srgb, oklch(72% 0.11 145) 22%, transparent);
+  --color-accent-50: oklch(98.5% 0.012 145);
+  --color-accent-100: oklch(96% 0.03 145);
+  --color-accent-200: oklch(92% 0.055 145);
+  --color-accent-300: oklch(87% 0.075 145);
+  --color-accent-400: oklch(80% 0.095 145);
+  --color-accent-500: oklch(72% 0.11 145);
+  --color-accent-600: oklch(60% 0.11 145);
+  --color-accent-700: oklch(48% 0.10 145);
+  --color-accent-800: oklch(36% 0.08 145);
+  --color-accent-2-50: oklch(98.5% 0.012 350);
+  --color-accent-2-100: oklch(96% 0.03 350);
+  --color-accent-2-200: oklch(92% 0.055 350);
+  --color-accent-2-300: oklch(87% 0.075 350);
+  --color-accent-2-500: oklch(72% 0.11 350);
+  --color-accent-2-700: oklch(48% 0.10 350);
+  --color-accent-2-800: oklch(36% 0.08 350);
+
+  /* Namen die de onderdelen gebruiken, gekoppeld aan het designsysteem */
+  --bg: var(--color-bg);
   --paper: #ffffff;
-  --paper-2: #eff5f0;
-  --ink: #2d3530;
-  --ink-2: #636d67;
-  --ink-3: #9aa49e;
-  --line: #e2ebe4;
-
-  /* Hoofdkleur: pastel groen */
-  --main: #c2e6cc;
-  --main-strong: #a4d8b4;
-  --main-soft: #e9f5ec;
-  --main-ink: #2b7348; /* groene tekst: genoeg contrast op wit */
-  --primary-ink: #173f28; /* tekst op de hoofdkleur */
-  /* Tweede kleur: pastel roze */
-  --second: #f7c9d6;
-  --second-strong: #f2adc2;
-  --second-soft: #fdedf2;
-  --second-ink: #ad3f66; /* roze tekst */
-  --second-on: #4a1d30; /* tekst op de tweede kleur */
-  --second-line: #f5d9e3;
-  --butter: #fff3c9;
-
-  /* Namen die in de onderdelen gebruikt worden */
+  --paper-2: var(--color-accent-50);
+  --ink: var(--color-text);
+  --ink-2: var(--color-soft);
+  --ink-3: var(--color-faint);
+  --line: var(--color-divider);
+  --main: var(--color-accent-600);
+  --main-strong: var(--color-accent-700);
+  --main-soft: var(--color-accent-100);
+  --main-ink: var(--color-accent-700);
+  --primary-ink: #ffffff; /* tekst op de hoofdkleur */
+  --second: var(--color-accent-2-200);
+  --second-strong: var(--color-accent-2-300);
+  --second-soft: var(--color-accent-2-100);
+  --second-ink: var(--color-accent-2-700);
+  --second-on: var(--color-accent-2-800);
+  --second-line: var(--color-accent-2-200);
+  --butter: oklch(96% 0.05 95);
   --accent: var(--main-ink);
   --accent-soft: var(--main-soft);
   --sage: var(--second-ink);
   --sage-soft: var(--second-soft);
-  --mustard: #d9a13b;
+  --mustard: oklch(75% 0.13 80);
 
-  --shadow: 0 1px 2px rgba(40, 90, 60, 0.05), 0 8px 24px rgba(40, 90, 60, 0.08);
-  --shadow-hover: 0 2px 4px rgba(40, 90, 60, 0.07), 0 16px 36px rgba(40, 90, 60, 0.13);
-  --serif: "Fraunces", Georgia, "Times New Roman", serif;
-  --sans: "Nunito", -apple-system, "Segoe UI", Roboto, sans-serif;
+  --shadow-sm: 0 1px 3px color-mix(in srgb, oklch(35% 0.06 150) 12%, transparent);
+  --shadow: 0 2px 4px color-mix(in srgb, oklch(35% 0.06 150) 6%, transparent), 0 8px 22px color-mix(in srgb, oklch(35% 0.06 150) 12%, transparent);
+  --shadow-hover: 0 4px 8px color-mix(in srgb, oklch(35% 0.06 150) 8%, transparent), 0 18px 40px color-mix(in srgb, oklch(35% 0.06 150) 20%, transparent);
+  --serif: "Domine", Georgia, serif;
+  --sans: "Figtree", -apple-system, "Segoe UI", Roboto, sans-serif;
   --radius: 18px;
   --radius-sm: 12px;
+  --radius-lg: 28px;
   --tap: 44px; /* minimale grootte van iets om op te tikken */
   color-scheme: light;
 }
@@ -49,13 +70,16 @@ body {
   font-family: var(--sans);
   font-size: 16px;
   line-height: 1.55;
-  background: var(--bg);
+  background:
+    radial-gradient(circle at 0% 0%, var(--color-accent-100), transparent 42%) fixed,
+    radial-gradient(circle at 100% 100%, var(--color-accent-2-100), transparent 38%) fixed,
+    var(--bg);
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
 }
 
-svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; }
 h1, h2, h3 { font-family: var(--serif); font-weight: 600; letter-spacing: -0.01em; }
 a { color: var(--main-ink); }
 :focus-visible { outline: 3px solid var(--main-strong); outline-offset: 2px; }
@@ -65,10 +89,10 @@ code {
 }
 
 .kicker {
-  margin: 0 0 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--main-ink);
+  margin: 0 0 6px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--main-ink);
 }
 .intro { color: var(--ink-2); margin: 0 0 20px; }
-.muted { color: var(--ink-3); font-style: italic; }
+.muted { color: var(--ink-3); }
 .spacer { flex: 1; }
 
 /* ---------- knoppen ---------- */
@@ -76,21 +100,23 @@ code {
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px;
   border: 1.5px solid transparent; border-radius: 999px; padding: 9px 22px; cursor: pointer; white-space: nowrap;
-  font: inherit; font-size: 15px; font-weight: 700; letter-spacing: 0.01em;
+  font-family: var(--serif); font-size: 14.5px; font-weight: 600; letter-spacing: 0;
   transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.1s, box-shadow 0.15s;
 }
 .btn:active { transform: translateY(1px) scale(0.99); }
 .btn:disabled { opacity: 0.45; cursor: default; transform: none; }
-.btn.primary { background: var(--main); color: var(--primary-ink); box-shadow: 0 2px 8px rgba(120, 190, 145, 0.45); }
+.btn.primary { background: var(--main); color: #fff; box-shadow: 0 4px 12px color-mix(in srgb, oklch(60% 0.11 145) 35%, transparent); }
 .btn.primary:not(:disabled):hover { background: var(--main-strong); }
 .btn.secondary { background: var(--second); color: var(--second-on); }
 .btn.secondary:not(:disabled):hover { background: var(--second-strong); }
-.btn.outline { background: var(--paper); color: var(--ink); border-color: var(--line); }
-.btn.outline:not(:disabled):hover { border-color: var(--main-strong); background: var(--main-soft); }
+.btn.outline { background: var(--paper); color: var(--color-accent-800); border-color: var(--color-accent-200); }
+.btn.outline:not(:disabled):hover { border-color: var(--color-accent-400); background: var(--color-accent-50); }
+.btn.pink { background: var(--second-soft); color: var(--second-on); }
+.btn.pink:not(:disabled):hover { background: var(--second); }
 .btn.ghost { background: transparent; color: var(--main-ink); }
 .btn.ghost:hover { background: var(--main-soft); }
 .btn.link {
-  min-height: 0; background: none; border: 0; padding: 6px 2px; color: var(--main-ink); font-weight: 700; border-radius: 6px;
+  min-height: 0; background: none; border: 0; padding: 6px 2px; color: var(--main-ink); font-family: var(--sans); font-weight: 700; border-radius: 6px;
 }
 .btn.link:hover { text-decoration: underline; text-underline-offset: 3px; }
 .btn.danger { color: #b23a4a; }
@@ -148,15 +174,36 @@ code {
 
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 28px; }
 .chip {
-  min-height: 36px; border: 1.5px solid var(--line); background: var(--paper); color: var(--ink-2); cursor: pointer;
+  min-height: 36px; border: 1.5px solid var(--color-accent-100); background: var(--paper); color: var(--ink-2); cursor: pointer;
   font: inherit; font-size: 14px; font-weight: 600; padding: 6px 15px; border-radius: 999px; text-transform: capitalize;
 }
 .chip:hover { border-color: var(--main-strong); color: var(--ink); }
-.chip[aria-pressed="true"] { background: var(--main); border-color: var(--main); color: var(--primary-ink); }
+.chip[aria-pressed="true"] { background: var(--main); border-color: var(--main); color: #fff; }
 .chips.pick { margin: 4px 0 0; }
 .chips.pick .chip { text-transform: none; }
 .chips.small { margin: -4px 0 18px; }
 .chips.small .chip { text-transform: none; }
+
+/* labeltjes: soort gerecht, tijd en moeite */
+.tag {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; white-space: nowrap;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.01em; line-height: 1.5;
+  background: var(--color-accent-100); color: var(--color-accent-800);
+}
+.tag svg { width: 13px; height: 13px; stroke-width: 2.8; }
+.tag.green { background: var(--color-accent-100); color: var(--color-accent-800); }
+.tag.pink { background: var(--color-accent-2-100); color: var(--color-accent-2-800); }
+.tag.white { background: #fff; color: var(--color-accent-800); }
+.tag.outline { background: transparent; border: 1.5px solid var(--color-accent-300); color: var(--color-accent-700); padding: 2px 9px; }
+.tag.time { background: var(--color-accent-50); border: 1px solid var(--color-accent-100); color: var(--color-accent-700); padding: 2px 9px; }
+.tag-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag.cap { text-transform: capitalize; }
+
+/* sterren: gevuld roze, leeg lichtgroen */
+.stars { display: inline-flex; gap: 1px; vertical-align: -2px; }
+.stars svg { width: 16px; height: 16px; stroke-width: 2; color: var(--color-accent-300); }
+.stars .on svg { color: var(--color-accent-2-500); fill: currentColor; }
+.stars.small svg { width: 13px; height: 13px; }
 
 .choice-group { display: flex; gap: 8px; }
 .choice-group button {
@@ -165,7 +212,7 @@ code {
 }
 .choice-group button[aria-checked="true"] { border-color: var(--main-strong); background: var(--main-soft); color: var(--main-ink); }
 
-.busy { display: flex; align-items: center; gap: 12px; color: var(--ink-2); font-family: var(--serif); font-style: italic; }
+.busy { display: flex; align-items: center; gap: 12px; color: var(--ink-2); }
 
 /* ---------- vensters ---------- */
 

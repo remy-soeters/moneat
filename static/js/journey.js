@@ -7,7 +7,7 @@ import { badgesHtml, dinnerOf, findOption, isChosen, openPicker, setHousehold, s
 import { refresh, showTab } from "./nav.js";
 import { state } from "./state.js";
 import { aiName, closeSheet, guarded, openSheet, toast } from "./ui.js";
-import { $, $$, addDays, dayName, esc, formatShort, isoDate, isoWeek, load, metaHtml, mondayOf, parseIso, personen, save, weekLabel } from "./util.js";
+import { $, $$, addDays, dayName, esc, formatShort, isoDate, isoWeek, load, mondayOf, parseIso, personen, save, tagsHtml, weekLabel } from "./util.js";
 import { openView } from "./view.js";
 
 const journey = {
@@ -193,7 +193,7 @@ function dayHtml(day) {
   let picked = "";
   if (dinner?.special) {
     const s = specialFor(dinner.special.kind);
-    picked = `<div class="journey-picked special"><span class="picked-emoji" aria-hidden="true">${s.emoji}</span>
+    picked = `<div class="journey-picked special"><span class="icon-chip" aria-hidden="true">${ICONS[s.icon]}</span>
       <span><strong>${esc(s.label)}</strong><small>${esc(s.line)}</small></span>
       <button type="button" class="btn link" data-j="undo">Toch koken</button></div>`;
   } else if (dinner) {
@@ -213,15 +213,15 @@ function dayHtml(day) {
     <h2 class="journey-title">Wat eten we ${relativeDay(day)}?</h2>
     ${picked}
     <div class="journey-actions">
-      ${dinner ? "" : `<button type="button" class="btn outline" data-j="refresh" ${loading ? "disabled" : ""}>${ICONS.refresh}Andere opties</button>`}
+      ${dinner ? "" : `<button type="button" class="btn pink" data-j="refresh" ${loading ? "disabled" : ""}>${ICONS.refresh}Andere opties</button>`}
       <button type="button" class="btn outline" data-j="others" aria-expanded="${journey.others}">${ICONS.dots}Anders…</button>
     </div>
     ${journey.others ? `<div class="journey-others">
       ${Object.entries(SPECIALS)
         .map(([kind, s]) => `<button type="button" class="other-choice ${dinner?.special?.kind === kind ? "active" : ""}" data-j-special="${kind}">
-          <span aria-hidden="true">${s.emoji}</span><strong>${esc(s.label)}</strong></button>`)
+          <span class="icon-chip" aria-hidden="true">${ICONS[s.icon]}</span><strong>${esc(s.label)}</strong></button>`)
         .join("")}
-      <button type="button" class="other-choice" data-j="pick"><span aria-hidden="true">📖</span><strong>Uit mijn receptenboek</strong></button>
+      <button type="button" class="other-choice" data-j="pick"><span class="icon-chip green" aria-hidden="true">${ICONS.book}</span><strong>Uit mijn receptenboek</strong></button>
     </div>` : ""}
     ${empty}
     <div class="journey-options">
@@ -242,7 +242,7 @@ function cardHtml(option) {
     </button>
     <div class="tile-body">
       <h3 class="tile-title">${esc(option.name)}</h3>
-      ${metaHtml(option)}
+      ${tagsHtml(option)}
       ${option.reason ? `<p class="tile-reason">${esc(option.reason)}</p>` : ""}
       <div class="tile-actions">
         <button type="button" class="btn small choose ${chosen ? "is-chosen" : ""}" data-j="choose">${chosen ? `${ICONS.check}Gekozen` : "Kies dit"}</button>
@@ -264,7 +264,7 @@ function doneHtml() {
       .map((d) => {
         const dinner = dinnerOf(d);
         const what = dinner?.special
-          ? `${specialFor(dinner.special.kind).emoji} ${esc(dinner.special.label)}`
+          ? `<span class="done-special">${ICONS[specialFor(dinner.special.kind).icon]}${esc(dinner.special.label)}</span>`
           : dinner ? esc(dinner.recipe_name) : `<span class="muted">nog niets</span>`;
         return `<li><span class="done-day">${dayName(d)}</span><span>${what}</span></li>`;
       })

@@ -103,6 +103,8 @@ existing_recipe_id en laat new_recipe null). Stel een nieuw recept voor wanneer 
 gevarieerder maakt of beter bij de wensen past (zet dan new_recipe en laat existing_recipe_id null).
 Maak de opties op één dag duidelijk verschillend (bijv. vlees, vis, vegetarisch of snel versus uitgebreid),
 herhaal geen gerecht dat al op het menu van die dag staat, en zorg voor afwisseling over de week.
+Kies bestaande recepten met "favoriet": true of een hoge "beoordeling" (4 of 5 sterren) vaker; recepten met een
+beoordeling van 2 of lager liever niet, en stel dan ook geen vergelijkbaar nieuw gerecht voor.
 {RECIPE_RULES}
 Geef per optie in één zin waarom hij op het menu staat."""
 
@@ -311,9 +313,14 @@ def suggest_menu_options(recipes, needs, current_menu, wishes="", servings=2, av
     avoid: gerechten die net zijn afgewezen ("andere opties"), die niet terug moeten komen
     """
     known_ids = {r["id"] for r in recipes}
-    catalog = [
-        {"id": r["id"], "name": r["name"], "tags": r["tags"], "prep_minutes": r["prep_minutes"]} for r in recipes
-    ]
+    catalog = []
+    for r in recipes:
+        item = {"id": r["id"], "name": r["name"], "tags": r["tags"], "prep_minutes": r["prep_minutes"]}
+        if r.get("favorite"):
+            item["favoriet"] = True
+        if r.get("rating") is not None:
+            item["beoordeling"] = r["rating"]
+        catalog.append(item)
     wanted = "\n".join(f"- {day}: {count} optie(s)" for day, count in needs.items())
     suggestions = _ask(
         MENU_SYSTEM,

@@ -1,47 +1,58 @@
-/* Kop, navigatie en paginaopbouw.
-   Telefoon (< 768px): menubalk onderin, zoals een app. iPad: tabbladen bovenin. Laptop: brede tabbladen. */
+/* Kop, zwevende navigatie en paginaopbouw.
+   De navigatie is op elk scherm een zwevende pil onderin; het groene blokje schuift naar het gekozen onderdeel. */
 
-main { max-width: 1200px; margin: 0 auto; padding: 0 28px 96px; }
+main { max-width: 1200px; margin: 0 auto; padding: 0 32px calc(120px + env(safe-area-inset-bottom)); }
 
-.site-header { position: sticky; top: 0; z-index: 20; border-bottom: 1px solid var(--line); }
-/* De vervaging zit op een laag ertussen, zodat de menubalk op de telefoon echt aan het scherm vast kan zitten. */
+.site-header { position: sticky; top: 0; z-index: 20; }
+/* De vervaging zit op een laag ertussen: dan blijft de kop licht doorschijnend zonder de rest te beïnvloeden. */
 .site-header::before {
   content: ""; position: absolute; inset: 0; z-index: -1;
-  background: rgba(249, 251, 248, 0.86); backdrop-filter: saturate(1.4) blur(14px); -webkit-backdrop-filter: saturate(1.4) blur(14px);
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: saturate(1.3) blur(14px); -webkit-backdrop-filter: saturate(1.3) blur(14px);
 }
 .site-header-inner {
-  max-width: 1200px; margin: 0 auto; padding: 10px 28px; min-height: 72px;
-  padding-top: calc(10px + env(safe-area-inset-top));
+  max-width: 1200px; margin: 0 auto; padding: 12px 32px; min-height: 68px;
+  padding-top: calc(12px + env(safe-area-inset-top));
   display: flex; align-items: center; justify-content: space-between; gap: 20px;
 }
 .logo {
   display: flex; align-items: center; gap: 10px; color: var(--ink); text-decoration: none; flex: none;
-  font-family: var(--serif); font-size: 23px; font-weight: 700; letter-spacing: -0.02em;
+  font-family: var(--serif); font-size: 20px; font-weight: 600;
 }
 .logo-mark {
-  display: grid; place-items: center; width: 40px; height: 40px; border-radius: 13px;
-  background: linear-gradient(135deg, var(--main) 0%, var(--main-soft) 55%, var(--second) 100%);
+  display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%;
+  background: var(--color-accent-100); color: var(--color-accent-700);
 }
-.logo svg { width: 22px; height: 22px; color: var(--main-ink); stroke-width: 2.1; }
+.logo svg { width: 20px; height: 20px; stroke-width: 2.4; }
+
+/* ---------- zwevende navigatie ---------- */
 
 .nav-tabs {
-  display: flex; gap: 4px; padding: 5px; border-radius: 999px; background: var(--paper);
-  border: 1px solid var(--line); box-shadow: 0 1px 2px rgba(40, 90, 60, 0.04);
+  position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 25;
+  display: flex; gap: 4px; padding: 6px; border-radius: 999px;
+  background: color-mix(in srgb, #fff 90%, transparent); border: 1px solid var(--color-accent-100);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 12px 34px color-mix(in srgb, oklch(35% 0.06 150) 24%, transparent);
+}
+.nav-indicator {
+  position: absolute; top: 6px; bottom: 6px; left: 0; width: 0; border-radius: 999px; background: var(--main);
+  box-shadow: 0 4px 12px color-mix(in srgb, oklch(60% 0.11 145) 40%, transparent);
+  transition: transform 0.35s cubic-bezier(0.3, 0.9, 0.3, 1), width 0.35s cubic-bezier(0.3, 0.9, 0.3, 1);
 }
 .nav-tabs button {
-  display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 16px; border: 0; border-radius: 999px;
-  background: none; cursor: pointer; font: inherit; font-size: 15px; font-weight: 700; color: var(--ink-2);
-  transition: background 0.15s, color 0.15s;
+  position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 10px 18px;
+  border: 0; border-radius: 999px; background: none; cursor: pointer;
+  font: inherit; font-size: 15px; font-weight: 600; color: var(--ink-2); white-space: nowrap; transition: color 0.25s;
 }
-.nav-tabs button:hover { color: var(--ink); background: var(--paper-2); }
-.nav-tabs button[aria-current="page"] { background: var(--main); color: var(--primary-ink); }
-.nav-tabs svg { width: 19px; height: 19px; }
+.nav-tabs button:hover { color: var(--ink); }
+.nav-tabs button[aria-current="page"] { color: #fff; }
+.nav-tabs svg { width: 20px; height: 20px; stroke-width: 2.4; }
 .nav-tabs .label-short { display: none; }
 
 .user { position: relative; flex: none; }
 .user-menu {
   position: absolute; right: 0; top: calc(100% + 10px); z-index: 30; min-width: 220px; padding: 8px;
-  background: var(--paper); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-hover);
+  background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-hover);
   animation: modal-in 0.15s ease;
 }
 .user-menu-head { margin: 0; padding: 8px 12px 10px; border-bottom: 1px solid var(--line); margin-bottom: 6px; }
@@ -55,40 +66,28 @@ main { max-width: 1200px; margin: 0 auto; padding: 0 28px 96px; }
 
 .page-head {
   display: flex; align-items: flex-end; justify-content: space-between; gap: 16px 24px; flex-wrap: wrap;
-  padding: 40px 0 24px;
+  padding: 24px 0 22px;
 }
-.page-title { margin: 0; font-size: clamp(30px, 5vw, 46px); line-height: 1.05; font-weight: 600; }
+.page-title { margin: 0; font-size: clamp(28px, 4.5vw, 40px); line-height: 1.1; }
 .week-nav { display: flex; align-items: center; gap: 8px; }
 
-/* iPad en kleine laptops: pictogram boven een kort label */
-@media (max-width: 1099px) and (min-width: 768px) {
-  .logo span:last-child { display: none; }
-  .nav-tabs { border-radius: 20px; }
-  .nav-tabs button { flex-direction: column; gap: 2px; min-width: 92px; padding: 6px 10px; border-radius: 15px; font-size: 12.5px; }
-  .nav-tabs .label-long { display: none; }
-  .nav-tabs .label-short { display: inline; }
-}
-
-/* Telefoon: menubalk onderin */
+/* Telefoon: de balk over bijna de hele breedte, label onder het icoon */
 @media (max-width: 767px) {
-  main { padding: 0 16px calc(104px + env(safe-area-inset-bottom)); }
-  .site-header-inner { min-height: 60px; padding: 8px 16px; padding-top: calc(8px + env(safe-area-inset-top)); }
-  .logo { font-size: 21px; }
-  .logo-mark { width: 36px; height: 36px; border-radius: 12px; }
+  main { padding: 0 16px calc(112px + env(safe-area-inset-bottom)); }
+  .site-header-inner { min-height: 60px; padding: 10px 16px; padding-top: calc(10px + env(safe-area-inset-top)); }
+  .logo { font-size: 18px; }
+  .logo-mark { width: 34px; height: 34px; }
   .nav-tabs {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 25;
-    display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0;
-    padding: 6px 3px calc(6px + env(safe-area-inset-bottom)); border-radius: 22px 22px 0 0;
-    border: 0; border-top: 1px solid var(--line); background: rgba(255, 255, 255, 0.96);
-    box-shadow: 0 -6px 24px rgba(40, 90, 60, 0.1);
+    left: 12px; right: 12px; transform: none; bottom: calc(12px + env(safe-area-inset-bottom));
+    display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; padding: 5px;
   }
+  .nav-indicator { top: 5px; bottom: 5px; }
   .nav-tabs button {
-    flex-direction: column; gap: 3px; min-height: 56px; padding: 6px 0; border-radius: 16px;
-    font-size: 10.5px; font-weight: 700; letter-spacing: -0.015em; color: var(--ink-2);
+    flex-direction: column; justify-content: center; gap: 2px; min-height: 54px; padding: 6px 0;
+    font-size: 11px; font-weight: 600;
   }
-  .nav-tabs button[aria-current="page"] { background: var(--main-soft); color: var(--main-ink); }
-  .nav-tabs svg { width: 23px; height: 23px; }
+  .nav-tabs svg { width: 22px; height: 22px; }
   .nav-tabs .label-long { display: none; }
-  .nav-tabs .label-short { display: block; max-width: 100%; overflow: hidden; text-overflow: clip; white-space: nowrap; }
-  .page-head { padding-top: 24px; padding-bottom: 18px; }
+  .nav-tabs .label-short { display: block; }
+  .page-head { padding-top: 12px; padding-bottom: 16px; }
 }

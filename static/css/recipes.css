@@ -3,25 +3,48 @@
 .add-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-bottom: 28px; }
 .add-option {
   display: flex; align-items: center; gap: 14px; min-height: 76px; padding: 16px 18px; cursor: pointer; text-align: left;
-  background: var(--paper); border: 1.5px solid var(--line); border-radius: var(--radius); font: inherit; color: var(--ink);
-  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+  background: var(--color-accent-50); border: 1.5px dashed var(--color-accent-200); border-radius: var(--radius); font: inherit; color: var(--ink);
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s, transform 0.15s;
 }
-.add-option:hover { border-color: var(--main-strong); box-shadow: var(--shadow); transform: translateY(-1px); }
-.add-option strong { display: block; font-family: var(--serif); font-size: 18px; font-weight: 600; }
+.add-option:hover { border-color: var(--color-accent-400); background: var(--color-accent-100); transform: translateY(-1px); }
+.add-option strong { display: block; font-family: var(--serif); font-size: 17px; font-weight: 600; }
 .add-option small { display: block; color: var(--ink-2); font-size: 13.5px; }
 .add-icon {
-  flex: none; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center;
-  background: var(--main-soft); color: var(--main-ink);
+  flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
+  background: #fff; color: var(--main-ink); box-shadow: var(--shadow-sm);
 }
-.add-option:nth-child(2) .add-icon { background: var(--second-soft); color: var(--second-ink); }
-.add-icon.claude { background: linear-gradient(135deg, var(--main-soft), var(--second-soft)); color: var(--main-ink); }
-.add-icon svg { width: 22px; height: 22px; }
+.add-option:nth-child(2) .add-icon { color: var(--second-ink); }
+.add-icon svg { width: 21px; height: 21px; }
 .add-icon .sparkle { fill: currentColor; stroke: none; }
 
-.recipe-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 22px; }
-.recipe-card { cursor: pointer; text-align: left; border: 0; padding: 0; font: inherit; color: inherit; }
-.recipe-card .plate { height: 156px; }
-.recipe-card .tile-body { padding-bottom: 18px; }
+.recipe-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
+@media (min-width: 1100px) { .recipe-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.card-open {
+  display: flex; flex-direction: column; flex: 1; width: 100%; padding: 0; border: 0; background: none; cursor: pointer;
+  text-align: left; font: inherit; color: inherit;
+}
+.recipe-card .plate { height: 150px; }
+.recipe-card .plate.photo { filter: saturate(0.9) contrast(0.97) brightness(1.02); }
+.recipe-card .tile-body { gap: 8px; padding: 14px 16px 16px; }
+.recipe-card .tile-title { font-size: 17px; }
+
+.card-rating { display: flex; align-items: center; gap: 6px; margin-top: auto; }
+.card-rating small { font-size: 12px; color: var(--ink-2); font-weight: 600; }
+
+/* hartje op een kaart */
+.heart {
+  position: absolute; top: 10px; right: 10px; z-index: 2; width: 36px; height: 36px; border-radius: 50%; border: 0; cursor: pointer;
+  display: grid; place-items: center; background: rgba(255, 255, 255, 0.92); color: var(--ink-2); box-shadow: var(--shadow-sm);
+  transition: transform 0.15s, color 0.15s;
+}
+.heart svg { width: 17px; height: 17px; stroke-width: 2.2; }
+.heart:hover { color: var(--color-accent-2-500); transform: scale(1.06); }
+.heart.on { color: var(--color-accent-2-500); }
+.heart.on svg { fill: currentColor; }
+.chip.fav-chip { display: inline-flex; align-items: center; gap: 6px; color: var(--second-on); border-color: var(--color-accent-2-200); }
+.chip.fav-chip svg { width: 15px; height: 15px; }
+.chip.fav-chip[aria-pressed="true"] { background: var(--color-accent-2-500); border-color: var(--color-accent-2-500); color: #fff; }
+.chip.fav-chip[aria-pressed="true"] svg { fill: currentColor; }
 .book-tools { display: flex; justify-content: flex-end; margin: -12px 0 20px; }
 
 .empty { text-align: center; padding: 64px 16px; color: var(--ink-2); }
@@ -55,11 +78,11 @@
 .hero-photo-btn { position: absolute; right: 20px; bottom: 16px; }
 .btn.on-image { background: rgba(255, 255, 255, 0.94); color: var(--ink); border-color: transparent; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); }
 .btn.on-image:hover { background: #fff; }
-.plate.busy::before, .book-photo.busy::before {
+.plate.busy::before, .recipe-photo.busy::before {
   content: ""; position: absolute; inset: 0; z-index: 1; background: rgba(255, 255, 255, 0.6);
   animation: pulse 1.2s ease-in-out infinite;
 }
-.plate.busy::after, .book-photo.busy::after {
+.plate.busy::after, .recipe-photo.busy::after {
   content: "Foto maken…"; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 2;
   background: var(--ink); color: #fff; font-size: 13px; font-weight: 700; padding: 5px 12px; border-radius: 999px;
 }
@@ -69,9 +92,10 @@
   .add-option { min-height: 64px; padding: 12px 14px; }
   .recipe-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .recipe-card .plate { height: 118px; }
-  .recipe-card .tile-body { padding: 12px 12px 14px; }
-  .recipe-card .tile-title { font-size: 16.5px; }
-  .recipe-card .tile-meta { font-size: 12.5px; }
+  .recipe-card .tile-body { padding: 11px 12px 13px; gap: 7px; }
+  .recipe-card .tile-title { font-size: 15.5px; }
+  .recipe-card .tag { font-size: 11px; padding: 2px 8px; }
+  .heart { top: 8px; right: 8px; width: 34px; height: 34px; }
   .photo-preview { width: 104px; height: 80px; }
   .ingredient-head, .ingredient-edit { grid-template-columns: 64px 64px minmax(0, 1fr) 36px; gap: 6px; }
 }

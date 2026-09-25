@@ -3,14 +3,20 @@
 Web-app voor het avondeten van je huishouden.
 
 - **Vandaag:** de startpagina toont groot wat je vanavond eet (met foto en recept), en daaronder de
-  komende dagen.
+  komende dagen. Heb je gisteren iets gekozen en nog niet beoordeeld, dan vraagt hij hoe het was.
 - **Plannen:** een stappenplan. "Wat wil je volgende week eten?", daarna per avond een paar opties van de AI.
   Kies er één, vraag om **andere opties**, of kies **Anders…**: uit de vriezer, uit eten, afhalen, restjes of
   iets uit je receptenboek. Swipe (of tik) door naar de volgende avond; aan het eind zie je je week.
   Gekozen gerechten komen vanzelf op de boodschappenlijst; nieuwe recepten van de AI komen pas in je
   receptenboek als je ze kiest of bewaart.
 - **Receptenboek:** schrijf recepten zelf, importeer ze via een link van een receptensite (inclusief foto)
-  of laat Claude er een bedenken. Je kunt ook je eigen foto uploaden.
+  of laat Claude er een bedenken. Je kunt ook je eigen foto uploaden. Met een **hartje** maak je een recept
+  favoriet (ieder voor zich); het filter *Favorieten* toont alleen die.
+- **Een recept** opent als pagina met drie kolommen: foto en gegevens, ingrediënten (om te rekenen naar het
+  aantal personen) en de bereiding. **Start met koken** zet de **kookmodus** aan: grotere letters, stappen en
+  ingrediënten afvinken door erop te tikken, een kookwekker, en het scherm blijft aan. Na **Klaar met koken**
+  geef je 1 tot 5 sterren, met een notitie voor de volgende keer ("meer knoflook"). De AI stelt favorieten
+  en goed beoordeelde gerechten vaker voor, en slecht beoordeelde niet meer.
 - **Recepten swipen** (op de inspiratiepagina): geef je voedselvoorkeuren op (dieet, keukens, tijd,
   liever niet) en swipe door gerechten met foto en korte omschrijving. Naar rechts bewaart het recept
   in je receptenboek, naar links slaat het over; gezien gerechten komen niet terug. De server zet op de
@@ -26,7 +32,9 @@ Importeren leest het gestructureerde recept (schema.org/Recipe) dat vrijwel alle
 publiceren; staat dat er niet, dan haalt Claude het recept uit de tekst van de pagina.
 
 Iedereen in het huishouden krijgt een **eigen login**, maar jullie delen het weekmenu, de recepten en de
-boodschappenlijst. De site werkt op telefoon (menubalk onderin, ook als app op je beginscherm), iPad en laptop.
+boodschappenlijst. De site werkt op telefoon (ook als app op je beginscherm), iPad en laptop, met onderin
+een zwevende menubalk. De vormgeving volgt het designsysteem "Organic": wit met groen als hoofdkleur en roze
+als tweede kleur, letters Domine (koppen) en Figtree (tekst).
 
 - **Backend:** Python 3.11+ (alleen standaardbibliotheek) met een JSON-API en SQLite
 - **Frontend:** HTML, CSS en JavaScript-modules zonder build-stap (`static/`)
@@ -164,7 +172,7 @@ Zo is de app van buitenaf bereikbaar via een eigen adres met HTTPS, bijvoorbeeld
 | `mealplanner/web.py` | Klein webframework: verzoeken, antwoorden, routes |
 | `mealplanner/auth.py` | Wachtwoorden (scrypt), sessies en de rem op raden |
 | `mealplanner/routes/` | API per onderdeel: account, recepten, menu, inspiratie, swipen, boodschappen, instellingen |
-| `mealplanner/db/` | SQLite per onderdeel: recepten, menu, boodschappen, swipen, instellingen, gebruikers |
+| `mealplanner/db/` | SQLite per onderdeel: recepten, menu, boodschappen, swipen, instellingen, beoordelingen, gebruikers |
 | `mealplanner/users.py` | Accounts beheren vanaf de opdrachtregel |
 | `mealplanner/netguard.py` | Veilig webpagina's ophalen voor de import (niet het eigen netwerk in) |
 | `mealplanner/ai.py` | AI: menu-opties, recepten bedenken en uitlezen, inspiratie, foto's |
@@ -176,7 +184,7 @@ Zo is de app van buitenaf bereikbaar via een eigen adres met HTTPS, bijvoorbeeld
 | `mealplanner/icons.py` | Laat Gemini op de achtergrond iconen voor producten tekenen |
 | `static/index.html` | De pagina's en vensters |
 | `static/css/` | Opmaak per onderdeel (pastel wit, groen als hoofdkleur, roze als tweede kleur) |
-| `static/js/` | JavaScript-modules per onderdeel; `main.js` start de app, `home.js` is Vandaag, `journey.js` het stappenplan |
+| `static/js/` | JavaScript-modules per onderdeel; `main.js` start de app, `home.js` is Vandaag, `journey.js` het stappenplan, `view.js` de receptpagina, `cook.js` de kookmodus, `rating.js` sterren en hartjes |
 | `tests/` | Unittests; `tests/helpers.py` start een testserver met een ingelogde gebruiker |
 
 ## API
@@ -194,8 +202,10 @@ login (sessie-cookie). Verzoeken die iets wijzigen moeten de kop `X-Requested-Wi
 | POST | `/api/auth/logout-others` | Uitloggen op alle andere apparaten |
 | GET/POST | `/api/users` | Accounts bekijken / toevoegen (beheerder) |
 | PUT/DELETE | `/api/users/{id}` | `{display_name, is_admin, password}` wijzigen / account verwijderen (beheerder) |
-| GET/POST | `/api/recipes` | Recepten ophalen / aanmaken |
-| GET/PUT/DELETE | `/api/recipes/{id}` | Eén recept |
+| GET/POST | `/api/recipes` | Recepten ophalen (met jouw hartje en de gemiddelde sterren) / aanmaken |
+| GET/PUT/DELETE | `/api/recipes/{id}` | Eén recept (GET met de laatste beoordelingen en notities) |
+| PUT | `/api/recipes/{id}/favorite` | `{favorite}` → hartje aan of uit (per gebruiker) |
+| POST | `/api/recipes/{id}/rating` | `{stars, note, date}` → beoordeling na het koken (1 per gebruiker per dag) |
 | POST | `/api/recipes/import` | `{url}` → concept-recept van een website (niet opgeslagen) |
 | POST | `/api/recipes/generate` | `{prompt, servings}` → concept-recept door Claude (niet opgeslagen) |
 | POST | `/api/images` | Afbeelding (ruwe bytes) uploaden → `{image}` |
@@ -224,7 +234,7 @@ login (sessie-cookie). Verzoeken die iets wijzigen moeten de kop `X-Requested-Wi
 | POST | `/api/menu/fill` | `{week, dates?, wishes, servings, per_day}` de AI vult komende avonden zonder keuze aan tot `per_day` opties (optioneel alleen `dates`) |
 | POST | `/api/menu/refresh` | `{date, per_day, servings, wishes}` "andere opties": nieuwe AI-opties voor één avond (de oude gaan pas weg als de nieuwe er zijn) |
 | POST | `/api/menu/special` | `{date, kind}` avond zonder recept: `vriezer`, `uiteten`, `afhalen` of `restjes` |
-| GET | `/api/home?today=JJJJ-MM-DD` | Startpagina: vanavond en de komende 6 dagen, en hoeveel er nog te halen is |
+| GET | `/api/home?today=JJJJ-MM-DD` | Startpagina: vanavond en de komende 6 dagen, hoeveel er nog te halen is, en het avondeten van gisteren als je dat nog niet beoordeeld hebt |
 | GET | `/api/shopping` | De hele boodschappenlijst (samengevoegd per product, met iconen) |
 | POST | `/api/shopping/check` | `{key, checked}` product als gekocht markeren of terugzetten |
 | POST | `/api/shopping/items` | `{text}` zelf iets toevoegen, bijv. "2 liter melk" |

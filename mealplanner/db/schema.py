@@ -124,6 +124,27 @@ CREATE TABLE IF NOT EXISTS sessions (
     user_agent    TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS sessions_user ON sessions(user_id);
+
+-- Favorieten (het hartje): per persoon.
+CREATE TABLE IF NOT EXISTS favorites (
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    recipe_id   INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (user_id, recipe_id)
+);
+
+-- Beoordelingen na het koken: 1 tot 5 sterren per persoon per keer dat het gegeten is.
+CREATE TABLE IF NOT EXISTS ratings (
+    id          INTEGER PRIMARY KEY,
+    recipe_id   INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+    user_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    stars       INTEGER NOT NULL CHECK (stars BETWEEN 1 AND 5),
+    note        TEXT NOT NULL DEFAULT '',
+    cooked_on   TEXT NOT NULL,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (recipe_id, user_id, cooked_on)
+);
+CREATE INDEX IF NOT EXISTS ratings_recipe ON ratings(recipe_id);
 """
 
 

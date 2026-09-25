@@ -105,7 +105,7 @@ export function ingredientItems(ingredients, factor) {
   return ingredients
     .map((i) => {
       const qty = factor === 1 ? formatQty(i.quantity) : scaledQty(i.quantity, i.unit, factor);
-      return `<li><span class="name">${esc(i.name)}</span><span class="leader" aria-hidden="true"></span><span class="qty">${esc(`${qty} ${i.unit}`.trim())}</span></li>`;
+      return `<li><span class="qty">${esc(`${qty} ${i.unit}`.trim())}</span><span class="name">${esc(i.name)}</span></li>`;
     })
     .join("");
 }
@@ -127,4 +127,30 @@ export function steps(instructions) {
     .split(/\n+/)
     .map((line) => line.replace(/^\s*(\d+[.)]|[-•*])\s*/, "").trim())
     .filter(Boolean);
+}
+
+// Moeite op basis van de bereidingstijd, zoals in het designsysteem: Makkelijk, Gemiddeld of Bewerkelijk.
+export function effort(minutes) {
+  if (!minutes) return null;
+  if (minutes <= 25) return { label: "Makkelijk", cls: "tag green" };
+  if (minutes <= 45) return { label: "Gemiddeld", cls: "tag pink" };
+  return { label: "Bewerkelijk", cls: "tag outline" };
+}
+
+// Tijd en moeite als labeltjes op een gerechtkaart.
+export function tagsHtml(item) {
+  const level = effort(item.prep_minutes);
+  const tags = [
+    item.prep_minutes ? `<span class="tag time">${ICONS.clock}${item.prep_minutes} min</span>` : "",
+    level ? `<span class="${level.cls}">${level.label}</span>` : "",
+  ].join("");
+  return tags ? `<div class="tag-row">${tags}</div>` : "";
+}
+
+// Sterren (0-5, halve sterren worden afgerond) als kleine icoontjes.
+export function starsHtml(value, { size = "" } = {}) {
+  const full = Math.round(Number(value) || 0);
+  return `<span class="stars ${size}" aria-label="${value ? `${String(value).replace(".", ",")} van 5 sterren` : "Nog niet beoordeeld"}">${
+    [1, 2, 3, 4, 5].map((n) => `<span class="${n <= full ? "on" : ""}">${ICONS.star}</span>`).join("")
+  }</span>`;
 }

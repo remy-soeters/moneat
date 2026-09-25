@@ -4,13 +4,14 @@ from .base import BaseDatabase, NotFound
 from .cleaning import icon_key, week_dates
 from .menu import MenuMixin
 from .misc import SettingsMixin
+from .ratings import RatingsMixin
 from .recipes import RecipesMixin
 from .shopping import ShoppingMixin
 from .swipe import SwipeMixin
 from .users import UsersMixin
 
 
-class Database(RecipesMixin, MenuMixin, ShoppingMixin, SwipeMixin, SettingsMixin, UsersMixin, BaseDatabase):
+class Database(RecipesMixin, MenuMixin, ShoppingMixin, SwipeMixin, SettingsMixin, RatingsMixin, UsersMixin, BaseDatabase):
     """Alle opslag in één object; de methodes komen uit de mixins hierboven."""
 
 

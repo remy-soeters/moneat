@@ -43,12 +43,12 @@ export function plateFor(item) {
 
 // Avonden zonder recept.
 export const SPECIALS = {
-  vriezer: { emoji: "🧊", label: "Uit de vriezer", line: "Makkelijk: iets uit de vriezer" },
-  uiteten: { emoji: "🍽️", label: "Uit eten", line: "Lekker de deur uit" },
-  afhalen: { emoji: "🥡", label: "Afhalen", line: "Afhalen of laten bezorgen" },
-  restjes: { emoji: "🍲", label: "Restjes", line: "Op met wat er nog staat" },
+  vriezer: { emoji: "🧊", icon: "snowflake", label: "Uit de vriezer", line: "Makkelijk: iets uit de vriezer" },
+  uiteten: { emoji: "🍽️", icon: "utensils", label: "Uit eten", line: "Lekker de deur uit" },
+  afhalen: { emoji: "🥡", icon: "bag", label: "Afhalen", line: "Afhalen of laten bezorgen" },
+  restjes: { emoji: "🍲", icon: "soup", label: "Restjes", line: "Op met wat er nog staat" },
 };
 
 export function specialFor(kind) {
-  return SPECIALS[kind] ?? { emoji: "🍽️", label: kind, line: "" };
+  return SPECIALS[kind] ?? { emoji: "🍽️", icon: "utensils", label: kind, line: "" };
 }

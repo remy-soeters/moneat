@@ -44,7 +44,7 @@ function weekRowHtml(day, today) {
   let title;
   let sub;
   if (dinner?.special) {
-    thumb = `<span class="row-thumb special" aria-hidden="true">${specialFor(dinner.special.kind).emoji}</span>`;
+    thumb = `<span class="row-thumb special" aria-hidden="true">${ICONS[specialFor(dinner.special.kind).icon]}</span>`;
     title = dinner.special.label;
     sub = specialFor(dinner.special.kind).line;
   } else if (dinner) {
@@ -57,8 +57,9 @@ function weekRowHtml(day, today) {
     title = past ? "Niets gepland" : "Nog niet gepland";
     sub = options ? `${options} ${options === 1 ? "optie" : "opties"} klaar om uit te kiezen` : past ? "" : "Tik om te kiezen";
   }
+  const badge = dinner?.special ? "pink" : dinner ? "green" : "open";
   return `<button type="button" class="week-row ${dinner ? "planned" : ""} ${past ? "past" : ""}" data-day="${day}" ${past && !dinner ? "disabled" : ""}>
-    <span class="row-day"><strong>${dayName(day).slice(0, 2)}</strong><small>${parseIso(day).getDate()}</small></span>
+    <span class="day-badge ${badge}"><strong>${dayName(day).slice(0, 2)}</strong><small>${parseIso(day).getDate()}</small></span>
     ${thumb}
     <span class="row-main"><span class="row-title">${esc(title)}</span>${sub ? `<span class="row-sub">${esc(sub)}</span>` : ""}</span>
     ${day === today ? `<span class="today-pill">Vandaag</span>` : ""}

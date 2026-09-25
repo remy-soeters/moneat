@@ -1,10 +1,10 @@
 """Weekmenu: opties per avond, kiezen, bijzondere avonden, aanvullen met AI en de startpagina."""
 
-from datetime import date
+from datetime import date, timedelta
 
 from .. import ai
 from ..db import week_dates
-from .recipes import servings
+from .recipes import annotate, servings
 
 MAX_WISHES = 500
 
@@ -12,7 +12,7 @@ MAX_WISHES = 500
 def register(r, app):
     db = app.db
 
-    def fill(week_day, per_day, wishes, people, only=None, avoid=(), replace=()):
+    def fill(user, week_day, per_day, wishes, people, only=None, avoid=(), replace=()):
         """Laat de AI komende avonden zonder keuze aanvullen tot `per_day` opties (optioneel alleen `only`).
         Opties in `replace` tellen niet mee en worden pas weggehaald als er nieuwe zijn."""
         menu = db.get_week_menu(week_day)
@@ -30,7 +30,7 @@ def register(r, app):
         if not needs:
             return 0
         suggestions = ai.suggest_menu_options(
-            db.list_recipes(),
+            annotate(db, user["id"], db.list_recipes()),
             needs,
             current_menu=[{"date": o["date"], "gerecht": o["name"]} for o in options],
             wishes=str(wishes or "")[:MAX_WISHES],
@@ -96,7 +96,7 @@ def register(r, app):
         body = req.json()
         dates = body.get("dates")
         only = {str(d) for d in dates} if isinstance(dates, list) else None
-        added = fill(body.get("week"), per_day(body), body.get("wishes"), servings(body), only)
+        added = fill(req.user, body.get("week"), per_day(body), body.get("wishes"), servings(body), only)
         if not added and only is None:
             return {"added": 0, "message": "Elke komende avond heeft al genoeg opties of een keuze."}
         return {"added": added}
@@ -108,7 +108,7 @@ def register(r, app):
         day = str(body.get("date") or "")
         week_dates(day)  # controleert de datum
         old = db.ai_options(day)
-        added = fill(day, per_day(body), body.get("wishes"), servings(body), only={day},
+        added = fill(req.user, day, per_day(body), body.get("wishes"), servings(body), only={day},
                      avoid=[o["name"] for o in old], replace=old)
         return {"added": added, "removed": len(old)}
 
@@ -117,4 +117,9 @@ def register(r, app):
         """Startpagina: vanavond en de komende dagen, plus hoeveel er nog gekocht moet worden."""
         start = req.query.get("today") or date.today().isoformat()
         to_buy = sum(1 for item in db.shopping_list() if not item["checked"])
-        return {"days": db.upcoming_dinners(start, 7), "to_buy": to_buy}
+        days = db.upcoming_dinners(start, 7)
+        annotate(db, req.user["id"], [d["recipe"] for d in days if d["recipe"]])
+        # Gisteren gegeten en nog niet beoordeeld? Dan vraagt de startpagina hoe het was.
+        yesterday = (date.fromisoformat(start) - timedelta(days=1)).isoformat()
+        unrated = db.unrated_dinner(req.user["id"], yesterday)
+        return {"days": days, "to_buy": to_buy, "rate": {"date": yesterday, "recipe": unrated} if unrated else None}

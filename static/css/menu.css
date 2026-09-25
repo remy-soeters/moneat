@@ -37,24 +37,28 @@
 .week-list { display: grid; gap: 10px; margin-top: 24px; }
 .week-row {
   display: flex; align-items: center; gap: 14px; width: 100%; min-height: 78px; padding: 10px 16px 10px 12px;
-  border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); box-shadow: var(--shadow);
+  border: 0; border-radius: var(--radius); background: var(--paper); box-shadow: var(--shadow);
   font: inherit; color: var(--ink); text-align: left; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s;
 }
 .week-row:not(:disabled):hover { transform: translateY(-1px); box-shadow: var(--shadow-hover); }
 .week-row.past { opacity: 0.55; }
 .week-row:disabled { cursor: default; box-shadow: none; }
-.row-day {
-  flex: none; display: grid; place-items: center; width: 48px; height: 52px; border-radius: 14px; background: var(--paper-2); line-height: 1.1;
+/* ronde dagbadge: groen = gepland, roze = vriezer/uit eten/…, gestippeld = nog open */
+.day-badge {
+  flex: none; display: grid; place-content: center; width: 50px; height: 50px; border-radius: 50%; line-height: 1.05; text-align: center;
+  background: var(--color-accent-100); color: var(--color-accent-800);
 }
-.row-day strong { font-size: 15px; }
-.row-day small { font-size: 13px; color: var(--ink-2); }
-.week-row.planned .row-day { background: var(--second-soft); color: var(--second-ink); }
+.day-badge strong { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; }
+.day-badge small { font-size: 12px; font-weight: 600; opacity: 0.8; }
+.day-badge.pink { background: var(--color-accent-2-100); color: var(--color-accent-2-800); }
+.day-badge.open { background: #fff; border: 1.5px dashed var(--color-accent-300); color: var(--color-accent-700); }
 .row-thumb {
   flex: none; display: grid; place-items: center; width: 58px; height: 58px; border-radius: 14px;
   background: var(--plate, var(--paper-2)); font-size: 30px; background-size: cover; background-position: center;
 }
-.row-thumb.special { background: linear-gradient(135deg, var(--main-soft), var(--second-soft)); }
-.row-thumb.is-empty { background: transparent; border: 2px dashed var(--main-strong); color: var(--main-ink); }
+.row-thumb.special { background: var(--color-accent-2-50); color: var(--color-accent-2-700); }
+.row-thumb.special svg { width: 24px; height: 24px; }
+.row-thumb.is-empty { background: var(--color-accent-50); border: 1.5px dashed var(--color-accent-300); color: var(--color-accent-700); }
 .row-thumb.is-empty svg { width: 20px; height: 20px; }
 .week-row .row-main { flex: 1; min-width: 0; }
 .week-row .row-title { display: block; font-family: var(--serif); font-size: 18px; font-weight: 600; line-height: 1.25; }
@@ -78,7 +82,7 @@
 }
 .plate .dish { font-size: 54px; line-height: 1; filter: drop-shadow(0 6px 8px rgba(40, 90, 60, 0.15)); transition: transform 0.3s ease; }
 .tile:hover .plate .dish { transform: scale(1.08) rotate(-4deg); }
-.plate.photo, .mini-plate.photo, .photo-preview.photo, .book-photo.photo { background-size: cover; background-position: center; }
+.plate.photo, .mini-plate.photo, .photo-preview.photo, .recipe-photo.photo { background-size: cover; background-position: center; }
 .plate.photo .dish { display: none; }
 .plate.photo::after {
   content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0, 0, 0, 0.16), transparent 40%);
@@ -105,7 +109,7 @@
 .tile-meta span { display: inline-flex; align-items: center; gap: 5px; }
 .tile-meta svg { width: 15px; height: 15px; }
 .tile-reason {
-  margin: 4px 0 0; font-family: var(--serif); font-style: italic; font-size: 15px; color: var(--ink-2); line-height: 1.4;
+  margin: 4px 0 0; font-size: 14px; color: var(--ink-2); line-height: 1.45;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .tile-actions { display: flex; align-items: center; gap: 14px; margin-top: auto; padding-top: 12px; }

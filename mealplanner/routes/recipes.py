@@ -1,5 +1,6 @@
 """Receptenboek: recepten beheren, importeren, laten bedenken en foto's."""
 
+from datetime import date
 from http import HTTPStatus
 
 from .. import ai
@@ -10,20 +11,39 @@ from ..web import ApiError
 MAX_PROMPT = 1000
 
 
+def annotate(db, user_id, recipes):
+    """Voeg aan recepten toe: jouw hartje, de gemiddelde beoordeling en jouw laatste beoordeling."""
+    favorites, averages, mine = db.recipe_marks(user_id)
+    for recipe in recipes:
+        avg, count = averages.get(recipe["id"], (None, 0))
+        recipe.update(
+            favorite=recipe["id"] in favorites,
+            rating=round(avg, 1) if avg is not None else None,
+            rating_count=count,
+            my_rating=mine.get(recipe["id"]),
+        )
+    return recipes
+
+
 def register(r, app):
     db, images = app.db, app.images
 
+    def one(req, recipe):
+        return annotate(db, req.user["id"], [recipe])[0]
+
     @r.get("/api/recipes")
     def list_recipes(req):
-        return db.list_recipes()
+        return annotate(db, req.user["id"], db.list_recipes())
 
     @r.post("/api/recipes")
     def create_recipe(req):
-        return db.create_recipe(req.json())
+        return one(req, db.create_recipe(req.json()))
 
     @r.get(r"/api/recipes/(\d+)")
     def get_recipe(req, recipe_id):
-        return db.get_recipe(int(recipe_id))
+        recipe = one(req, db.get_recipe(int(recipe_id)))
+        recipe["ratings"] = db.recipe_ratings(recipe["id"])
+        return recipe
 
     @r.put(r"/api/recipes/(\d+)")
     def update_recipe(req, recipe_id):
@@ -31,6 +51,21 @@ def register(r, app):
         recipe = db.update_recipe(int(recipe_id), req.json())
         if old_image != recipe["image"]:
             app.release_image(old_image)
+        return one(req, recipe)
+
+    @r.put(r"/api/recipes/(\d+)/favorite")
+    def favorite(req, recipe_id):
+        db.set_favorite(req.user["id"], int(recipe_id), bool(req.json().get("favorite")))
+        return one(req, db.get_recipe(int(recipe_id)))
+
+    @r.post(r"/api/recipes/(\d+)/rating")
+    def rate(req, recipe_id):
+        """Beoordeling na het koken: {stars: 1-5, note, date}."""
+        body = req.json()
+        cooked_on = str(body.get("date") or date.today().isoformat())
+        db.rate_recipe(int(recipe_id), req.user["id"], body.get("stars"), cooked_on, body.get("note"))
+        recipe = one(req, db.get_recipe(int(recipe_id)))
+        recipe["ratings"] = db.recipe_ratings(recipe["id"])
         return recipe
 
     @r.delete(r"/api/recipes/(\d+)")
@@ -79,7 +114,7 @@ def register(r, app):
         recipe["image"] = images.save(ai.generate_photo(recipe))
         recipe = db.update_recipe(recipe["id"], recipe)
         app.release_image(old_image)
-        return recipe
+        return one(req, recipe)
 
 
 def servings(body, default=2):
