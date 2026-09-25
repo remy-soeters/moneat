@@ -49,6 +49,8 @@ class DatabaseTest(unittest.TestCase):
         self.db.choose_dinner("2026-09-22", other["id"], servings=2)  # 0,5x recept
         self.db.choose_dinner("2026-09-28", pasta["id"])  # volgende week: staat ook op de ene lijst
         self.db.add_menu_option("2026-09-23", pasta["id"])  # alleen een optie: telt niet mee
+        added = self.db.put_dinners_on_list(["2026-09-21", "2026-09-22", "2026-09-23", "2026-09-28"])
+        self.assertEqual(added, ["2026-09-21", "2026-09-22", "2026-09-28"])
 
         items = {i["key"]: i for i in self.db.shopping_list()}
         self.assertEqual(items["buy:pasta"]["quantity"], 400 + 200 + 200)
@@ -61,9 +63,10 @@ class DatabaseTest(unittest.TestCase):
         pasta = self.db.create_recipe(PASTA)
         soup = self.db.create_recipe({"name": "Soep", "ingredients": [{"name": "ui", "quantity": 1, "unit": ""}]})
         self.db.choose_dinner("2026-09-21", pasta["id"])
+        self.db.put_dinners_on_list(["2026-09-21"])
         self.db.set_shopping_check("buy:pasta", True)  # pasta al gekocht
 
-        self.db.choose_dinner("2026-09-21", pasta["id"], servings=4)  # meer personen
+        self.db.choose_dinner("2026-09-21", pasta["id"], servings=4)  # meer personen: de lijst verandert mee
         items = {i["key"]: i for i in self.db.shopping_list()}
         self.assertIn("buy:pesto", items)  # opnieuw berekend
         self.assertEqual(items["bought:pasta"]["quantity"], 200)  # gekocht blijft staan...
@@ -73,10 +76,59 @@ class DatabaseTest(unittest.TestCase):
         self.assertEqual({i["key"] for i in self.db.shopping_list()}, {"bought:pasta", "buy:ui"})
         self.db.clear_dinner_choice("2026-09-21")
         self.assertEqual({i["key"] for i in self.db.shopping_list()}, {"bought:pasta"})
+        self.db.choose_dinner("2026-09-21", soup["id"])  # de avond staat nog op de lijst: die volgt weer
+        self.assertEqual({i["key"] for i in self.db.shopping_list()}, {"bought:pasta", "buy:ui"})
+
+    def test_choosing_leaves_the_list_alone_until_you_put_it_on(self):
+        pasta = self.db.create_recipe(PASTA)
+        soup = self.db.create_recipe({"name": "Soep", "ingredients": [{"name": "ui", "quantity": 1, "unit": ""}]})
+        self.db.choose_dinner("2026-09-21", pasta["id"])
+        self.db.choose_dinner("2026-09-22", soup["id"])
+        self.assertEqual(self.db.shopping_list(), [])
+        self.assertEqual([c["listed"] for c in self.db.get_week_menu("2026-09-21")["choices"]], [False, False])
+
+        self.assertEqual(self.db.put_dinners_on_list(["2026-09-21"]), ["2026-09-21"])
+        self.assertEqual({i["key"] for i in self.db.shopping_list()}, {"buy:pasta", "buy:pesto", "buy:basilicum"})
+        listed = {c["date"]: c["listed"] for c in self.db.get_week_menu("2026-09-21")["choices"]}
+        self.assertEqual(listed, {"2026-09-21": True, "2026-09-22": False})
+
+        # Wat je van de lijst haalt of al kocht en opruimde, komt niet terug; alleen de nieuwe avond komt erbij.
+        self.db.remove_shopping_item("buy:pesto")
+        self.db.set_shopping_check("buy:pasta", True)
+        self.db.clear_bought_items()
+        self.assertEqual(self.db.put_dinners_on_list(["2026-09-21", "2026-09-22"]), ["2026-09-22"])
+        self.assertEqual({i["key"] for i in self.db.shopping_list()}, {"buy:basilicum", "buy:ui"})
+
+    def test_reset_clears_evenings_but_keeps_what_is_bought(self):
+        pasta = self.db.create_recipe(PASTA)
+        soup = self.db.create_recipe({"name": "Soep", "ingredients": [{"name": "ui", "quantity": 1, "unit": ""}]})
+        self.db.choose_dinner("2026-09-22", pasta["id"])  # al geweest: blijft staan
+        self.db.choose_dinner("2026-09-23", soup["id"])
+        self.db.add_suggested_option("2026-09-24", {"name": "Risotto"})
+        self.db.set_special_dinner("2026-09-25", "uiteten")
+        self.db.put_dinners_on_list(["2026-09-22", "2026-09-23"])
+        self.db.set_shopping_check("buy:ui", True)  # ui is al gekocht
+        self.db.add_shopping_item("Melk")
+
+        self.db.reset_dinners(["2026-09-23", "2026-09-24", "2026-09-25", "2026-09-26", "2026-09-27"])
+        menu = self.db.get_week_menu("2026-09-23")
+        self.assertEqual([c["date"] for c in menu["choices"]], ["2026-09-22"])
+        self.assertEqual([o["date"] for o in menu["options"]], ["2026-09-22"])
+        self.assertEqual(menu["specials"], [])
+        self.assertEqual({i["key"] for i in self.db.shopping_list()},
+                         {"buy:pasta", "buy:pesto", "buy:basilicum", "bought:ui", "buy:melk"})
+        self.assertEqual({r["name"] for r in self.db.list_recipes()}, {"Pasta pesto", "Soep"})
+
+        before = self.db.shopping_list()
+        self.db.choose_dinner("2026-09-23", pasta["id"])  # opnieuw gekozen: pas op de lijst na de knop
+        self.assertEqual(self.db.shopping_list(), before)
+        self.assertEqual(self.db.put_dinners_on_list(["2026-09-23"]), ["2026-09-23"])
+        self.assertEqual({i["key"]: i["quantity"] for i in self.db.shopping_list()}["buy:pasta"], 400)
 
     def test_changing_or_deleting_a_recipe_updates_the_list(self):
         soup = self.db.create_recipe({"name": "Soep", "ingredients": [{"name": "ui", "quantity": 1, "unit": ""}]})
         self.db.choose_dinner("2026-09-21", soup["id"])
+        self.db.put_dinners_on_list(["2026-09-21"])
         self.db.update_recipe(soup["id"], {"name": "Soep", "ingredients": [{"name": "prei", "quantity": 2, "unit": ""}]})
         self.assertEqual([i["key"] for i in self.db.shopping_list()], ["buy:prei"])
         self.db.delete_recipe(soup["id"])
@@ -116,6 +168,7 @@ class DatabaseTest(unittest.TestCase):
         menu = self.db.get_week_menu("2026-09-22")
         self.assertTrue(menu["options"][0]["saved"])
         self.assertEqual(menu["choices"][0]["recipe_name"], "Risotto")
+        self.db.put_dinners_on_list(["2026-09-22"])
         self.assertEqual({i["key"]: i["quantity"] for i in self.db.shopping_list()}["buy:pasta"], 400)
 
     def test_removing_suggestion_leaves_no_recipe(self):
@@ -136,16 +189,6 @@ class DatabaseTest(unittest.TestCase):
         self.db.remove_menu_option(option_id)
         menu = self.db.get_week_menu("2026-09-22")
         self.assertEqual((menu["options"], menu["choices"]), ([], []))
-
-    def test_copy_previous_week_copies_options_not_choices(self):
-        pasta = self.db.create_recipe(PASTA)
-        self.db.add_suggested_option("2026-09-15", {"name": "Tomatensoep"})  # dinsdag vorige week
-        self.db.choose_dinner("2026-09-15", pasta["id"])
-        self.assertEqual(self.db.copy_menu_from_previous_week("2026-09-24"), 2)
-        menu = self.db.get_week_menu("2026-09-24")
-        self.assertEqual({(o["date"], o["name"]) for o in menu["options"]},
-                         {("2026-09-22", "Tomatensoep"), ("2026-09-22", "Pasta pesto")})
-        self.assertEqual(menu["choices"], [])
 
     def test_deleting_recipe_clears_menu(self):
         pasta = self.db.create_recipe(PASTA)
@@ -176,6 +219,28 @@ class DatabaseTest(unittest.TestCase):
             menu = Database(path).get_week_menu("2026-09-21")
             self.assertEqual([(c["recipe_name"], c["servings"]) for c in menu["choices"]], [("Pasta", 3)])
             self.assertEqual([o["name"] for o in menu["options"]], ["Pasta"])
+
+    def test_dinners_chosen_before_the_list_button_stay_on_the_list(self):
+        """Vroeger kwam elk gekozen avondeten vanzelf op de lijst; die avonden blijft de lijst volgen."""
+        import sqlite3
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "old.db"
+            db = Database(path)
+            soup = db.create_recipe({"name": "Soep", "ingredients": [{"name": "ui", "quantity": 1, "unit": ""}]})
+            db.choose_dinner("2026-09-21", soup["id"])
+            conn = sqlite3.connect(path)
+            conn.execute("DROP TABLE listed_days")  # zoals een database van vóór de knop
+            conn.commit()
+            conn.close()
+
+            db = Database(path)
+            self.assertTrue(db.get_week_menu("2026-09-21")["choices"][0]["listed"])
+            self.assertEqual(db.put_dinners_on_list(["2026-09-21"]), [])  # staat er al op
+            db.choose_dinner("2026-09-21", soup["id"], servings=4)  # verandert de avond, dan de lijst ook
+            self.assertEqual([(i["key"], i["quantity"]) for i in db.shopping_list()], [("buy:ui", 2)])
 
     def test_migrates_first_menu_options_table(self):
         import sqlite3
@@ -227,7 +292,10 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(status, 200)
         status, menu = self.call("GET", "/api/menu?week=2026-09-23")
         self.assertEqual(menu["days"][0], "2026-09-21")
-        self.assertEqual(menu["choices"][0]["recipe_name"], "Pasta pesto")
+        self.assertEqual((menu["choices"][0]["recipe_name"], menu["choices"][0]["listed"]), ("Pasta pesto", False))
+        self.assertEqual(self.pasta_on_list(), pasta_before)  # kiezen zet nog niets op de lijst
+        status, result = self.call("POST", "/api/menu/to-list", {"week": "2026-09-23", "today": "2026-09-21"})
+        self.assertEqual((status, result["added"]), (200, ["2026-09-23"]))
         self.assertEqual(self.pasta_on_list() - pasta_before, 400)
 
         self.assertEqual(self.call("DELETE", "/api/menu/choice?date=2026-09-23")[0], 200)
@@ -277,6 +345,19 @@ class ApiTest(unittest.TestCase):
             status, result = self.call("POST", "/api/menu/fill", {"week": str(last_week)})
         self.assertEqual((status, result["added"]), (200, 0))
         fake.assert_not_called()
+
+    def test_to_list_and_reset_skip_evenings_that_have_been(self):
+        _, recipe = self.call("POST", "/api/recipes", {**PASTA, "name": "Pasta van augustus"})
+        for day in ("2026-08-03", "2026-08-05"):  # maandag en woensdag
+            _, option = self.call("POST", "/api/menu/options", {"date": day, "recipe_id": recipe["id"]})
+            self.call("POST", f"/api/menu/options/{option['id']}/choose", {})
+        week = {"week": "2026-08-05", "today": "2026-08-04"}  # op dinsdag: maandag is al geweest
+        self.assertEqual(self.call("POST", "/api/menu/to-list", week)[1]["added"], ["2026-08-05"])
+        self.assertEqual(self.call("POST", "/api/menu/reset", week)[0], 200)
+        menu = self.call("GET", "/api/menu?week=2026-08-03")[1]
+        self.assertEqual([c["date"] for c in menu["choices"]], ["2026-08-03"])
+        self.assertEqual([o["date"] for o in menu["options"]], ["2026-08-03"])
+        self.assertEqual(self.call("POST", "/api/menu/reset", {"week": "2026-08-03", "today": "dinsdag"})[0], 400)
 
     def test_errors_are_json(self):
         self.assertEqual(self.call("GET", "/api/recipes/9999")[0], 404)

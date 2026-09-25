@@ -4,7 +4,7 @@ import re
 from datetime import date, timedelta
 
 from .. import ai
-from ..db import week_dates
+from ..db import check_date, week_dates
 from .recipes import annotate, servings
 
 MAX_WISHES = 500
@@ -80,6 +80,11 @@ def register(r, app):
     def per_day(body):
         return max(1, min(int(body.get("per_day") or 3), 5))
 
+    def days_left(body):
+        """De avonden van de gevraagde week vanaf vandaag; eerdere avonden zijn al geweest."""
+        today = check_date(body.get("today") or date.today().isoformat()).isoformat()
+        return [day for day in week_dates(body.get("week")) if day >= today]
+
     @r.get("/api/menu")
     def get_menu(req):
         return db.get_week_menu(req.param("week"))
@@ -115,9 +120,16 @@ def register(r, app):
         db.set_special_dinner(body.get("date"), body.get("kind"), body.get("note"))
         return {"ok": True}
 
-    @r.post("/api/menu/copy-previous")
-    def copy_menu(req):
-        return {"copied": db.copy_menu_from_previous_week(req.json().get("week"))}
+    @r.post("/api/menu/to-list")
+    def menu_to_list(req):
+        """Zet de boodschappen van de gekozen avonden van de week (vanaf vandaag) op de lijst."""
+        return {"added": db.put_dinners_on_list(days_left(req.json()))}
+
+    @r.post("/api/menu/reset")
+    def reset_menu(req):
+        """Opnieuw beginnen: maak de week vanaf vandaag leeg (keuzes, opties en hun boodschappen)."""
+        db.reset_dinners(days_left(req.json()))
+        return {"ok": True}
 
     @r.post("/api/menu/fill")
     def fill_menu(req):

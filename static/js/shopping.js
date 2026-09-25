@@ -85,7 +85,7 @@ export function renderShopping() {
 
   if (!shop.items.length) {
     el.innerHTML = `<div class="shop-empty">
-      <p>Je lijst is leeg. Voeg onderin iets toe, of kies in het weekmenu wat je eet: de ingrediënten komen dan vanzelf op je lijst.</p>
+      <p>Je lijst is leeg. Voeg onderin iets toe, of plan je week en zet de boodschappen daar met één knop op je lijst.</p>
       <button class="btn outline" data-action="to-menu">Naar het weekmenu</button></div>`;
     return;
   }

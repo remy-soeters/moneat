@@ -25,6 +25,7 @@ class SpecialDinnerTest(unittest.TestCase):
 
     def test_special_replaces_choice_and_its_shopping(self):
         self.db.choose_dinner(DAY, self.soup["id"])
+        self.db.put_dinners_on_list([DAY])
         self.assertEqual([i["name"] for i in self.db.shopping_list()], ["Prei"])
         self.db.set_special_dinner(DAY, "uiteten")
         menu = self.db.get_week_menu(DAY)
@@ -96,6 +97,7 @@ class JourneyApiTest(unittest.TestCase):
     def test_special_and_home(self):
         soup = self.db.create_recipe(SOUP)
         self.db.choose_dinner(TODAY.isoformat(), soup["id"])
+        self.api.call("POST", "/api/menu/to-list", {"week": TODAY.isoformat()})
         self.assertEqual(self.api.call("POST", "/api/menu/special", {"date": DAY, "kind": "restjes"})[0], 200)
         self.assertEqual(self.api.call("POST", "/api/menu/special", {"date": DAY, "kind": "pizza"})[0], 400)
         status, home = self.api.call("GET", f"/api/home?today={TODAY.isoformat()}")

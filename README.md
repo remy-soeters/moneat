@@ -2,14 +2,17 @@
 
 Web-app voor het avondeten van je huishouden.
 
-- **Vandaag:** de startpagina toont groot wat je vanavond eet (met foto en recept), en daaronder de
-  komende dagen. Heb je gisteren iets gekozen en nog niet beoordeeld, dan vraagt hij hoe het was.
+- **Vandaag:** de startpagina toont groot wat je vanavond eet (met foto en recept); **Start met koken** opent
+  het recept meteen in de kookmodus. Daaronder de komende dagen. Heb je gisteren iets gekozen en nog niet
+  beoordeeld, dan vraagt hij hoe het was.
 - **Plannen:** een stappenplan. "Wat wil je volgende week eten?", daarna per avond een paar opties van de AI.
-  Kies er één, vraag om **andere opties**, of kies **Anders…**: uit de vriezer, uit eten, afhalen, restjes of
-  iets uit je receptenboek. Swipe (of tik) door naar de volgende avond; aan het eind zie je je week.
-  Gekozen gerechten komen vanzelf op de boodschappenlijst; nieuwe recepten van de AI komen pas in je
-  receptenboek als je ze kiest of bewaart. Een gerecht staat maar één keer in de week op het menu, en wat je
-  deze week al hebt weggeklikt of op een andere avond hebt laten liggen, komt die week niet terug.
+  Tik op een gerecht om het te kiezen, vraag om **andere opties**, of kies **Anders…**: uit de vriezer, uit eten,
+  afhalen, restjes of iets uit je receptenboek. Swipe (of tik) door naar de volgende avond; aan het eind zie je
+  je week. Nieuwe recepten van de AI komen pas in je receptenboek als je ze kiest of bewaart. Een gerecht staat
+  maar één keer in de week op het menu, en wat je deze week al hebt weggeklikt of op een andere avond hebt laten
+  liggen, komt die week niet terug. Bovenaan de week: **Zet op boodschappenlijst** (de ingrediënten van de
+  gekozen avonden vanaf vandaag), **Wijzigen** (de avonden vanaf vandaag nog eens langslopen) en **Opnieuw
+  beginnen** (keuzes en opties vanaf vandaag weghalen en opnieuw plannen; je receptenboek blijft zoals het is).
 - **Receptenboek:** schrijf recepten zelf, importeer ze via een link van een receptensite (inclusief foto)
   of laat Claude er een bedenken. Je kunt ook je eigen foto uploaden. Met een **hartje** maak je een recept
   favoriet (ieder voor zich); het filter *Favorieten* toont alleen die.
@@ -23,7 +26,9 @@ Web-app voor het avondeten van je huishouden.
   in je receptenboek, naar links slaat het over; gezien gerechten komen niet terug. De server zet op de
   achtergrond een voorraad gerechten mét foto klaar (instelbaar: 5, 10, 15 of 20), zodat je niet hoeft te wachten.
 - **Boodschappen:** één doorlopende lijst met tegels (zoals Bring!), in de secties *Kopen* en *Gekocht*.
-  Kies je een avondeten, dan komen de ingrediënten er vanzelf op (voor het gekozen aantal personen).
+  Met **Zet op boodschappenlijst** bij Plannen komen de ingrediënten van je gekozen avondeten erop (voor het
+  gekozen aantal personen). Kies je daarna iets anders voor zo'n avond, dan verandert de lijst mee; wat je al
+  gekocht hebt, blijft staan.
   Hetzelfde product is één tegel, ook als recepten het anders schrijven, met een hoeveelheid om mee te
   winkelen: "2 blikken" in plaats van "400 g + 1 blik", hele uien, en geen eetlepels olijfolie. Iets wat je zelf
   maakt (staat "Naan" in je receptenboek, dan is naanbrood in een ander recept dat recept) komt niet op de lijst:
@@ -230,13 +235,14 @@ login (sessie-cookie). Verzoeken die iets wijzigen moeten de kop `X-Requested-Wi
 | POST | `/api/swipe/preload` | `{servings, retry}` voorraad op de achtergrond aanvullen; geeft de status terug |
 | DELETE | `/api/swipe/pending` | Nog niet geswipete kaarten weggooien (na nieuwe voorkeuren) |
 | POST | `/api/inspiration` | `{theme, servings, refresh}` → collectie van 6 recepten (bewaard per thema) |
-| GET | `/api/menu?week=JJJJ-MM-DD` | Opties en keuzes van de week (ma–zo) waarin die datum valt |
+| GET | `/api/menu?week=JJJJ-MM-DD` | Opties en keuzes van de week (ma–zo) waarin die datum valt; `listed` per keuze: staan de boodschappen op de lijst? |
 | POST | `/api/menu/options` | `{date, recipe_id}` eigen recept op het menu zetten |
 | DELETE | `/api/menu/options/{id}` | Optie van het menu halen (en de keuze, als die het was) |
 | POST | `/api/menu/options/{id}/choose` | `{servings}` deze optie kiezen (een voorstel wordt dan als recept bewaard) |
 | POST | `/api/menu/options/{id}/save` | Voorstel van Claude bewaren in het receptenboek |
 | DELETE | `/api/menu/choice?date=…` | Keuze (of bijzondere avond) ongedaan maken |
-| POST | `/api/menu/copy-previous` | `{week}` opties van vorige week overnemen |
+| POST | `/api/menu/to-list` | `{week, today}` boodschappen van de gekozen avonden (vanaf `today`) op de lijst zetten; daarna verandert de lijst mee met die avonden |
+| POST | `/api/menu/reset` | `{week, today}` opnieuw beginnen: keuzes, bijzondere avonden, opties en niet-gekochte boodschappen vanaf `today` weghalen |
 | POST | `/api/menu/fill` | `{week, dates?, wishes, servings, per_day}` de AI vult komende avonden zonder keuze aan tot `per_day` opties (optioneel alleen `dates`) |
 | POST | `/api/menu/refresh` | `{date, per_day, servings, wishes}` "andere opties": nieuwe AI-opties voor één avond (de oude gaan pas weg als de nieuwe er zijn) |
 | POST | `/api/menu/special` | `{date, kind}` avond zonder recept: `vriezer`, `uiteten`, `afhalen` of `restjes` |

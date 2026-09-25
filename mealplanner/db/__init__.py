@@ -1,7 +1,7 @@
 """SQLite-opslag van de mealplanner. Elk onderdeel (recepten, menu, lijst, …) staat in een eigen module."""
 
 from .base import BaseDatabase, NotFound
-from .cleaning import icon_key, week_dates
+from .cleaning import check_date, icon_key, week_dates
 from .menu import MenuMixin
 from .misc import SettingsMixin
 from .ratings import RatingsMixin
@@ -15,4 +15,4 @@ class Database(RecipesMixin, MenuMixin, ShoppingMixin, SwipeMixin, SettingsMixin
     """Alle opslag in één object; de methodes komen uit de mixins hierboven."""
 
 
-__all__ = ["Database", "NotFound", "icon_key", "week_dates"]
+__all__ = ["Database", "NotFound", "check_date", "icon_key", "week_dates"]

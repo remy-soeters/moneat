@@ -6,7 +6,7 @@ import { openJourney } from "./journey.js";
 import { showTab } from "./nav.js";
 import { openRating } from "./rating.js";
 import { shop, state } from "./state.js";
-import { $, dayName, esc, formatShort, isoDate, load, mondayOf, parseIso, personen, save, starsHtml, tagList } from "./util.js";
+import { $, dayName, esc, formatShort, isoDate, load, mondayOf, parseIso, personen, save, starsHtml, steps, tagList } from "./util.js";
 import { openView } from "./view.js";
 
 export async function renderHome() {
@@ -31,6 +31,7 @@ export async function renderHome() {
 function heroHtml(day) {
   if (day.recipe) {
     const r = day.recipe;
+    const cookable = steps(r.instructions).length > 0; // de kookmodus loopt de stappen van de bereiding langs
     const firstTag = tagList(r.tags)[0];
     const tags = [
       r.prep_minutes ? `<span class="tag time">${ICONS.clock}${r.prep_minutes} min</span>` : "",
@@ -47,7 +48,8 @@ function heroHtml(day) {
         ${r.rating ? `<p class="hero-rating">${starsHtml(r.rating)}<small>${r.rating_count}× gegeten</small></p>` : ""}
         <div class="tag-row">${tags}</div>
         <div class="hero-actions">
-          <button type="button" class="btn primary" data-home="view" data-date="${day.date}">${ICONS.book}Bekijk recept</button>
+          ${cookable ? `<button type="button" class="btn primary" data-home="cook" data-date="${day.date}">${ICONS.chef}Start met koken</button>` : ""}
+          <button type="button" class="btn ${cookable ? "outline" : "primary"}" data-home="view" data-date="${day.date}">${ICONS.book}Bekijk recept</button>
           <button type="button" class="btn pink" data-home="plan" data-date="${day.date}">${ICONS.refresh}Wissel gerecht</button>
         </div>
       </div>
@@ -74,7 +76,7 @@ function heroHtml(day) {
       <p class="kicker">Vanavond</p>
       <h2 class="hero-title">Wat eten we vanavond?</h2>
       <p class="hero-facts"><span>${options
-        ? `Er ${options === 1 ? "staat 1 optie" : `staan ${options} opties`} klaar. Kies er één en de boodschappen komen vanzelf op je lijst.`
+        ? `Er ${options === 1 ? "staat 1 optie" : `staan ${options} opties`} klaar om uit te kiezen.`
         : "Er is nog niets gepland. Laat je een paar opties voorstellen?"}</span></p>
       <div class="hero-actions">
         <button type="button" class="btn primary" data-home="plan" data-date="${day.date}">${options ? "Kies wat je eet" : "Kies iets voor vanavond"}</button>
@@ -127,6 +129,7 @@ $("#page-home").addEventListener("click", (e) => {
   const day = state.home?.days.find((d) => d.date === target.dataset.date);
   const action = target.dataset.home;
   if (action === "view" && day?.recipe) return openView({ recipe: day.recipe, servings: day.servings, planned: true });
+  if (action === "cook" && day?.recipe) return openView({ recipe: day.recipe, servings: day.servings, planned: true, cooking: true });
   if (action === "plan") return openJourney({ week: mondayOf(parseIso(day.date)), day: day.date });
   if (action === "rate") {
     const { date, recipe } = state.home.rate;

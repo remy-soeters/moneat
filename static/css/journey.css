@@ -31,7 +31,14 @@ dialog.modal.journey { width: min(1040px, calc(100vw - 32px)); height: min(92vh,
 .journey-day .kicker { margin-top: 6px; }
 
 .journey-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
+.j-card { cursor: pointer; }
 .j-card .plate { height: 170px; }
+/* De titel is de knop om te kiezen; met ::after beslaat hij de hele kaart. "Bekijk recept" ligt erboven. */
+.j-pick { padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.j-pick::after { content: ""; position: absolute; inset: 0; z-index: 1; border-radius: inherit; }
+.j-pick:focus-visible { outline: none; }
+.j-pick:focus-visible::after { outline: 3px solid var(--main-strong); outline-offset: -3px; }
+.j-card .tile-actions .btn { position: relative; z-index: 2; }
 .journey-busy { display: flex; align-items: center; gap: 10px; margin: 14px 0 0; color: var(--ink-2); }
 
 .journey-picked {
@@ -123,4 +130,6 @@ dialog.modal.journey { width: min(1040px, calc(100vw - 32px)); height: min(92vh,
   .other-choice .icon-chip { width: 46px; height: 46px; }
   .day-chip { min-height: 54px; }
   .done-day { width: 84px; }
+  dialog.journey .btn .label-long { display: none; }
+  dialog.journey .btn .label-short { display: inline; }
 }

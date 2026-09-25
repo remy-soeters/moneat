@@ -19,7 +19,8 @@ class MenuMixin:
                 (days[0], days[-1]),
             ).fetchall()
             choices = conn.execute(
-                """SELECT c.date, c.recipe_id, c.servings, r.name AS recipe_name, r.image AS recipe_image
+                """SELECT c.date, c.recipe_id, c.servings, r.name AS recipe_name, r.image AS recipe_image,
+                          EXISTS (SELECT 1 FROM listed_days l WHERE l.date = c.date) AS listed
                    FROM dinner_choices c JOIN recipes r ON r.id = c.recipe_id
                    WHERE c.date BETWEEN ? AND ?""",
                 (days[0], days[-1]),
@@ -30,7 +31,7 @@ class MenuMixin:
         return {
             "days": days,
             "options": [_option(r) for r in rows],
-            "choices": [dict(r) for r in choices],
+            "choices": [{**dict(r), "listed": bool(r["listed"])} for r in choices],
             "specials": [_special(r) for r in specials],
         }
 
@@ -207,58 +208,78 @@ class MenuMixin:
             ).fetchall()
         return [r["name"] for r in rows]
 
-    def _sync_dinner_to_list(self, day):
-        """Zet de ingrediënten van het gekozen avondeten van `day` op de boodschappenlijst.
+    def put_dinners_on_list(self, days):
+        """Knop "Zet op boodschappenlijst": de ingrediënten van het gekozen avondeten van deze avonden gaan
+        op de lijst, en vanaf dan verandert de lijst mee met die avond.
+
+        Een avond die er al op staat, slaan we over: wat je daarvan weghaalde of al kocht en opruimde, komt niet
+        terug. Geeft de avonden terug die erbij kwamen.
+        """
+        added = []
+        with self.connect() as conn:
+            for day in days:
+                check_date(day)
+                chosen = conn.execute("SELECT 1 FROM dinner_choices WHERE date = ?", (day,)).fetchone()
+                listed = conn.execute("SELECT 1 FROM listed_days WHERE date = ?", (day,)).fetchone()
+                if chosen and not listed:
+                    conn.execute("INSERT INTO listed_days (date) VALUES (?)", (day,))
+                    self._sync_dinner_to_list(day, conn)
+                    added.append(day)
+        return added
+
+    def reset_dinners(self, days):
+        """Knop "Opnieuw beginnen": haal van deze avonden de keuzes, bijzondere avonden en opties weg, en de
+        boodschappen daarvan die nog niet gekocht zijn. Bewaarde recepten blijven in het receptenboek."""
+        for day in days:
+            check_date(day)
+        with self.connect() as conn:
+            for table in ("dinner_choices", "special_dinners", "menu_options", "listed_days"):
+                conn.executemany(f"DELETE FROM {table} WHERE date = ?", [(d,) for d in days])
+            conn.executemany("DELETE FROM shopping_items WHERE source_date = ? AND checked = 0", [(d,) for d in days])
+
+    def _sync_dinner_to_list(self, day, conn=None):
+        """Houd de boodschappenlijst gelijk met het gekozen avondeten van `day`, als die avond op de lijst staat
+        (zie put_dinners_on_list); anders blijft de lijst zoals hij is.
 
         Nog niet gekochte regels van die avond worden vervangen (andere keuze of ander aantal personen);
         wat al gekocht is blijft staan en komt niet nog eens op de lijst.
         """
-        with self.connect() as conn:
-            conn.execute("DELETE FROM shopping_items WHERE source_date = ? AND checked = 0", (day,))
-            choice = conn.execute(
-                """SELECT c.recipe_id, c.servings, r.servings AS base FROM dinner_choices c
-                   JOIN recipes r ON r.id = c.recipe_id WHERE c.date = ?""",
-                (day,),
-            ).fetchone()
-            if choice is None:
-                return
-            bought = {
-                (r["name"].lower(), r["unit"].lower())
-                for r in conn.execute(
-                    "SELECT name, unit FROM shopping_items WHERE source_date = ? AND checked = 1", (day,)
-                )
-            }
-            factor = choice["servings"] / choice["base"]
-            ingredients = [
-                (ing["name"].strip(), round(ing["quantity"] * factor, 2) if ing["quantity"] is not None else None, ing["unit"].strip())
-                for ing in conn.execute(
-                    "SELECT name, quantity, unit FROM ingredients WHERE recipe_id = ? ORDER BY position", (choice["recipe_id"],)
-                )
-            ]
-            # Wat je zelf maakt (zoals naan uit je receptenboek) wordt vervangen door de ingrediënten daarvan.
-            expanded, _ = self._expand_homemade(conn, ingredients, choice["recipe_id"], choice["servings"])
-            for name, quantity, unit, source in expanded:
-                if (name.lower(), unit.lower()) in bought:
-                    continue
-                conn.execute(
-                    """INSERT INTO shopping_items (name, quantity, unit, source_date, source_recipe_id)
-                       VALUES (?, ?, ?, ?, ?)""",
-                    (name, quantity, unit, day, source or choice["recipe_id"]),
-                )
-
-    def copy_menu_from_previous_week(self, any_day):
-        """Zet de opties van vorige week (zonder keuzes) op dezelfde weekdagen van deze week."""
-        days = week_dates(any_day)
-        previous = week_dates((date.fromisoformat(days[0]) - timedelta(days=7)).isoformat())
-        copied = 0
-        for option in self.get_week_menu(previous[0])["options"]:
-            day = days[previous.index(option["date"])]
-            if option["recipe_id"] is not None:
-                self.add_menu_option(day, option["recipe_id"], option["reason"], option["source"])
-                copied += 1
-            elif self.add_suggested_option(day, option["suggestion"], option["reason"]) is not None:
-                copied += 1
-        return copied
+        if conn is None:
+            with self.connect() as conn:
+                return self._sync_dinner_to_list(day, conn)
+        if not conn.execute("SELECT 1 FROM listed_days WHERE date = ?", (day,)).fetchone():
+            return
+        conn.execute("DELETE FROM shopping_items WHERE source_date = ? AND checked = 0", (day,))
+        choice = conn.execute(
+            """SELECT c.recipe_id, c.servings, r.servings AS base FROM dinner_choices c
+               JOIN recipes r ON r.id = c.recipe_id WHERE c.date = ?""",
+            (day,),
+        ).fetchone()
+        if choice is None:
+            return
+        bought = {
+            (r["name"].lower(), r["unit"].lower())
+            for r in conn.execute(
+                "SELECT name, unit FROM shopping_items WHERE source_date = ? AND checked = 1", (day,)
+            )
+        }
+        factor = choice["servings"] / choice["base"]
+        ingredients = [
+            (ing["name"].strip(), round(ing["quantity"] * factor, 2) if ing["quantity"] is not None else None, ing["unit"].strip())
+            for ing in conn.execute(
+                "SELECT name, quantity, unit FROM ingredients WHERE recipe_id = ? ORDER BY position", (choice["recipe_id"],)
+            )
+        ]
+        # Wat je zelf maakt (zoals naan uit je receptenboek) wordt vervangen door de ingrediënten daarvan.
+        expanded, _ = self._expand_homemade(conn, ingredients, choice["recipe_id"], choice["servings"])
+        for name, quantity, unit, source in expanded:
+            if (name.lower(), unit.lower()) in bought:
+                continue
+            conn.execute(
+                """INSERT INTO shopping_items (name, quantity, unit, source_date, source_recipe_id)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (name, quantity, unit, day, source or choice["recipe_id"]),
+            )
 
 
 def _option(row):

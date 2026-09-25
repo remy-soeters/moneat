@@ -4,7 +4,7 @@ import { dishFor, plateAttrs, specialFor } from "./dishes.js";
 import { openEdit } from "./edit.js";
 import { ICONS } from "./icons.js";
 import { openJourney } from "./journey.js";
-import { refresh } from "./nav.js";
+import { refresh, showTab } from "./nav.js";
 import { state } from "./state.js";
 import { closeSheet, guarded, openSheet, toast } from "./ui.js";
 import { $, addDays, dayName, esc, formatShort, isoDate, isoWeek, mondayOf, parseIso, personen, save, tagList } from "./util.js";
@@ -13,7 +13,10 @@ export function renderMenu() {
   const today = isoDate(new Date());
   const days = state.menu.days;
   const decided = days.filter((d) => dinnerOf(d)).length;
-  const open = days.filter((d) => d >= today && !dinnerOf(d)).length;
+  const coming = days.filter((d) => d >= today); // wat al geweest is, verandert niet meer
+  const open = coming.filter((d) => !dinnerOf(d)).length;
+  const cooking = state.menu.choices.filter((c) => c.date >= today);
+  const unlisted = cooking.filter((c) => !c.listed).length;
   const thisWeek = state.week === mondayOf(new Date());
   const nextWeek = state.week === addDays(mondayOf(new Date()), 7);
   const weekName = thisWeek ? "deze week" : nextWeek ? "volgende week" : `in week ${isoWeek(state.week)}`;
@@ -24,6 +27,15 @@ export function renderMenu() {
   const start = $("#start-journey");
   start.hidden = open === 0;
   start.textContent = decided && open ? "Plan de rest van de week" : "Start met plannen";
+
+  // Pas met deze knop gaan de boodschappen op de lijst; daarna verandert de lijst mee met de avonden.
+  const toList = $("#week-to-list");
+  toList.hidden = !cooking.length;
+  toList.className = `btn ${unlisted && !open ? "primary" : "outline"}`;
+  toList.dataset.done = String(!unlisted);
+  toList.innerHTML = unlisted ? `${ICONS.cart}Zet op boodschappenlijst` : `${ICONS.check}Op je boodschappenlijst`;
+  $("#edit-week").hidden = coming.length === open;
+  $("#reset-week").hidden = coming.length === open && !state.menu.options.some((o) => o.date >= today);
 
   $("#week-list").innerHTML = days.map((day) => weekRowHtml(day, today)).join("");
 }
@@ -51,7 +63,7 @@ function weekRowHtml(day, today) {
     const item = { name: dinner.recipe_name, image: dinner.recipe_image };
     thumb = `<span ${plateAttrs(item, "row-thumb")} aria-hidden="true">${item.image ? "" : dishFor(item)}</span>`;
     title = dinner.recipe_name;
-    sub = `Voor ${personen(dinner.servings)}`;
+    sub = `Voor ${personen(dinner.servings)}${dinner.listed && !past ? " · op je lijst" : ""}`;
   } else {
     thumb = `<span class="row-thumb is-empty" aria-hidden="true">${ICONS.plus}</span>`;
     title = past ? "Niets gepland" : "Nog niet gepland";
@@ -113,11 +125,34 @@ export function setHousehold(n) {
   save("household", state.household);
 }
 
-export async function copyPreviousWeek() {
+// "Zet op boodschappenlijst": de gekozen avonden van de week (vanaf vandaag) gaan op de lijst.
+export async function putWeekOnList(week = state.week) {
   await guarded(async () => {
-    const { copied } = await api("/api/menu/copy-previous", { method: "POST", body: { week: state.week } });
-    toast(copied ? `${copied} ${copied === 1 ? "optie" : "opties"} overgenomen van vorige week` : "Vorige week stond er niets op het menu");
+    const { added } = await api("/api/menu/to-list", { method: "POST", body: { week, today: isoDate(new Date()) } });
+    toast(added.length
+      ? `De boodschappen voor ${added.length} ${added.length === 1 ? "avond" : "avonden"} staan op je lijst`
+      : "Alles staat al op je boodschappenlijst");
+    window.dispatchEvent(new CustomEvent("mp:menu-changed"));
     await refresh();
+  });
+}
+
+// Wijzigen: loop de avonden vanaf vandaag langs, ook die al gepland zijn.
+function editWeek() {
+  const today = isoDate(new Date());
+  const first = state.menu.days.find((d) => d >= today);
+  if (first) openJourney({ week: state.week, day: first });
+}
+
+// Opnieuw beginnen: de week vanaf vandaag leegmaken en meteen opnieuw plannen.
+async function resetWeek() {
+  const thisWeek = state.week === mondayOf(new Date());
+  const what = thisWeek ? "De keuzes en opties van vandaag tot en met zondag" : `Alle keuzes en opties van week ${isoWeek(state.week)}`;
+  if (!confirm(`Opnieuw beginnen? ${what} verdwijnen, net als hun boodschappen die nog niet gekocht zijn. Je receptenboek blijft zoals het is.`)) return;
+  await guarded(async () => {
+    await api("/api/menu/reset", { method: "POST", body: { week: state.week, today: isoDate(new Date()) } });
+    await refresh();
+    openJourney({ week: state.week });
   });
 }
 
@@ -172,7 +207,9 @@ $("#week-list").addEventListener("click", (e) => {
   if (row && !row.disabled) openJourney({ week: state.week, day: row.dataset.day });
 });
 $("#start-journey").addEventListener("click", () => openJourney({ week: state.week }));
-$("#copy-previous").addEventListener("click", copyPreviousWeek);
+$("#week-to-list").addEventListener("click", (e) => (e.currentTarget.dataset.done === "true" ? showTab("shopping") : putWeekOnList()));
+$("#edit-week").addEventListener("click", editWeek);
+$("#reset-week").addEventListener("click", resetWeek);
 
 // Optie kiezen
 $("#picker-search").addEventListener("input", renderPicker);

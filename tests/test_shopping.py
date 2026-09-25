@@ -37,6 +37,7 @@ class ShoppingDbTest(unittest.TestCase):
     def test_same_product_from_recipe_and_by_hand_is_one_tile(self):
         soup = self.db.create_recipe({"name": "Soep", "ingredients": [{"name": "Ui", "quantity": 2, "unit": ""}]})
         self.db.choose_dinner(WEEK, soup["id"])
+        self.db.put_dinners_on_list([WEEK])
         self.db.add_shopping_item("ui", 1)
         (item,) = self.db.shopping_list()
         self.assertEqual((item["key"], item["quantity"], item["recipes"], item["manual"]), ("buy:ui", 3, ["Soep"], True))
@@ -48,6 +49,7 @@ class ShoppingDbTest(unittest.TestCase):
     def test_bought_items_become_frequent(self):
         recipe = self.db.create_recipe({"name": "Soep", "ingredients": [{"name": "ui", "quantity": 1, "unit": ""}]})
         self.db.choose_dinner(WEEK, recipe["id"])
+        self.db.put_dinners_on_list([WEEK])
         self.db.set_shopping_check("buy:ui", True)
         self.db.set_shopping_check("bought:ui", True)  # al gekocht: telt niet nog eens
         self.db.set_shopping_check("bought:ui", False)
@@ -69,6 +71,7 @@ class ShoppingDbTest(unittest.TestCase):
             {"name": "olijfolie", "quantity": 2, "unit": "el"},
         ]})
         self.db.choose_dinner(WEEK, chili["id"])
+        self.db.put_dinners_on_list([WEEK])
         self.db.add_shopping_item("tomatenblokjes", 1, "blik")
         self.db.add_shopping_item("rode uien", 1)
         items = self.items()
@@ -91,6 +94,7 @@ class ShoppingDbTest(unittest.TestCase):
         curry = self.db.create_recipe({"name": "Curry", "servings": 2, "ingredients": [
             {"name": "naanbrood", "quantity": 2, "unit": "stuks"}, {"name": "kip", "quantity": 300, "unit": "g"}]})
         self.db.choose_dinner(WEEK, curry["id"], servings=2)
+        self.db.put_dinners_on_list([WEEK])
         items = self.items()
         self.assertNotIn("Naanbrood", items)
         self.assertEqual((items["Bloem"]["amount"], items["Yoghurt"]["amount"]), ("200 g", "100 ml"))

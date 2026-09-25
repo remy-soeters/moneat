@@ -115,7 +115,6 @@
 .tile-actions { display: flex; align-items: center; gap: 14px; margin-top: auto; padding-top: 12px; }
 .tile .choose { background: var(--main); color: var(--primary-ink); }
 .tile .choose:hover { background: var(--main-strong); }
-.tile .choose.is-chosen { background: var(--second); color: var(--second-on); }
 .tile .remove {
   position: absolute; top: 10px; right: 10px; width: 34px; height: 34px; border-radius: 50%; cursor: pointer;
   border: 0; background: rgba(255, 255, 255, 0.94); color: var(--ink); display: grid; place-items: center;

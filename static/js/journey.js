@@ -3,7 +3,7 @@
 import { api } from "./api.js";
 import { SPECIALS, dishFor, plateAttrs, specialFor } from "./dishes.js";
 import { ICONS } from "./icons.js";
-import { badgesHtml, dinnerOf, findOption, isChosen, openPicker, setHousehold, skeletonHtml } from "./menu.js";
+import { badgesHtml, dinnerOf, findOption, isChosen, openPicker, putWeekOnList, setHousehold, skeletonHtml } from "./menu.js";
 import { refresh, showTab } from "./nav.js";
 import { state } from "./state.js";
 import { aiName, closeSheet, guarded, openSheet, toast } from "./ui.js";
@@ -108,10 +108,13 @@ function render() {
   }
   if (journey.step === "done") {
     body.innerHTML = doneHtml();
+    const unlisted = unlistedCount();
     $("#journey-foot").innerHTML = `<button type="button" class="btn outline" data-j="prev">${ICONS.back}Terug</button>
       <span class="spacer"></span>
-      <button type="button" class="btn outline" data-j="to-shopping">${ICONS.cart}Boodschappen</button>
-      <button type="button" class="btn primary" data-j="close">Klaar</button>`;
+      ${unlisted
+        ? `<button type="button" class="btn primary" data-j="to-list">${ICONS.cart}<span class="label-long">Zet op boodschappenlijst</span><span class="label-short">Op de lijst</span></button>`
+        : `<button type="button" class="btn outline" data-j="to-shopping">${ICONS.cart}Boodschappen</button>`}
+      <button type="button" class="btn ${unlisted ? "outline" : "primary"}" data-j="close">Klaar</button>`;
     renderDots();
     return;
   }
@@ -232,24 +235,30 @@ function dayHtml(day) {
   </div>`;
 }
 
+// Tik op de kaart om het gerecht te kiezen; de knop in de titel beslaat de hele kaart (zie journey.css).
 function cardHtml(option) {
   const chosen = isChosen(option);
   return `<article class="tile j-card ${chosen ? "chosen" : ""}" data-option="${option.id}">
-    <button ${plateAttrs(option)} data-j="view" aria-label="Bekijk recept ${esc(option.name)}">
+    <div ${plateAttrs(option)}>
       <span class="dish" aria-hidden="true">${dishFor(option)}</span>
       <span class="plate-badges">${badgesHtml(option)}</span>
       ${chosen ? `<span class="ribbon">${ICONS.check}Gekozen</span>` : ""}
-    </button>
+    </div>
     <div class="tile-body">
-      <h3 class="tile-title">${esc(option.name)}</h3>
+      <h3 class="tile-title"><button type="button" class="j-pick" data-j="choose"
+        aria-label="${chosen ? `${esc(option.name)}: gekozen` : `Kies ${esc(option.name)}`}">${esc(option.name)}</button></h3>
       ${tagsHtml(option)}
       ${option.reason ? `<p class="tile-reason">${esc(option.reason)}</p>` : ""}
       <div class="tile-actions">
-        <button type="button" class="btn small choose ${chosen ? "is-chosen" : ""}" data-j="choose">${chosen ? `${ICONS.check}Gekozen` : "Kies dit"}</button>
         <button type="button" class="btn link" data-j="view">Bekijk recept</button>
       </div>
     </div>
   </article>`;
+}
+
+// Gekozen avonden (vanaf vandaag) waarvan de boodschappen nog niet op de lijst staan.
+function unlistedCount() {
+  return state.menu.choices.filter((c) => c.date >= today() && !c.listed).length;
 }
 
 function doneHtml() {
@@ -259,7 +268,9 @@ function doneHtml() {
     <h2 class="journey-title">${open.length ? "Bijna klaar!" : "Je week staat!"}</h2>
     <p class="intro">${open.length
       ? `Nog open: ${open.map((d) => dayName(d).toLowerCase()).join(", ")}. Dat kan later ook nog.`
-      : "Alles wat je gekozen hebt, staat op je boodschappenlijst."}</p>
+      : unlistedCount()
+        ? "Zet de boodschappen op je lijst, dan heb je alles in huis."
+        : "Alles wat je gekozen hebt, staat op je boodschappenlijst."}</p>
     <ul class="done-list">${state.menu.days
       .map((d) => {
         const dinner = dinnerOf(d);
@@ -401,6 +412,7 @@ $("#journey").addEventListener("click", (e) => {
       return render();
     case "pick": return openPicker(day);
     case "undo": return undo(day);
+    case "to-list": return putWeekOnList(journey.week);
     case "to-shopping":
       closeSheet("#journey");
       return showTab("shopping");

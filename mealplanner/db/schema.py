@@ -49,6 +49,12 @@ CREATE TABLE IF NOT EXISTS special_dinners (
     note  TEXT NOT NULL DEFAULT ''
 );
 
+-- Avonden waarvan de boodschappen op de lijst gezet zijn ("Zet op boodschappenlijst"). Verandert het eten
+-- van zo'n avond, dan verandert de lijst mee; kiezen voor een andere avond laat de lijst met rust.
+CREATE TABLE IF NOT EXISTS listed_days (
+    date  TEXT PRIMARY KEY
+);
+
 -- Bewaarde inspiratie van Claude, zodat een thema niet elke keer opnieuw gegenereerd hoeft te worden.
 CREATE TABLE IF NOT EXISTS inspiration (
     key         TEXT PRIMARY KEY,
@@ -205,6 +211,11 @@ def _migrate_old_menu_options(conn):
            SELECT date, recipe_id, reason, position FROM menu_options_v1"""
     )
     conn.execute("DROP TABLE menu_options_v1")
+
+
+def _mark_chosen_dinners_listed(conn):
+    """Vroeger kwam elk gekozen avondeten vanzelf op de boodschappenlijst: die avonden staan er dus al op."""
+    conn.execute("INSERT OR IGNORE INTO listed_days (date) SELECT date FROM dinner_choices")
 
 
 def _migrate_plan_entries(conn):
