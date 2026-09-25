@@ -21,8 +21,11 @@ recepten van Claude komen pas in je receptenboek als je ze kiest of bewaart.
 Importeren leest het gestructureerde recept (schema.org/Recipe) dat vrijwel alle receptensites
 publiceren; staat dat er niet, dan haalt Claude het recept uit de tekst van de pagina.
 
+Iedereen in het huishouden krijgt een **eigen login**, maar jullie delen het weekmenu, de recepten en de
+boodschappenlijst. De site werkt op telefoon (menubalk onderin, ook als app op je beginscherm), iPad en laptop.
+
 - **Backend:** Python 3.11+ (alleen standaardbibliotheek) met een JSON-API en SQLite
-- **Frontend:** HTML, CSS en JavaScript zonder build-stap (`static/`)
+- **Frontend:** HTML, CSS en JavaScript-modules zonder build-stap (`static/`)
 - **AI:** Claude (officiële `anthropic` SDK) of Google Gemini (REST); beide optioneel
 
 ## Installeren (eenmalig)
@@ -38,12 +41,28 @@ python3 -m venv .venv
 ./start.sh
 ```
 
-Open daarna http://127.0.0.1:8000 en voeg je API-sleutel(s) toe via **Instellingen** in het menu.
-De database komt in `data/mealplanner.db`, foto's in `data/images/`.
+Open daarna http://127.0.0.1:8000. De eerste keer maak je daar je eigen account aan (zie hieronder) en
+voeg je je API-sleutel(s) toe via **Instellingen**. De database komt in `data/mealplanner.db`, foto's in `data/images/`.
 Opties: `./start.sh --port 8080`, `--host 0.0.0.0` (bereikbaar op je netwerk), `--db pad/naar/bestand.db`.
 
 Zonder `.venv` start de app ook met `python3 -m mealplanner.server`; alles werkt dan behalve de
 functies met Claude.
+
+### Accounts en inloggen
+
+- **Eerste keer:** zolang er nog geen account is, print de server bij het opstarten een eenmalige code,
+  bijvoorbeeld `ABCD-1234` (in Docker: `docker compose logs mealplanner`). Met die code maak je in de app het
+  eerste account aan; dat wordt de **beheerder**. Zo kan alleen iemand met toegang tot de server dat doen.
+- **Huishouden:** de beheerder voegt bij **Instellingen → Huishouden** anderen toe. Iedereen deelt dezelfde
+  recepten, het menu en de lijst. Alleen beheerders zien en wijzigen de AI-sleutels, modellen, Bring! en accounts.
+- **Wachtwoord vergeten:** een beheerder maakt bij Huishouden een nieuw wachtwoord aan. Ben je de enige
+  beheerder, dan kan het op de server:
+
+  ```bash
+  docker compose exec mealplanner python -m mealplanner.users password remy
+  ```
+
+  Andere commando's: `python -m mealplanner.users list` en `python -m mealplanner.users add <naam> --admin`.
 
 ### AI: Claude en Gemini
 
@@ -84,19 +103,47 @@ map `data/` naast dit bestand; de container gebruikt die map, dus je bestaande r
 - Na een update van de code: opnieuw `docker compose up -d --build`
 - Meldingen van de server bekijken: `docker compose logs -f`
 
-**Op je thuisnetwerk (bijv. een server thuis of je telefoon).** Standaard is de app alleen op de
-computer zelf bereikbaar. Maak naast `docker-compose.yml` een bestand `.env` met deze regel en start opnieuw:
+**Op je thuisnetwerk.** Standaard is de app alleen op de computer zelf bereikbaar. Maak naast
+`docker-compose.yml` een bestand `.env` en start opnieuw:
 
 ```
 MEALPLANNER_ADRES=0.0.0.0
+MEALPLANNER_POORT=8090
 ```
 
-Open dan `http://<ip-adres-van-de-server>:8000`. Is poort 8000 al bezet door iets anders, voeg dan
-bijvoorbeeld `MEALPLANNER_POORT=8080` toe aan `.env` en gebruik die poort in het adres. De app heeft geen wachtwoord: iedereen op je netwerk kan
-je recepten aanpassen en de AI (op jouw kosten) gebruiken. Zet poort 8000 dus nooit open naar internet.
+Open dan `http://<ip-adres-van-de-server>:8090` en log in.
+
+### Op internet, via Nginx Proxy Manager
+
+Zo is de app van buitenaf bereikbaar via een eigen adres met HTTPS, bijvoorbeeld `https://eten.jouwdomein.nl`.
+
+1. Zet in `.env` ook `MEALPLANNER_PROXY=1` en start opnieuw (`docker compose up -d`). Dan weet de app dat hij
+   achter een proxy staat: cookies worden alleen via HTTPS verstuurd en de rem op wachtwoorden raden kijkt naar
+   het echte IP-adres van de bezoeker.
+2. Laat bij je domeinregistrar een DNS-record (A) voor bijvoorbeeld `eten.jouwdomein.nl` naar je thuis-IP wijzen.
+3. In Nginx Proxy Manager: **Hosts → Proxy Hosts → Add Proxy Host**
+   - Domain Names: `eten.jouwdomein.nl`
+   - Scheme `http`, Forward Hostname/IP: het IP van de server (bijv. `192.168.1.2`), Forward Port: `8090`
+   - Zet **Block Common Exploits** aan.
+   - Tabblad **SSL**: *Request a new SSL Certificate*, en zet **Force SSL**, **HTTP/2** en **HSTS** aan.
+4. In je router staan alleen poort 80 en 443 open naar Nginx Proxy Manager, **niet** poort 8090.
+
+### Beveiliging
+
+- Alles behalve het inlogscherm vraagt om een login; ook de foto's.
+- Wachtwoorden worden met **scrypt** gehasht; sessies zijn willekeurige sleutels in een HttpOnly-cookie
+  (`SameSite=Lax`, via HTTPS ook `Secure` met het `__Host-`-voorvoegsel). In de database staat alleen een hash.
+- Na 5 mislukte pogingen worden een IP-adres en een gebruikersnaam 15 minuten geblokkeerd.
+- Wijzigingen via de API moeten een eigen kop meesturen en van dezelfde site komen (bescherming tegen CSRF).
+- Strikte beveiligingskoppen: Content-Security-Policy zonder inline scripts, `X-Frame-Options: DENY`, `nosniff`,
+  HSTS via HTTPS.
+- De recepten-import haalt alleen openbare websites op (poort 80/443) en nooit adressen op je eigen netwerk,
+  zoals je router of Home Assistant; dat wordt ook bij doorverwijzingen gecontroleerd.
+- De container draait als gewone gebruiker, met een alleen-lezen bestandssysteem (behalve `/data`) en zonder extra rechten.
+- API-sleutels en Bring!-gegevens staan alleen in `data/` (niet in git) en worden nooit volledig teruggestuurd.
 
 **Naar een andere computer verhuizen.** Haal de code op met `git clone`, kopieer de map `data/` mee
-(daarin staan ook je API-sleutels; die staan bewust niet in git) en start met `docker compose up -d --build`.
+(daarin staan ook je API-sleutels en accounts; die staan bewust niet in git) en start met `docker compose up -d --build`.
 
 ## Tests
 
@@ -108,29 +155,48 @@ je recepten aanpassen en de AI (op jouw kosten) gebruiken. Zet poort 8000 dus no
 
 | Pad | Inhoud |
 | --- | --- |
-| `mealplanner/db.py` | SQLite-schema, recepten, weekmenu, boodschappenlijst |
-| `mealplanner/server.py` | HTTP-server en API-routes |
+| `mealplanner/server.py` | Opstarten (`python -m mealplanner.server`) |
+| `mealplanner/app.py` | De webapp: inloggen controleren, routes uitvoeren, beveiligingskoppen |
+| `mealplanner/web.py` | Klein webframework: verzoeken, antwoorden, routes |
+| `mealplanner/auth.py` | Wachtwoorden (scrypt), sessies en de rem op raden |
+| `mealplanner/routes/` | API per onderdeel: account, recepten, menu, inspiratie, swipen, boodschappen, instellingen |
+| `mealplanner/db/` | SQLite per onderdeel: recepten, menu, boodschappen, swipen, instellingen, gebruikers |
+| `mealplanner/users.py` | Accounts beheren vanaf de opdrachtregel |
+| `mealplanner/netguard.py` | Veilig webpagina's ophalen voor de import (niet het eigen netwerk in) |
 | `mealplanner/ai.py` | AI: menu-opties, recepten bedenken en uitlezen, inspiratie, foto's |
-| `mealplanner/bring.py` | Koppeling met de Bring!-boodschappenapp |
 | `mealplanner/gemini.py` | Google Gemini (Interactions API) voor tekst en foto's |
+| `mealplanner/bring.py` | Koppeling met de Bring!-boodschappenapp |
 | `mealplanner/importer.py` | Recepten van websites importeren (schema.org/Recipe) |
 | `mealplanner/images.py` | Opslag van receptfoto's |
 | `mealplanner/preloader.py` | Houdt op de achtergrond swipekaarten mét foto klaar |
 | `mealplanner/icons.py` | Laat Gemini op de achtergrond iconen voor producten tekenen |
-| `static/` | Frontend |
-| `tests/` | Unittests voor database en API |
+| `static/index.html` | De pagina's en vensters |
+| `static/css/` | Opmaak per onderdeel (pastel wit, roze en mint) |
+| `static/js/` | JavaScript-modules per onderdeel; `main.js` start de app |
+| `tests/` | Unittests; `tests/helpers.py` start een testserver met een ingelogde gebruiker |
 
 ## API
 
+Alle paden behalve `/api/auth/status`, `/api/auth/login`, `/api/auth/setup` en `/api/health` vragen om een
+login (sessie-cookie). Verzoeken die iets wijzigen moeten de kop `X-Requested-With: mealplanner` meesturen.
+
 | Methode | Pad | Beschrijving |
 | --- | --- | --- |
+| GET | `/api/auth/status` | Ingelogd? Wie? Moet het eerste account nog gemaakt worden? |
+| POST | `/api/auth/setup` | `{code, username, display_name, password}` eerste account (beheerder) |
+| POST | `/api/auth/login` / `/api/auth/logout` | `{username, password}` in- en uitloggen |
+| PUT | `/api/auth/password` | `{current, new}` eigen wachtwoord wijzigen (logt andere apparaten uit) |
+| PUT | `/api/auth/profile` | `{display_name}` eigen naam wijzigen |
+| POST | `/api/auth/logout-others` | Uitloggen op alle andere apparaten |
+| GET/POST | `/api/users` | Accounts bekijken / toevoegen (beheerder) |
+| PUT/DELETE | `/api/users/{id}` | `{display_name, is_admin, password}` wijzigen / account verwijderen (beheerder) |
 | GET/POST | `/api/recipes` | Recepten ophalen / aanmaken |
 | GET/PUT/DELETE | `/api/recipes/{id}` | Eén recept |
 | POST | `/api/recipes/import` | `{url}` → concept-recept van een website (niet opgeslagen) |
 | POST | `/api/recipes/generate` | `{prompt, servings}` → concept-recept door Claude (niet opgeslagen) |
 | POST | `/api/images` | Afbeelding (ruwe bytes) uploaden → `{image}` |
-| GET/PUT | `/api/settings` | Instellingen lezen / opslaan: `claude_api_key`, `gemini_api_key`, `text_provider`, Gemini-modellen |
-| DELETE | `/api/settings/key/{claude\|gemini}` | Opgeslagen sleutel verwijderen |
+| GET/PUT | `/api/settings` | Instellingen lezen / opslaan (opslaan alleen beheerder): sleutels, `text_provider`, modellen |
+| DELETE | `/api/settings/key/{claude\|gemini\|gemini_text}` | Opgeslagen sleutel verwijderen (beheerder) |
 | POST | `/api/settings/test` | `{provider}` verbinding met Claude of Gemini testen (verbruikt niets) |
 | POST | `/api/recipes/{id}/photo` | Foto maken met Gemini voor een recept |
 | POST | `/api/photos/draft` | `{recipe}` foto maken voor een recept dat nog niet bewaard is |
@@ -155,6 +221,10 @@ je recepten aanpassen en de AI (op jouw kosten) gebruiken. Zet poort 8000 dus no
 | GET | `/api/shopping` | De hele boodschappenlijst (samengevoegd per product, met iconen) |
 | POST | `/api/shopping/check` | `{key, checked}` product als gekocht markeren of terugzetten |
 | POST | `/api/shopping/items` | `{text}` zelf iets toevoegen, bijv. "2 liter melk" |
+| POST | `/api/shopping/recipe` | `{ingredients, recipe_id}` ingrediënten van een recept op de lijst zetten |
 | DELETE | `/api/shopping/items?key=…` | Product van de lijst halen |
 | POST | `/api/shopping/clear-bought` | Alles wat gekocht is van de lijst halen |
 | GET | `/api/shopping/suggestions` | Vaak gekochte producten (aangevuld met gangbare boodschappen) |
+| POST | `/api/bring/sync` | Alles onder "Kopen" naar Bring! sturen |
+| POST/DELETE | `/api/bring/login`, `/api/bring` | Bring! koppelen / ontkoppelen (beheerder) |
+| GET | `/api/health` | Controle of de server draait (voor Docker) |

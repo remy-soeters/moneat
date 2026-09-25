@@ -1,0 +1,193 @@
+/* Weekmenu: overzicht, dagen, gerechtkaarten, opties kiezen. */
+
+.summary {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 16px 32px;
+  padding: 20px 24px; background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.progress-block { flex: 1 1 240px; }
+.progress-text { color: var(--ink-2); margin-bottom: 10px; }
+.progress-text strong { font-family: var(--serif); font-size: 20px; color: var(--ink); font-weight: 600; margin-right: 2px; }
+.progress { height: 8px; border-radius: 4px; background: var(--paper-2); overflow: hidden; }
+.progress div {
+  height: 100%; width: 0; border-radius: 4px; transition: width 0.5s ease;
+  background: linear-gradient(90deg, var(--pink-strong), var(--green-strong));
+}
+.summary-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+
+.stepper {
+  display: inline-flex; align-items: center; gap: 2px; padding: 3px 3px 3px 12px; min-height: 42px;
+  border: 1.5px solid var(--line); border-radius: 999px; color: var(--ink-2); background: var(--paper);
+}
+.stepper svg { width: 18px; height: 18px; margin-right: 4px; }
+.stepper button {
+  width: 34px; height: 34px; border: 0; border-radius: 50%; background: transparent; color: var(--pink-ink);
+  font-size: 19px; line-height: 1; cursor: pointer;
+}
+.stepper button:hover { background: var(--pink-soft); }
+.stepper output { min-width: 20px; text-align: center; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+.fill-status {
+  flex-basis: 100%; display: flex; align-items: center; gap: 12px; padding-top: 14px; border-top: 1px dashed var(--line);
+  color: var(--ink-2); font-style: italic; font-family: var(--serif);
+}
+
+/* welkom */
+.welcome {
+  margin-top: 24px; padding: 32px; border-radius: var(--radius);
+  background: linear-gradient(135deg, var(--pink-soft), var(--green-soft));
+}
+.welcome h2 { margin: 0 0 20px; font-size: 28px; }
+.steps { list-style: none; margin: 0 0 24px; padding: 0; display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.steps li { display: flex; gap: 12px; color: var(--ink-2); }
+.steps strong { display: block; color: var(--ink); }
+.step-num {
+  flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--paper); color: var(--pink-ink); font-family: var(--serif); font-size: 18px; font-weight: 700;
+}
+.welcome-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+
+/* dagen */
+.days { display: grid; gap: 36px; margin-top: 36px; }
+.day-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+.day-name { margin: 0; font-family: var(--serif); font-size: 27px; font-weight: 600; letter-spacing: -0.01em; line-height: 1; }
+.day-date { white-space: nowrap; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+.day-rule { flex: 1; border-bottom: 1.5px dashed var(--line); transform: translateY(-5px); min-width: 20px; }
+.day-status { font-size: 14px; color: var(--ink-2); display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.day-status.done {
+  color: #1f4d33; font-weight: 700; background: var(--green); padding: 3px 12px 3px 8px; border-radius: 999px;
+}
+.day-status svg { width: 16px; height: 16px; stroke-width: 2.5; }
+.today-pill {
+  font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--primary-ink); background: var(--pink); padding: 3px 10px; border-radius: 999px; transform: translateY(-3px);
+}
+.day.past { opacity: 0.55; }
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 18px; }
+
+/* gerechtkaart (menu, receptenboek, inspiratie) */
+.tile {
+  position: relative; display: flex; flex-direction: column; overflow: hidden;
+  background: var(--paper); border-radius: var(--radius); box-shadow: var(--shadow);
+  transition: box-shadow 0.2s, transform 0.2s, opacity 0.2s;
+}
+.tile:hover { box-shadow: var(--shadow-hover); transform: translateY(-2px); }
+.tile.chosen { box-shadow: 0 0 0 3px var(--green-strong), var(--shadow-hover); }
+.day.decided .tile:not(.chosen) { opacity: 0.55; }
+.day.decided .tile:not(.chosen):hover { opacity: 1; }
+
+.plate {
+  position: relative; height: 132px; display: grid; place-items: center;
+  background: var(--plate, var(--paper-2)); cursor: pointer; border: 0; width: 100%; padding: 0;
+}
+.plate .dish { font-size: 54px; line-height: 1; filter: drop-shadow(0 6px 8px rgba(120, 50, 70, 0.15)); transition: transform 0.3s ease; }
+.tile:hover .plate .dish { transform: scale(1.08) rotate(-4deg); }
+.plate.photo, .mini-plate.photo, .photo-preview.photo, .book-photo.photo { background-size: cover; background-position: center; }
+.plate.photo .dish { display: none; }
+.plate.photo::after {
+  content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0, 0, 0, 0.16), transparent 40%);
+  pointer-events: none;
+}
+.plate-badges { position: absolute; left: 12px; top: 12px; display: flex; gap: 6px; flex-wrap: wrap; }
+.ribbon {
+  position: absolute; left: 0; bottom: 12px; display: inline-flex; align-items: center; gap: 5px;
+  background: var(--green); color: #1f4d33; font-size: 12px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase;
+  padding: 5px 13px 5px 10px; border-radius: 0 999px 999px 0;
+}
+.ribbon svg { width: 14px; height: 14px; stroke-width: 3; }
+
+.badge {
+  display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 800; letter-spacing: 0.05em;
+  text-transform: uppercase; padding: 3px 9px; border-radius: 999px; background: rgba(255, 255, 255, 0.92); color: var(--ink);
+}
+.badge.claude { background: var(--pink); color: var(--primary-ink); }
+.badge svg { width: 11px; height: 11px; fill: currentColor; stroke: none; }
+
+.tile-body { display: flex; flex-direction: column; gap: 6px; padding: 16px 18px; flex: 1; }
+.tile-title { margin: 0; font-family: var(--serif); font-weight: 600; font-size: 20px; line-height: 1.2; }
+.tile-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13.5px; color: var(--ink-2); }
+.tile-meta span { display: inline-flex; align-items: center; gap: 5px; }
+.tile-meta svg { width: 15px; height: 15px; }
+.tile-reason {
+  margin: 4px 0 0; font-family: var(--serif); font-style: italic; font-size: 15px; color: var(--ink-2); line-height: 1.4;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.tile-actions { display: flex; align-items: center; gap: 14px; margin-top: auto; padding-top: 12px; }
+.tile .choose { background: var(--pink); color: var(--primary-ink); }
+.tile .choose:hover { background: var(--pink-strong); }
+.tile .choose.is-chosen { background: var(--green); color: #1f4d33; }
+.tile .remove {
+  position: absolute; top: 10px; right: 10px; width: 34px; height: 34px; border-radius: 50%; cursor: pointer;
+  border: 0; background: rgba(255, 255, 255, 0.94); color: var(--ink); display: grid; place-items: center;
+  opacity: 0; transition: opacity 0.15s; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+.tile .remove svg { width: 14px; height: 14px; stroke-width: 2.5; }
+.tile:hover .remove, .tile .remove:focus-visible { opacity: 1; }
+@media (hover: none) { .tile .remove { opacity: 1; } }
+
+.tile.add {
+  align-items: center; justify-content: center; gap: 8px; min-height: 96px; cursor: pointer;
+  background: transparent; box-shadow: none; border: 2px dashed var(--pink-strong); color: var(--pink-ink);
+  font: inherit; font-weight: 700;
+}
+.tile.add:hover { background: var(--pink-soft); transform: none; }
+.tile.add svg { width: 26px; height: 26px; }
+.tiles .tile.add:only-child { min-height: 0; flex-direction: row; padding: 18px; justify-content: flex-start; }
+.tiles .tile.add:only-child svg { width: 20px; height: 20px; }
+
+.skeleton .plate { background: var(--paper-2); animation: pulse 1.4s ease-in-out infinite; }
+.skeleton-line { height: 12px; border-radius: 6px; background: var(--paper-2); animation: pulse 1.4s ease-in-out infinite; }
+
+/* eigen recepten kiezen */
+.pick-list { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 8px; }
+.pick-row {
+  display: flex; align-items: center; gap: 14px; width: 100%; min-height: 64px; padding: 10px 12px; cursor: pointer;
+  border: 1.5px solid var(--line); border-radius: 14px; background: var(--paper); font: inherit; color: var(--ink); text-align: left;
+}
+.pick-row:hover:not(:disabled) { border-color: var(--pink-strong); }
+.pick-row .mini-plate { flex: none; width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; font-size: 24px; background: var(--plate); }
+.pick-row .row-main { flex: 1; min-width: 0; }
+.pick-row .row-title { display: block; font-weight: 700; }
+.pick-row .row-sub { display: block; font-size: 13px; color: var(--ink-2); }
+.pick-row .box {
+  flex: none; width: 24px; height: 24px; border-radius: 8px; border: 2px solid var(--ink-3);
+  display: grid; place-items: center; color: var(--primary-ink);
+}
+.pick-row .box svg { width: 14px; height: 14px; stroke-width: 3; opacity: 0; }
+.pick-row.checked { border-color: var(--pink-strong); background: var(--pink-soft); }
+.pick-row.checked .box { background: var(--pink); border-color: var(--pink-strong); }
+.pick-row.checked .box svg { opacity: 1; }
+.pick-row:disabled { cursor: default; opacity: 0.6; }
+.pick-row:disabled .box { background: var(--green); border-color: var(--green-strong); }
+.pick-row:disabled .box svg { opacity: 1; }
+
+/* avond kiezen om iets op het menu te zetten */
+.day-picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.day-picker button {
+  display: flex; flex-direction: column; align-items: flex-start; min-height: 64px; padding: 12px 14px; cursor: pointer; text-align: left;
+  border: 1.5px solid var(--line); border-radius: 14px; background: var(--paper); font: inherit; color: var(--ink);
+}
+.day-picker button:hover { border-color: var(--pink-strong); background: var(--pink-soft); }
+.day-picker strong { font-family: var(--serif); font-size: 18px; font-weight: 600; }
+.day-picker small { color: var(--ink-2); font-size: 13px; }
+
+@media (max-width: 767px) {
+  .summary { padding: 18px; }
+  .summary-actions { width: 100%; }
+  .summary-actions .btn { flex: 1; }
+  .day-name { font-size: 24px; }
+  .day-head { flex-wrap: wrap; row-gap: 6px; }
+  .day-rule { display: none; }
+  .day-status { flex-basis: auto; white-space: normal; }
+  .plate { height: 112px; }
+  .plate .dish { font-size: 46px; }
+  .tiles { grid-template-columns: 1fr; gap: 14px; }
+  .tile.add { min-height: 0; flex-direction: row; padding: 16px; }
+  .welcome { padding: 24px 20px; }
+}
+
+/* iPad staand: twee kaarten naast elkaar */
+@media (min-width: 768px) and (max-width: 1099px) {
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

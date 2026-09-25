@@ -1,0 +1,167 @@
+/* Een recept als opengeslagen kookboek. Alles schaalt mee met --fit (zie fitBook in view.js). */
+
+dialog.modal.wide { width: min(1120px, calc(100vw - 48px)); height: calc(100vh - 48px); max-height: none; }
+dialog.book {
+  --paper-page: #fffdfb;
+  --paper-edge: #fdf0f4;
+  --book-ink: #3a2e35;
+  --book-ink-2: #7d6c75;
+  --note: #fff3c9;
+  --note-ink: #4a3b2a;
+  background: linear-gradient(135deg, #f6c9d7 0%, #f9dde6 45%, #cfeada 100%); /* de kaft */
+  padding: 12px;
+}
+dialog.modal.wide.book {
+  width: 100vw; height: 100vh; max-width: 100vw; max-height: 100vh; margin: 0; border-radius: 0;
+}
+dialog.book > .close { position: absolute; top: 20px; right: 20px; z-index: 3; background: rgba(255, 255, 255, 0.94); color: var(--ink); }
+dialog.book .modal-scroll { padding: 0; overflow: hidden; border-radius: 8px 8px 0 0; background: var(--paper-page); }
+dialog.book .modal-foot { background: var(--paper-edge); border-top: 1px solid rgba(0, 0, 0, 0.08); border-radius: 0 0 8px 8px; }
+
+/* Alles schaalt mee met --fit (1 = normaal); fitBook() verkleint die tot het recept op het scherm past. */
+.book-spread {
+  --fit: 1;
+  position: relative; display: grid; grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.55fr); height: 100%;
+  color: var(--book-ink); background: var(--paper-page);
+  font-size: calc(clamp(15px, 1.1vw, 19px) * var(--fit));
+}
+.book-page {
+  position: relative; display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+  padding: 2.2em 2.6em 3em; animation: page-open 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.book-spread.overflowing .book-page { overflow-y: auto; }
+.book-page.left {
+  transform-origin: right center;
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.05), transparent 4%, transparent 90%, rgba(0, 0, 0, 0.14));
+}
+.book-page.right {
+  transform-origin: left center; animation-delay: 0.08s; --turn: -12deg;
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.16), transparent 4%, transparent 97%, rgba(0, 0, 0, 0.05));
+}
+@keyframes page-open { from { opacity: 0; transform: perspective(1600px) rotateY(var(--turn, 12deg)); } }
+
+/* linkerpagina: foto vult de ruimte die overblijft */
+.book-photo {
+  position: relative; flex: 1 1 0; min-height: 7em; max-height: 60vh; margin: 0.4em 0.4em 1.4em;
+  display: grid; place-items: center; background: var(--plate, var(--paper-2)) center / cover no-repeat;
+  border: 0.55em solid #fff; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06), 0 12px 28px rgba(150, 70, 100, 0.18);
+  transform: rotate(-1.2deg);
+}
+.book-photo .dish { font-size: 5em; filter: drop-shadow(0 10px 14px rgba(60, 30, 10, 0.2)); }
+.book-photo:not(.busy)::before, .book-photo:not(.busy)::after {  /* fotohoekjes */
+  content: ""; position: absolute; width: 2em; height: 2em; z-index: 1;
+  background: linear-gradient(135deg, rgba(242, 171, 193, 0.85) 50%, transparent 50%);
+}
+.book-photo:not(.busy)::before { top: -0.7em; left: -0.7em; }
+.book-photo:not(.busy)::after { bottom: -0.7em; right: -0.7em; transform: rotate(180deg); }
+.book-photo .plate-badges { position: absolute; left: 14px; top: 14px; z-index: 2; }
+.book-photo .hero-photo-btn { right: 14px; bottom: 14px; z-index: 2; }
+
+.book-kicker {
+  flex: none; margin: 0 0 0.5em; text-align: center; font-size: 0.68em; font-weight: 600; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--accent);
+}
+.book-title {
+  flex: none; margin: 0; text-align: center; font-family: var(--serif); font-size: 2.5em; font-weight: 600;
+  font-style: italic; line-height: 1.08; letter-spacing: -0.015em; text-wrap: balance;
+  hyphens: auto; -webkit-hyphens: auto; overflow-wrap: break-word;
+}
+.book-ornament { flex: none; text-align: center; color: var(--accent); letter-spacing: 0.6em; margin: 0.7em 0 0.9em; font-size: 0.7em; }
+.book-facts {
+  flex: none; display: flex; justify-content: center; flex-wrap: wrap; margin: 0 0 1.2em;
+  border-top: 1px solid rgba(0, 0, 0, 0.12); border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+}
+.book-facts div { padding: 0.55em 1.2em; text-align: center; }
+.book-facts div + div { border-left: 1px solid rgba(0, 0, 0, 0.12); }
+.book-facts dt { font-size: 0.6em; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--book-ink-2); }
+.book-facts dd { margin: 0.1em 0 0; font-family: var(--serif); font-size: 1.05em; }
+
+.book-note {
+  flex: none; position: relative; max-width: 20em; margin: 0.3em auto 0.8em; padding: 0.7em 1em 0.8em;
+  background: var(--note); color: var(--note-ink); transform: rotate(1.4deg);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1), 0 8px 18px rgba(60, 40, 20, 0.14);
+  font-family: "Caveat", "Segoe Print", cursive; font-size: 1.3em; line-height: 1.15;
+}
+.book-note::before {  /* plakbandje */
+  content: ""; position: absolute; top: -0.45em; left: 50%; width: 4em; height: 1em; transform: translateX(-50%) rotate(-2deg);
+  background: rgba(255, 255, 255, 0.55); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+.book-note small {
+  display: block; margin-bottom: 0.2em; font-family: var(--sans); font-size: 0.42em; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.7;
+}
+.book-source { flex: none; text-align: center; font-family: var(--serif); font-style: italic; color: var(--book-ink-2); margin: 0.4em 0 0; font-size: 0.85em; }
+.book-source a { color: var(--accent); }
+
+/* rechterpagina: ingrediënten en bereiding naast elkaar */
+.book-cols { display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); gap: 2.4em; align-items: start; }
+.book-col { min-width: 0; }
+.book-heading {
+  display: flex; align-items: baseline; gap: 0.5em; margin: 0 0 0.6em; padding-bottom: 0.35em;
+  font-family: var(--serif); font-size: 1.55em; font-weight: 600; border-bottom: 2px solid var(--pink-strong);
+}
+.ingredients-heading { justify-content: space-between; align-items: center; flex-wrap: wrap; row-gap: 0.3em; }
+.ingredients-heading h3 { margin: 0; font: inherit; }
+.servings-control {
+  display: inline-flex; align-items: center; gap: 0.2em; padding: 0.15em; border-radius: 999px;
+  background: var(--paper-edge); font-family: var(--sans); font-size: 0.5em; font-weight: 600;
+}
+.servings-control output { min-width: 6.4em; text-align: center; color: var(--book-ink); }
+.servings-control button {
+  width: 2.2em; height: 2.2em; border-radius: 50%; border: 0; cursor: pointer; font-size: 1.3em; line-height: 1;
+  background: var(--paper-page); color: var(--accent); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+.servings-control button:hover:not(:disabled) { background: var(--pink); color: var(--primary-ink); }
+.servings-control button:disabled { opacity: 0.35; cursor: default; }
+.servings-note { margin: -0.3em 0 0.6em; font-size: 0.72em; font-style: italic; color: var(--book-ink-2); }
+.servings-note:empty { display: none; }
+.book-heading small { font-family: var(--sans); font-size: 0.45em; font-weight: 500; color: var(--book-ink-2); letter-spacing: 0.02em; }
+.book-ingredients { list-style: none; margin: 0; padding: 0; font-family: var(--serif); font-size: 1em; }
+.book-ingredients li { display: flex; align-items: baseline; padding: 0.22em 0; }
+.book-ingredients .leader { flex: 1; min-width: 1em; margin: 0 0.4em; border-bottom: 2px dotted rgba(0, 0, 0, 0.22); transform: translateY(-0.25em); }
+.book-ingredients .qty { font-weight: 600; white-space: nowrap; }
+.book-method { list-style: none; margin: 0; padding: 0; counter-reset: step; font-family: var(--serif); font-size: 1em; line-height: 1.5; }
+.book-method li { position: relative; counter-increment: step; padding: 0 0 0.75em 2.6em; }
+.book-method li::before {
+  content: counter(step); position: absolute; left: 0; top: -0.3em; width: 1.1em; text-align: right;
+  font-family: var(--serif); font-size: 1.9em; font-weight: 600; font-style: italic; line-height: 1; color: var(--accent);
+}
+.book-end { text-align: center; color: var(--accent); font-family: var(--serif); font-size: 1.2em; margin: 0.2em 0 0; font-variant-emoji: text; }
+.page-no {
+  position: absolute; bottom: 0.9em; left: 50%; transform: translateX(-50%);
+  font-family: var(--serif); font-style: italic; font-size: 0.75em; color: var(--book-ink-2);
+}
+.page-no::before, .page-no::after { content: "—"; margin: 0 8px; opacity: 0.5; }
+
+/* tablet: smallere linkerpagina, zodat ingrediënten en bereiding naast elkaar blijven passen */
+@media (max-width: 1100px) and (min-width: 721px) {
+  .book-spread { grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.5fr); font-size: calc(16px * var(--fit)); }
+  .book-page { padding: 1.8em 1.6em 2.6em; }
+  .book-cols { gap: 1.5em; }
+  .book-title { font-size: 1.7em; }
+}
+
+.btn .label-short { display: none; }
+
+/* telefoon: één pagina onder elkaar, gewoon scrollen */
+@media (max-width: 720px) {
+  dialog.book .modal-foot { flex-wrap: nowrap; gap: 8px; padding-left: 12px; padding-right: 12px; }
+  dialog.book .modal-foot .spacer { display: none; }
+  #view-edit { flex: none; width: var(--tap); padding: 0; }
+  #view-edit span { display: none; }
+  dialog.book .foot-actions { flex: 1; flex-wrap: nowrap; gap: 8px; min-width: 0; }
+  dialog.book .foot-actions .btn { flex: 1 1 0; min-width: 0; padding: 9px 10px; font-size: 14px; }
+  dialog.book .btn .label-long { display: none; }
+  dialog.book .btn .label-short { display: inline; }
+  dialog.book .modal-scroll { overflow-y: auto; }
+  .book-spread { grid-template-columns: 1fr; height: auto; font-size: 17px; }
+  .book-page { overflow: visible; padding: 28px 22px 48px; background: none !important; }
+  .book-page.left { padding-bottom: 12px; }
+  .book-page.left .page-no { display: none; }
+  .book-photo { flex: none; height: 220px; border-width: 6px; margin: 0 0 24px; }
+  .book-cols { grid-template-columns: 1fr; gap: 28px; }
+  .servings-control { font-size: 14px; }
+  .servings-control output { min-width: 84px; font-size: 14px; }
+  dialog.book { padding: 6px 6px 0; }
+  dialog.modal.wide.book { height: 100vh; height: 100dvh; border-radius: 0; margin: 0; max-height: none; }
+}

@@ -1,0 +1,121 @@
+"""Instellingen: AI-keuzes, modellen, API-sleutels en achtergrondtaken. Wijzigen kan alleen een beheerder."""
+
+import os
+import re
+from http import HTTPStatus
+
+from .. import ai, gemini, setting_keys
+from ..preloader import PRELOAD_OPTIONS
+from ..web import ApiError
+
+KEY_SETTINGS = {"claude": ai.CLAUDE_KEY, "gemini": ai.GEMINI_KEY, "gemini_text": ai.GEMINI_TEXT_KEY}
+KEY_PATTERNS = {
+    "claude": (r"sk-ant-[A-Za-z0-9_\-]{20,200}", "Dit lijkt geen Anthropic API-sleutel. Die begint met ‘sk-ant-’ en is lang."),
+    # Google gebruikt zowel het oude formaat (AIza…) als het nieuwere met een punt (AQ.…).
+    "gemini": (r"[A-Za-z0-9_.\-]{30,200}", "Dit lijkt geen Gemini API-sleutel. Kopieer hem volledig uit Google AI Studio."),
+}
+KEY_PATTERNS["gemini_text"] = KEY_PATTERNS["gemini"]
+MODEL_NAME = re.compile(r"[a-z0-9][a-z0-9.\-]{2,80}")
+
+
+def mask_key(key):
+    """Laat alleen het begin en eind van een sleutel zien: sk-ant-…a1b2."""
+    return f"{key[:7]}…{key[-4:]}"
+
+
+def register(r, app):
+    db, preloader = app.db, app.preloader
+
+    def full_settings():
+        claude_key = db.get_setting(ai.CLAUDE_KEY)
+        gemini_key = db.get_setting(ai.GEMINI_KEY)
+        text_key = db.get_setting(ai.GEMINI_TEXT_KEY)
+        text_model, image_model = ai.gemini_models()
+        return {
+            "is_admin": True,
+            "sdk_installed": ai.sdk_installed(),
+            "bring": app.bring_status(),
+            "text_provider": ai.text_provider(),
+            "swipe_preload": app.preload_target(),
+            "swipe_preload_options": list(PRELOAD_OPTIONS),
+            "auto_images": db.get_setting(ai.AUTO_IMAGES) != "off",
+            "claude": {
+                "set": bool(claude_key),
+                "hint": mask_key(claude_key) if claude_key else None,
+                "env": ai.env_key_present(),
+                "model": ai.claude_model()["id"],
+                "models": [{k: m[k] for k in ("id", "name", "note")} for m in ai.CLAUDE_MODELS],
+            },
+            "gemini": {
+                "set": bool(gemini_key),
+                "hint": mask_key(gemini_key) if gemini_key else None,
+                "env": bool(os.environ.get("GEMINI_API_KEY")),
+                "text_model": text_model,
+                "image_model": image_model,
+                "default_text_model": gemini.DEFAULT_TEXT_MODEL,
+                "default_image_model": gemini.DEFAULT_IMAGE_MODEL,
+                "image_models": gemini.IMAGE_MODELS,
+                "text_models": gemini.TEXT_MODELS,
+                "text_key": {"set": bool(text_key), "hint": mask_key(text_key) if text_key else None},
+            },
+        }
+
+    @r.get("/api/settings")
+    def get_settings(req):
+        if req.user["is_admin"]:
+            return full_settings()
+        # Gewone leden zien alleen wat de app nodig heeft; sleutels en kosten zijn voor de beheerder.
+        return {"is_admin": False, "text_provider": ai.text_provider(), "bring": {"connected": app.bring_status()["connected"]}}
+
+    @r.put("/api/settings", admin=True)
+    def save_settings(req):
+        body = req.json()
+        for provider, setting in KEY_SETTINGS.items():
+            field = f"{provider}_api_key"
+            if field in body:
+                key = str(body.get(field) or "").strip()
+                pattern, message = KEY_PATTERNS[provider]
+                if not re.fullmatch(pattern, key):
+                    raise ApiError(HTTPStatus.BAD_REQUEST, message)
+                db.set_setting(setting, key)
+        if "swipe_preload" in body:
+            if int(body["swipe_preload"]) not in PRELOAD_OPTIONS:
+                raise ApiError(HTTPStatus.BAD_REQUEST, "Kies 5, 10, 15 of 20 gerechten")
+            db.set_setting(setting_keys.SWIPE_PRELOAD, str(int(body["swipe_preload"])))
+            preloader.kick()
+        if "auto_images" in body:
+            db.set_setting(ai.AUTO_IMAGES, None if body["auto_images"] else "off")
+            preloader.kick()
+        if "claude_model" in body:
+            if body["claude_model"] not in {m["id"] for m in ai.CLAUDE_MODELS}:
+                raise ApiError(HTTPStatus.BAD_REQUEST, "Kies Opus, Sonnet of Haiku")
+            db.set_setting(ai.CLAUDE_MODEL, body["claude_model"])
+        if "text_provider" in body:
+            if body["text_provider"] not in ("claude", "gemini"):
+                raise ApiError(HTTPStatus.BAD_REQUEST, "Kies Claude of Gemini")
+            db.set_setting(ai.TEXT_PROVIDER, body["text_provider"])
+        for field, setting in (("gemini_text_model", ai.GEMINI_TEXT_MODEL), ("gemini_image_model", ai.GEMINI_IMAGE_MODEL)):
+            if field in body:
+                model = str(body.get(field) or "").strip()
+                if model and not MODEL_NAME.fullmatch(model):
+                    raise ApiError(HTTPStatus.BAD_REQUEST, f"Ongeldige modelnaam: {model[:80]}")
+                db.set_setting(setting, model or None)  # leeg = standaardmodel
+        return full_settings()
+
+    @r.delete(r"/api/settings/key/(claude|gemini_text|gemini)", admin=True)
+    def delete_key(req, provider):
+        db.set_setting(KEY_SETTINGS[provider], None)
+        return full_settings()
+
+    @r.post("/api/settings/test", admin=True)
+    def test_connection(req):
+        if req.json().get("provider") in ("gemini", "gemini_text"):
+            ai.check_gemini()
+            text_model, image_model = ai.gemini_models()
+            return {"ok": True, "message": f"Verbinding met Gemini werkt ({text_model}, {image_model})."}
+        ai.check_connection()
+        return {"ok": True, "message": f"Verbinding met Claude werkt ({ai.claude_model()['name']})."}
+
+    @r.get("/api/health", auth=False)
+    def health(req):
+        return {"ok": True}

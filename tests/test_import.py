@@ -9,6 +9,7 @@ import zlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest import mock
 
+from tests.helpers import ApiClient, api_test
 from mealplanner import ai
 from mealplanner.db import Database
 from mealplanner.images import ImageStore, sniff
@@ -21,7 +22,6 @@ from mealplanner.importer import (
     parse_instructions,
     parse_page,
 )
-from mealplanner.server import make_handler
 
 
 def tiny_png():
@@ -164,29 +164,21 @@ class RecipeBookApiTest(unittest.TestCase):
     def setUp(self):
         self.db = Database(":memory:")
         self.images = ImageStore(tempfile.mkdtemp())
-        self.server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(self.db, self.images))
-        self.base = f"http://127.0.0.1:{self.server.server_address[1]}"
-        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.api = api_test(self, db=self.db, images=self.images)
+        self.base = self.api.base
 
-    def tearDown(self):
-        self.server.shutdown()
-        self.server.server_close()
-
-    def call(self, method, path, body=None, raw=None, content_type="application/json"):
-        data = raw if raw is not None else (json.dumps(body).encode() if body is not None else None)
-        req = urllib.request.Request(self.base + path, data=data, method=method, headers={"Content-Type": content_type})
-        try:
-            with urllib.request.urlopen(req) as res:
-                return res.status, json.loads(res.read())
-        except urllib.error.HTTPError as e:
-            return e.code, json.loads(e.read())
+    def call(self, method, path, body=None, **kwargs):
+        return self.api.call(method, path, body, **kwargs)
 
     def test_upload_image_and_clean_up_on_delete(self):
         status, result = self.call("POST", "/api/images", raw=tiny_png(), content_type="image/png")
         self.assertEqual(status, 200)
         image = result["image"]
-        with urllib.request.urlopen(self.base + image) as res:
-            self.assertEqual(res.headers["Content-Type"], "image/png")
+        status, headers, _ = self.api.request("GET", image)
+        self.assertEqual((status, headers["Content-Type"]), (200, "image/png"))
+        anonymous = ApiClient(user=None, db=self.db, images=self.images)
+        self.addCleanup(anonymous.close)
+        self.assertEqual(anonymous.request("GET", image)[0], 401)  # niet ingelogd
 
         _, recipe = self.call("POST", "/api/recipes", {"name": "Soep", "image": image})
         self.assertEqual(recipe["image"], image)

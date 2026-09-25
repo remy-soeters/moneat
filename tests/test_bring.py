@@ -8,9 +8,10 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest import mock
 
+from tests.helpers import ApiClient, api_test
 from mealplanner import bring
 from mealplanner.db import Database
-from mealplanner.server import BRING_SETTING, make_handler
+from mealplanner.setting_keys import BRING_AUTH as BRING_SETTING
 
 ARTICLES = {"Zwiebeln": "Uien", "Tomaten": "Tomaten", "Milch": "Melk"}
 
@@ -96,22 +97,11 @@ class BringTest(unittest.TestCase):
     def setUp(self):
         FakeBring.state = {"logins": [], "refreshes": 0, "puts": [], "purchase": {"Brood": ""}}
         self.db = Database(":memory:")
-        self.server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(self.db))
-        self.base = f"http://127.0.0.1:{self.server.server_address[1]}"
-        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.api = api_test(self, db=self.db)
+        self.base = self.api.base
 
-    def tearDown(self):
-        self.server.shutdown()
-        self.server.server_close()
-
-    def call(self, method, path, body=None):
-        data = json.dumps(body).encode() if body is not None else None
-        req = urllib.request.Request(self.base + path, data=data, method=method, headers={"Content-Type": "application/json"})
-        try:
-            with urllib.request.urlopen(req) as res:
-                return res.status, json.loads(res.read())
-        except urllib.error.HTTPError as e:
-            return e.code, json.loads(e.read())
+    def call(self, method, path, body=None, **kwargs):
+        return self.api.call(method, path, body, **kwargs)
 
     def login(self):
         return self.call("POST", "/api/bring/login", {"email": "remy@example.com", "password": "geheim"})

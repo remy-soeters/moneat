@@ -7,10 +7,10 @@ import urllib.request
 from http.server import ThreadingHTTPServer
 from unittest import mock
 
+from tests.helpers import ApiClient, api_test
 from mealplanner import ai
 from mealplanner.db import Database
 from mealplanner.images import ImageStore
-from mealplanner.server import make_handler
 from tests.test_import import tiny_png
 
 
@@ -95,22 +95,11 @@ class SwipeApiTest(unittest.TestCase):
         self.addCleanup(kick.stop)
         self.db = Database(":memory:")
         self.images = ImageStore(tempfile.mkdtemp())
-        self.server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(self.db, self.images))
-        self.base = f"http://127.0.0.1:{self.server.server_address[1]}"
-        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.api = api_test(self, db=self.db, images=self.images)
+        self.base = self.api.base
 
-    def tearDown(self):
-        self.server.shutdown()
-        self.server.server_close()
-
-    def call(self, method, path, body=None):
-        data = json.dumps(body).encode() if body is not None else None
-        req = urllib.request.Request(self.base + path, data=data, method=method, headers={"Content-Type": "application/json"})
-        try:
-            with urllib.request.urlopen(req) as res:
-                return res.status, json.loads(res.read())
-        except urllib.error.HTTPError as e:
-            return e.code, json.loads(e.read())
+    def call(self, method, path, body=None, **kwargs):
+        return self.api.call(method, path, body, **kwargs)
 
     def test_preferences_are_validated_and_used(self):
         prefs = {"diet": "vegetarisch", "cuisines": ["Italiaans", "Indiaas"], "max_minutes": 30, "avoid": "koriander"}

@@ -1,0 +1,84 @@
+/* Receptenboek: toevoegen, overzicht, bewerken en foto's. */
+
+.add-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-bottom: 28px; }
+.add-option {
+  display: flex; align-items: center; gap: 14px; min-height: 76px; padding: 16px 18px; cursor: pointer; text-align: left;
+  background: var(--paper); border: 1.5px solid var(--line); border-radius: var(--radius); font: inherit; color: var(--ink);
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+.add-option:hover { border-color: var(--pink-strong); box-shadow: var(--shadow); transform: translateY(-1px); }
+.add-option strong { display: block; font-family: var(--serif); font-size: 18px; font-weight: 600; }
+.add-option small { display: block; color: var(--ink-2); font-size: 13.5px; }
+.add-icon {
+  flex: none; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--pink-soft); color: var(--pink-ink);
+}
+.add-option:nth-child(2) .add-icon { background: var(--green-soft); color: var(--green-ink); }
+.add-icon.claude { background: linear-gradient(135deg, var(--pink-soft), var(--green-soft)); color: var(--pink-ink); }
+.add-icon svg { width: 22px; height: 22px; }
+.add-icon .sparkle { fill: currentColor; stroke: none; }
+
+.recipe-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 22px; }
+.recipe-card { cursor: pointer; text-align: left; border: 0; padding: 0; font: inherit; color: inherit; }
+.recipe-card .plate { height: 156px; }
+.recipe-card .tile-body { padding-bottom: 18px; }
+.book-tools { display: flex; justify-content: flex-end; margin: -12px 0 20px; }
+
+.empty { text-align: center; padding: 64px 16px; color: var(--ink-2); }
+.empty .dish { font-size: 56px; }
+.empty h3 { color: var(--ink); font-size: 26px; margin: 12px 0 8px; }
+.empty p { margin: 0 0 20px; }
+
+/* bewerken */
+#edit-sheet { width: min(780px, calc(100vw - 32px)); max-height: calc(100vh - 48px); }
+.photo-field { display: flex; align-items: center; gap: 16px; margin: 4px 0 20px; }
+.photo-preview {
+  flex: none; width: 136px; height: 100px; border-radius: 14px; display: grid; place-items: center;
+  background: var(--paper-2) var(--photo, none) center / cover no-repeat; font-size: 40px;
+}
+.photo-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.photo-actions label.btn { cursor: pointer; }
+
+.ingredient-head, .ingredient-edit { display: grid; grid-template-columns: 84px 84px minmax(0, 1fr) 40px; gap: 8px; align-items: center; }
+.ingredient-head span { font-size: 12px; color: var(--ink-3); font-weight: 700; }
+.ingredient-edit { margin-bottom: 8px; }
+.ingredient-edit .remove-ing {
+  width: 40px; height: 40px; border-radius: 50%; border: 0; background: transparent; color: var(--ink-3); cursor: pointer;
+  display: grid; place-items: center; padding: 0;
+}
+.ingredient-edit .remove-ing:hover { background: var(--pink-soft); color: var(--pink-ink); }
+.ingredient-edit .remove-ing svg { width: 14px; height: 14px; stroke-width: 2.5; }
+
+/* foto maken */
+.make-photo { display: inline-flex; align-items: center; gap: 6px; }
+.make-photo svg { width: 15px; height: 15px; fill: currentColor; stroke: none; }
+.hero-photo-btn { position: absolute; right: 20px; bottom: 16px; }
+.btn.on-image { background: rgba(255, 255, 255, 0.94); color: var(--ink); border-color: transparent; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); }
+.btn.on-image:hover { background: #fff; }
+.plate.busy::before, .book-photo.busy::before {
+  content: ""; position: absolute; inset: 0; z-index: 1; background: rgba(255, 255, 255, 0.6);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+.plate.busy::after, .book-photo.busy::after {
+  content: "Foto maken…"; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 2;
+  background: var(--ink); color: #fff; font-size: 13px; font-weight: 700; padding: 5px 12px; border-radius: 999px;
+}
+
+@media (max-width: 767px) {
+  .add-options { grid-template-columns: 1fr; gap: 10px; }
+  .add-option { min-height: 64px; padding: 12px 14px; }
+  .recipe-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .recipe-card .plate { height: 118px; }
+  .recipe-card .tile-body { padding: 12px 12px 14px; }
+  .recipe-card .tile-title { font-size: 16.5px; }
+  .recipe-card .tile-meta { font-size: 12.5px; }
+  .photo-preview { width: 104px; height: 80px; }
+  .ingredient-head, .ingredient-edit { grid-template-columns: 64px 64px minmax(0, 1fr) 36px; gap: 6px; }
+}
+
+/* telefoon: filterlabels op één regel die je opzij schuift */
+@media (max-width: 767px) {
+  #tag-filter { flex-wrap: nowrap; overflow-x: auto; margin: 12px -16px 18px; padding: 2px 16px 6px; scrollbar-width: none; }
+  #tag-filter::-webkit-scrollbar { display: none; }
+  #tag-filter .chip { flex: none; }
+}

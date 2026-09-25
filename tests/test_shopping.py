@@ -8,11 +8,12 @@ import urllib.request
 from http.server import ThreadingHTTPServer
 from unittest import mock
 
+from tests.helpers import ApiClient, api_test
 from mealplanner import ai
 from mealplanner.db import Database, NotFound
 from mealplanner.icons import IconMaker
 from mealplanner.images import ImageStore
-from mealplanner.server import STAPLES, make_handler
+from mealplanner.routes.shopping import STAPLES
 from tests.test_import import tiny_png
 
 WEEK = "2026-09-21"
@@ -103,22 +104,11 @@ class ShoppingApiTest(unittest.TestCase):
         patch = mock.patch.object(ai, "gemini_configured", return_value=False)
         patch.start()
         self.addCleanup(patch.stop)
-        self.server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(self.db, self.images))
-        self.base = f"http://127.0.0.1:{self.server.server_address[1]}"
-        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.api = api_test(self, db=self.db, images=self.images)
+        self.base = self.api.base
 
-    def tearDown(self):
-        self.server.shutdown()
-        self.server.server_close()
-
-    def call(self, method, path, body=None):
-        data = json.dumps(body).encode() if body is not None else None
-        req = urllib.request.Request(self.base + path, data=data, method=method, headers={"Content-Type": "application/json"})
-        try:
-            with urllib.request.urlopen(req) as res:
-                return res.status, json.loads(res.read())
-        except urllib.error.HTTPError as e:
-            return e.code, json.loads(e.read())
+    def call(self, method, path, body=None, **kwargs):
+        return self.api.call(method, path, body, **kwargs)
 
     def test_recipe_ingredients_go_on_the_list(self):
         soup = self.db.create_recipe({"name": "Soep", "ingredients": [{"name": "Ui", "quantity": 2, "unit": ""}]})

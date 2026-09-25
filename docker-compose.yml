@@ -4,12 +4,22 @@ services:
     image: mealplanner
     container_name: mealplanner
     restart: unless-stopped  # start vanzelf weer na een herstart van de computer
+    environment:
+      # Staat de app achter Nginx Proxy Manager (HTTPS)? Zet dan in .env: MEALPLANNER_PROXY=1
+      MEALPLANNER_PROXY: "${MEALPLANNER_PROXY:-0}"
     ports:
-      # Standaard alleen bereikbaar op deze computer. Op een server thuis zet je in een
-      # bestand .env de regel MEALPLANNER_ADRES=0.0.0.0, dan kan je hele thuisnetwerk erbij.
-      # Is poort 8000 al bezet, zet dan in .env bijv. MEALPLANNER_POORT=8080.
-      # De app heeft geen wachtwoord: zet deze poort dus nooit open naar internet.
+      # Standaard alleen bereikbaar op deze computer. Op een server thuis zet je in .env
+      # MEALPLANNER_ADRES=0.0.0.0 (hele thuisnetwerk) en eventueel MEALPLANNER_POORT=8090.
+      # Naar internet gaat het via Nginx Proxy Manager met HTTPS; zet deze poort zelf nooit open in je router.
       - "${MEALPLANNER_ADRES:-127.0.0.1}:${MEALPLANNER_POORT:-8000}:8000"
     volumes:
       # Je database, foto's, iconen en API-sleutels blijven op je eigen schijf in ./data.
       - ./data:/data
+    # Extra afscherming: de container kan alleen in /data schrijven en krijgt geen extra rechten.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true

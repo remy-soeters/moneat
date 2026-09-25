@@ -1,0 +1,99 @@
+/* Instellingen: account, huishouden, AI, foto's, Bring! en sleutels. */
+
+.settings-page { max-width: 820px; margin: 0 auto; }
+.settings-title { margin: 4px 0 6px; font-size: 22px; }
+.status-list { list-style: none; margin: 0 0 24px; padding: 0; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
+.status-list li { display: flex; align-items: flex-start; gap: 12px; padding: 12px 16px; }
+.status-list li + li { border-top: 1px solid var(--line); }
+.status-list .dot { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; margin-top: 1px; font-weight: 800; }
+.status-list .dot svg { width: 13px; height: 13px; stroke-width: 3; }
+.status-list .ok .dot { background: var(--green-strong); color: #1f4d33; }
+.status-list .missing .dot { background: #f6d38c; color: #5a3d06; }
+.status-list strong { display: block; }
+.status-list small { display: block; color: var(--ink-2); font-size: 14px; }
+.status-list code, .help code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13px; background: var(--paper-2);
+  padding: 2px 6px; border-radius: 5px; user-select: all;
+}
+.key-input { display: flex; align-items: center; gap: 8px; }
+.key-input input { flex: 1; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 14px; }
+.help { margin: -8px 0 18px; font-size: 14px; color: var(--ink-2); }
+.help a { color: var(--accent); font-weight: 600; }
+.key-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.test-result { margin: 18px 0 0; padding: 12px 16px; border-radius: 10px; font-weight: 500; }
+.test-result.ok { background: var(--green-soft); color: var(--green-ink); }
+.test-result.error { background: var(--pink-soft); color: #9c2f45; }
+
+.provider-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px; }
+.provider-choice button {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 14px 16px; cursor: pointer; text-align: left;
+  border: 1.5px solid var(--line); border-radius: 14px; background: var(--paper); font: inherit; color: var(--ink); min-height: 64px;
+}
+.provider-choice button[aria-checked="true"] { border-color: var(--pink-strong); background: var(--pink-soft); box-shadow: 0 0 0 3px var(--pink-soft); }
+.provider-choice strong { font-family: var(--serif); font-size: 18px; font-weight: 600; }
+.provider-choice small { color: var(--ink-2); font-size: 13px; }
+.model-choice { margin-top: 4px; }
+.model-choice strong { font-size: 16px; }
+.settings-subtitle { font-size: 14px; font-weight: 600; color: var(--ink-2); margin: 22px 0 10px; }
+.key-section, .settings-block { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--line); }
+.settings-nav { display: flex; flex-wrap: wrap; gap: 8px; margin: -8px 0 8px; }
+.settings-nav a {
+  display: inline-flex; align-items: center; min-height: 38px; padding: 7px 15px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--paper); color: var(--ink-2); font-size: 14px; font-weight: 700; text-decoration: none;
+}
+.settings-nav a:hover { border-color: var(--pink-strong); color: var(--ink); background: var(--pink-soft); }
+.settings-group {
+  margin-top: 20px; padding: 26px 26px 10px; border: 1px solid var(--line); border-radius: 22px;
+  background: var(--paper); scroll-margin-top: 110px; box-shadow: 0 1px 2px rgba(150, 70, 100, 0.04);
+}
+.settings-group .provider-choice button, .settings-group .status-list { background: var(--bg); }
+.settings-group .provider-choice button[aria-checked="true"] { background: var(--pink-soft); }
+.group-title { margin: 0 0 6px; font-size: 26px; }
+.settings-group > .settings-subtitle:first-of-type { margin-top: 12px; }
+.settings-group .key-section:first-of-type { margin-top: 12px; }
+.settings-group .help { margin: 8px 0 0; }
+.settings-group > :last-child { margin-bottom: 16px; }
+.settings-title .optional { font-family: var(--sans); font-size: 13px; font-weight: 500; color: var(--ink-3); margin-left: 6px; }
+.model-choice.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 600px) {
+  .settings-group { padding: 20px 16px 6px; }
+  .model-choice.three { grid-template-columns: minmax(0, 1fr); }
+}
+.models { margin: 0 0 18px; }
+.models summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--ink-2); margin-bottom: 12px; }
+.models input { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 14px; }
+
+/* jouw account */
+.account-head { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
+.account-head .group-title { margin: 0; }
+.muted-line { margin: 2px 0 0; color: var(--ink-2); font-size: 14px; }
+.inline-form { display: flex; align-items: flex-end; gap: 10px; }
+.inline-form .field { flex: 1; }
+.inline-form .btn { margin-bottom: 18px; }
+.account-actions { margin: 22px 0 18px; padding-top: 18px; border-top: 1px solid var(--line); }
+#set-account .help { margin: 0 0 18px; }
+
+/* huishouden */
+.user-list { list-style: none; margin: 0 0 18px; padding: 0; border: 1px solid var(--line); border-radius: 16px; background: var(--bg); }
+.user-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; flex-wrap: wrap; }
+.user-row + .user-row { border-top: 1px solid var(--line); }
+.user-main { flex: 1; min-width: 180px; }
+.user-main strong, .user-main small { display: block; }
+.user-main strong small { display: inline; font-weight: 500; color: var(--ink-3); }
+.user-main > small { color: var(--ink-2); font-size: 13.5px; }
+.user-actions { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.new-password {
+  margin: 0 0 18px; padding: 14px 16px; border-radius: 14px; background: var(--butter); color: #4a3b2a;
+}
+.new-password code { font-size: 16px; background: #fff; user-select: all; }
+.new-password small { display: block; margin-top: 6px; }
+
+@media (max-width: 767px) {
+  .settings-nav { flex-wrap: nowrap; overflow-x: auto; margin: -4px -16px 4px; padding: 2px 16px 6px; scrollbar-width: none; }
+  .settings-nav::-webkit-scrollbar { display: none; }
+  .settings-nav a { flex: none; }
+  .provider-choice { grid-template-columns: 1fr; }
+  .inline-form { flex-direction: column; align-items: stretch; }
+  .inline-form .btn { margin: -6px 0 18px; }
+  .user-actions { width: 100%; padding-left: 50px; }
+}

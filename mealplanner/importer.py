@@ -14,6 +14,8 @@ import urllib.request
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlparse
 
+from . import netguard
+
 MAX_PAGE_BYTES = 5_000_000
 TIMEOUT = 15
 USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
@@ -50,14 +52,16 @@ def fetch(url, max_bytes=MAX_PAGE_BYTES):
         raise ImportFailed("Alleen http- en https-links worden ondersteund")
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept-Language": "nl,en;q=0.8"})
     try:
-        with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+        with netguard.urlopen(request, timeout=TIMEOUT) as response:
             data = response.read(max_bytes + 1)
             if len(data) > max_bytes:
                 raise ImportFailed("De pagina is te groot om te importeren")
             return data, response.headers.get("Content-Type", ""), response.geturl()
     except urllib.error.HTTPError as e:
         raise ImportFailed(f"De website gaf een foutmelding ({e.code})")
-    except (urllib.error.URLError, TimeoutError, OSError):
+    except netguard.BlockedAddress:
+        raise ImportFailed("Alleen openbare websites kunnen worden geïmporteerd, geen adressen op je eigen netwerk")
+    except (urllib.error.URLError, TimeoutError, OSError, ValueError):
         raise ImportFailed("De website is niet bereikbaar. Controleer de link.")
 
 

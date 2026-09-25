@@ -5,8 +5,8 @@ import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
 
+from tests.helpers import ApiClient, api_test
 from mealplanner.db import Database, week_dates
-from mealplanner.server import make_handler
 
 PASTA = {
     "name": "Pasta pesto",
@@ -201,23 +201,15 @@ class DatabaseTest(unittest.TestCase):
 class ApiTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(Database(":memory:")))
-        cls.base = f"http://127.0.0.1:{cls.server.server_address[1]}"
-        threading.Thread(target=cls.server.serve_forever, daemon=True).start()
+        cls.api = ApiClient(db=Database(":memory:"))
+        cls.base = cls.api.base
 
     @classmethod
     def tearDownClass(cls):
-        cls.server.shutdown()
-        cls.server.server_close()
+        cls.api.close()
 
-    def call(self, method, path, body=None):
-        data = json.dumps(body).encode() if body is not None else None
-        req = urllib.request.Request(self.base + path, data=data, method=method, headers={"Content-Type": "application/json"})
-        try:
-            with urllib.request.urlopen(req) as res:
-                return res.status, json.loads(res.read())
-        except urllib.error.HTTPError as e:
-            return e.code, json.loads(e.read())
+    def call(self, method, path, body=None, **kwargs):
+        return self.api.call(method, path, body, **kwargs)
 
     def pasta_on_list(self):
         items = {i["key"]: i["quantity"] for i in self.call("GET", "/api/shopping")[1]["items"]}
@@ -294,7 +286,7 @@ class ApiTest(unittest.TestCase):
     def test_serves_frontend(self):
         with urllib.request.urlopen(self.base + "/") as res:
             self.assertIn(b"Mealplanner", res.read())
-        with urllib.request.urlopen(self.base + "/../mealplanner/db.py") as res:
+        with urllib.request.urlopen(self.base + "/../mealplanner/db/base.py") as res:
             self.assertNotIn(b"sqlite3", res.read())
 
 

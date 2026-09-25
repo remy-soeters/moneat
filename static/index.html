@@ -3,32 +3,96 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#FBF7F2" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#1B1714" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#fff8fa">
+  <meta name="color-scheme" content="light">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Mealplanner">
+  <meta name="description" content="Weekmenu, receptenboek en boodschappenlijst voor je huishouden.">
   <title>Mealplanner</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400&family=Work+Sans:wght@400;500;600&family=Caveat:wght@500;600&display=swap">
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400&family=Nunito:wght@400;500;600;700&family=Caveat:wght@500;600&display=swap">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/layout.css">
+  <link rel="stylesheet" href="/css/menu.css">
+  <link rel="stylesheet" href="/css/recipes.css">
+  <link rel="stylesheet" href="/css/book.css">
+  <link rel="stylesheet" href="/css/inspiration.css">
+  <link rel="stylesheet" href="/css/shopping.css">
+  <link rel="stylesheet" href="/css/settings.css">
+  <link rel="stylesheet" href="/css/auth.css">
 </head>
 <body>
-  <header class="site-header">
-    <div class="site-header-inner">
-      <a class="logo" href="/" aria-label="Mealplanner, naar het weekmenu">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v7a2 2 0 0 0 4 0V3M9 10v11M17 21V3c-2 1.5-3 4-3 7v3h3"/></svg>
-        <span>Mealplanner</span>
-      </a>
-      <nav class="nav-tabs" role="tablist" aria-label="Onderdelen">
-        <button role="tab" data-tab="inspiration" aria-selected="false">Inspiratie</button>
-        <button role="tab" data-tab="plan" aria-selected="true">Weekmenu</button>
-        <button role="tab" data-tab="recipes" aria-selected="false">Receptenboek</button>
-        <button role="tab" data-tab="shopping" aria-selected="false">Boodschappen</button>
-        <button role="tab" data-tab="settings" aria-selected="false">Instellingen</button>
-      </nav>
-    </div>
-  </header>
+  <!-- Inloggen en eerste account -->
+  <div id="auth" class="auth" hidden>
+    <div class="auth-card">
+      <div class="auth-logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M7 3v7a2 2 0 0 0 4 0V3M9 10v11M17 21V3c-2 1.5-3 4-3 7v3h3"/></svg>
+      </div>
+      <p class="kicker">Mealplanner</p>
+      <h1 id="auth-title">Fijn dat je er bent</h1>
+      <p class="intro" id="auth-intro"></p>
 
-  <main>
+      <form id="login-form" autocomplete="on">
+        <label class="field"><span>Gebruikersnaam</span>
+          <input name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
+        <label class="field"><span>Wachtwoord</span>
+          <span class="key-input"><input name="password" type="password" autocomplete="current-password" required>
+          <button type="button" class="btn link" data-toggle-password>Toon</button></span></label>
+        <p class="auth-error" role="alert" hidden></p>
+        <button type="submit" class="btn primary block">Inloggen</button>
+        <p class="auth-help">Wachtwoord vergeten? Vraag de beheerder van je huishouden om een nieuw wachtwoord.</p>
+      </form>
+
+      <form id="setup-form" autocomplete="on" hidden>
+        <label class="field"><span>Code uit het serverlog</span>
+          <input name="code" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" placeholder="ABCD-1234" required>
+          <small class="field-help">Te vinden met <code>docker compose logs mealplanner</code>. Zo kan alleen iemand met toegang tot de server het eerste account maken.</small></label>
+        <label class="field"><span>Je naam</span><input name="display_name" autocomplete="name" placeholder="Bijv. Remy" required></label>
+        <label class="field"><span>Gebruikersnaam</span>
+          <input name="username" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="kleine letters, bijv. remy" required></label>
+        <label class="field"><span>Wachtwoord <small>minstens 10 tekens; een zin werkt goed</small></span>
+          <span class="key-input"><input name="password" type="password" autocomplete="new-password" minlength="10" required>
+          <button type="button" class="btn link" data-toggle-password>Toon</button></span></label>
+        <label class="field"><span>Nog een keer</span>
+          <input name="password2" type="password" autocomplete="new-password" minlength="10" required></label>
+        <p class="auth-error" role="alert" hidden></p>
+        <button type="submit" class="btn primary block">Account aanmaken</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="app" hidden>
+    <header class="site-header">
+      <div class="site-header-inner">
+        <a class="logo" href="/" aria-label="Mealplanner, naar het weekmenu">
+          <span class="logo-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v7a2 2 0 0 0 4 0V3M9 10v11M17 21V3c-2 1.5-3 4-3 7v3h3"/></svg></span>
+          <span>Mealplanner</span>
+        </a>
+        <nav class="nav-tabs" aria-label="Onderdelen">
+        <button type="button" data-tab="inspiration"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/></svg><span class="label-long">Inspiratie</span><span class="label-short">Inspiratie</span></button>
+        <button type="button" data-tab="plan"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg><span class="label-long">Weekmenu</span><span class="label-short">Weekmenu</span></button>
+        <button type="button" data-tab="recipes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h10.5A3.5 3.5 0 0 1 19 8v11.5H8.5A3.5 3.5 0 0 1 5 16z"/><path d="M5 16a3.5 3.5 0 0 1 3.5-3.5H19"/></svg><span class="label-long">Receptenboek</span><span class="label-short">Recepten</span></button>
+        <button type="button" data-tab="shopping"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2.5l2.2 10.5h10.6L20.5 7H7"/><circle cx="9.5" cy="19" r="1.4"/><circle cx="17" cy="19" r="1.4"/></svg><span class="label-long">Boodschappen</span><span class="label-short">Boodschappen</span></button>
+        <button type="button" data-tab="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="9" cy="17" r="2.2"/></svg><span class="label-long">Instellingen</span><span class="label-short">Instellingen</span></button>
+        </nav>
+        <div class="user">
+          <button type="button" class="avatar" id="user-button" aria-haspopup="true" aria-expanded="false"></button>
+          <div class="user-menu" id="user-menu" hidden>
+            <p class="user-menu-head"><strong id="user-menu-name"></strong><small id="user-menu-role"></small></p>
+            <button type="button" data-tab="settings">Instellingen</button>
+            <button type="button" id="logout">Uitloggen</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main>
     <!-- Weekmenu -->
     <section id="page-plan" class="page">
       <div class="page-head">
@@ -194,14 +258,61 @@
           <h1 class="page-title">Instellingen</h1>
         </div>
       </div>
-      <nav class="settings-nav" aria-label="Onderdelen">
+      <nav class="settings-nav admin-only" aria-label="Onderdelen van de instellingen">
+        <a href="#set-account">Jouw account</a>
+        <a href="#set-household">Huishouden</a>
         <a href="#set-ai">Recepten en menu</a>
         <a href="#set-photos">Foto's en iconen</a>
         <a href="#set-shopping">Boodschappen</a>
         <a href="#set-keys">Sleutels</a>
       </nav>
 
-      <section class="settings-group" id="set-ai">
+      <section class="settings-group" id="set-account">
+        <div class="account-head">
+          <span class="avatar large" id="account-avatar" aria-hidden="true"></span>
+          <div><h2 class="group-title" id="account-title"></h2><p class="muted-line" id="account-sub"></p></div>
+        </div>
+        <form id="profile-form" class="inline-form">
+          <label class="field"><span>Naam in de app</span><input name="display_name" autocomplete="name" maxlength="60" required></label>
+          <button type="submit" class="btn outline">Opslaan</button>
+        </form>
+        <h4 class="settings-subtitle">Wachtwoord wijzigen</h4>
+        <form id="password-form" autocomplete="on">
+          <input type="text" name="username" autocomplete="username" hidden>
+          <label class="field"><span>Huidig wachtwoord</span><input name="current" type="password" autocomplete="current-password" required></label>
+          <div class="field-row">
+            <label class="field"><span>Nieuw wachtwoord</span><input name="new" type="password" autocomplete="new-password" minlength="10" required></label>
+            <label class="field"><span>Nog een keer</span><input name="repeat" type="password" autocomplete="new-password" minlength="10" required></label>
+          </div>
+          <button type="submit" class="btn primary">Wachtwoord wijzigen</button>
+        </form>
+        <div class="key-actions account-actions">
+          <button type="button" class="btn outline" id="logout-others">Uitloggen op andere apparaten</button>
+          <button type="button" class="btn link danger" id="logout-here">Uitloggen</button>
+        </div>
+        <p class="help member-only">De overige instellingen, zoals de AI-sleutels, beheert de beheerder van je huishouden.</p>
+      </section>
+
+      <section class="settings-group admin-only" id="set-household">
+        <h2 class="group-title">Huishouden</h2>
+        <p class="intro">Iedereen hier heeft een eigen login, maar jullie delen het weekmenu, de recepten en de boodschappenlijst.</p>
+        <ul class="user-list" id="user-list"></ul>
+        <p class="new-password" id="user-password-result" hidden></p>
+        <h4 class="settings-subtitle">Iemand toevoegen</h4>
+        <form id="add-user-form" autocomplete="off">
+          <div class="field-row">
+            <label class="field"><span>Naam</span><input name="display_name" placeholder="Bijv. Sam" maxlength="60" required></label>
+            <label class="field"><span>Gebruikersnaam</span><input name="username" autocapitalize="none" spellcheck="false" placeholder="bijv. sam" required></label>
+          </div>
+          <label class="field"><span>Wachtwoord <small>laat leeg om er een te laten bedenken</small></span>
+            <span class="key-input"><input name="password" type="password" autocomplete="new-password" minlength="10">
+            <button type="button" class="btn link" id="suggest-password">Bedenk er een</button></span></label>
+          <label class="check"><input type="checkbox" name="is_admin"> Ook beheerder (mag sleutels en accounts beheren)</label>
+          <button type="submit" class="btn primary">Account aanmaken</button>
+        </form>
+      </section>
+
+      <section class="settings-group admin-only" id="set-ai">
         <h2 class="group-title">Recepten en menu</h2>
         <p class="intro">Welke AI vult je weekmenu aan, bedenkt recepten en zoekt inspiratie?</p>
         <div class="provider-choice" id="provider-choice" role="radiogroup">
@@ -224,7 +335,7 @@
         </div>
       </section>
 
-      <section class="settings-group" id="set-photos">
+      <section class="settings-group admin-only" id="set-photos">
         <h2 class="group-title">Foto's en iconen</h2>
         <p class="intro">Foto's bij recepten en swipekaarten, en iconen voor je boodschappen, worden gemaakt door Gemini. Dat is <strong>niet gratis</strong>: je betaalt per foto.</p>
         <h4 class="settings-subtitle">Automatisch laten maken</h4>
@@ -240,7 +351,7 @@
         <p class="help">De app houdt zoveel gerechten mét foto klaar, zodat je niet hoeft te wachten. Pas je je voorkeuren aan, dan worden ze opnieuw gemaakt.</p>
       </section>
 
-      <section class="settings-group" id="set-shopping">
+      <section class="settings-group admin-only" id="set-shopping">
         <h2 class="group-title">Boodschappen</h2>
         <h4 class="settings-subtitle">Bring!</h4>
         <p class="intro">Stuur je boodschappenlijst met één knop naar de Bring!-app, bijvoorbeeld om samen boodschappen te doen. Bring! heeft geen officiële koppeling; deze werkt zoals de Bring!-app zelf. Je wachtwoord wordt alleen gebruikt om in te loggen en niet bewaard.</p>
@@ -257,7 +368,7 @@
         </div>
       </section>
 
-      <section class="settings-group" id="set-keys">
+      <section class="settings-group admin-only" id="set-keys">
         <h2 class="group-title">Sleutels</h2>
         <p class="intro">De app praat met Gemini en Claude via je eigen API-sleutels. Ze worden alleen in de app op deze computer bewaard.</p>
 
@@ -330,14 +441,15 @@
         </section>
       </section>
     </section>
-  </main>
+    </main>
+  </div>
 
   <!-- Recept bekijken -->
   <dialog id="view-sheet" class="modal wide book">
     <button class="close" data-close aria-label="Sluiten"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     <div class="modal-scroll" id="view-body"></div>
     <div class="modal-foot">
-      <button class="btn outline" id="view-edit">Recept wijzigen</button>
+      <button class="btn outline" id="view-edit" aria-label="Recept wijzigen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/></svg><span>Recept wijzigen</span></button>
       <span class="spacer"></span>
       <div id="view-foot" class="foot-actions"></div>
     </div>
@@ -599,6 +711,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status" hidden></div>
-  <script src="/app.js" type="module"></script>
+  <script src="/js/main.js" type="module"></script>
 </body>
 </html>

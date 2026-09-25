@@ -1,0 +1,179 @@
+"""Tabellen en omzettingen van oudere databases."""
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS recipes (
+    id            INTEGER PRIMARY KEY,
+    name          TEXT NOT NULL,
+    servings      INTEGER NOT NULL DEFAULT 2 CHECK (servings > 0),
+    prep_minutes  INTEGER,
+    instructions  TEXT NOT NULL DEFAULT '',
+    tags          TEXT NOT NULL DEFAULT '',
+    image         TEXT NOT NULL DEFAULT '',
+    source_url    TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS ingredients (
+    id         INTEGER PRIMARY KEY,
+    recipe_id  INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+    position   INTEGER NOT NULL DEFAULT 0,
+    name       TEXT NOT NULL,
+    quantity   REAL,
+    unit       TEXT NOT NULL DEFAULT ''
+);
+
+-- Opties op het weekmenu: per avond een paar gerechten waaruit je kiest. Een optie is een eigen
+-- recept (recipe_id) of een voorstel van Claude dat nog niet in het receptenboek staat (suggestion).
+CREATE TABLE IF NOT EXISTS menu_options (
+    id          INTEGER PRIMARY KEY,
+    date        TEXT NOT NULL,
+    recipe_id   INTEGER REFERENCES recipes(id) ON DELETE CASCADE,
+    suggestion  TEXT,
+    source      TEXT NOT NULL DEFAULT 'eigen' CHECK (source IN ('eigen', 'claude')),
+    reason      TEXT NOT NULL DEFAULT '',
+    position    INTEGER NOT NULL DEFAULT 0,
+    CHECK ((recipe_id IS NULL) <> (suggestion IS NULL)),
+    UNIQUE (date, recipe_id)
+);
+
+-- De gekozen maaltijd per avond.
+CREATE TABLE IF NOT EXISTS dinner_choices (
+    date       TEXT PRIMARY KEY,
+    recipe_id  INTEGER NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
+    servings   INTEGER NOT NULL CHECK (servings > 0)
+);
+
+-- Bewaarde inspiratie van Claude, zodat een thema niet elke keer opnieuw gegenereerd hoeft te worden.
+CREATE TABLE IF NOT EXISTS inspiration (
+    key         TEXT PRIMARY KEY,
+    created_at  TEXT NOT NULL,
+    payload     TEXT NOT NULL
+);
+
+-- Kaarten om te swipen: voorstellen die je bewaart (naar rechts) of overslaat (naar links).
+CREATE TABLE IF NOT EXISTS swipe_cards (
+    id           INTEGER PRIMARY KEY,
+    recipe       TEXT NOT NULL,
+    description  TEXT NOT NULL DEFAULT '',
+    image        TEXT NOT NULL DEFAULT '',
+    status       TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'liked', 'skipped')),
+    recipe_id    INTEGER REFERENCES recipes(id) ON DELETE SET NULL,
+    swiped_at    TEXT
+);
+
+-- Instellingen van de app, zoals de Anthropic API-sleutel.
+CREATE TABLE IF NOT EXISTS settings (
+    key    TEXT PRIMARY KEY,
+    value  TEXT NOT NULL
+);
+
+-- Eén doorlopende boodschappenlijst. Regels komen van een gekozen avondeten (source_date + recipe)
+-- of zijn zelf toegevoegd (geen bron). Gelijke producten worden in de weergave samengevoegd.
+CREATE TABLE IF NOT EXISTS shopping_items (
+    id                INTEGER PRIMARY KEY,
+    name              TEXT NOT NULL,
+    quantity          REAL,
+    unit              TEXT NOT NULL DEFAULT '',
+    checked           INTEGER NOT NULL DEFAULT 0,
+    source_date       TEXT,
+    source_recipe_id  INTEGER,
+    created_at        TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Iconen per product (door Gemini getekend), één keer gemaakt en daarna hergebruikt.
+CREATE TABLE IF NOT EXISTS product_icons (
+    key    TEXT PRIMARY KEY,
+    image  TEXT NOT NULL
+);
+
+-- Hoe vaak iets gekocht is, voor de suggesties "vaak gekocht".
+CREATE TABLE IF NOT EXISTS purchase_counts (
+    key      TEXT PRIMARY KEY,
+    name     TEXT NOT NULL,
+    count    INTEGER NOT NULL DEFAULT 0,
+    last_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+"""
+
+USERS_SCHEMA = """
+-- Accounts van het huishouden. Iedereen deelt dezelfde recepten, menu en lijst.
+CREATE TABLE IF NOT EXISTS users (
+    id                   INTEGER PRIMARY KEY,
+    username             TEXT NOT NULL UNIQUE,
+    display_name         TEXT NOT NULL DEFAULT '',
+    password_hash        TEXT NOT NULL,
+    is_admin             INTEGER NOT NULL DEFAULT 0,
+    created_at           TEXT NOT NULL DEFAULT (datetime('now')),
+    password_changed_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Ingelogde apparaten. We bewaren alleen een hash van de sessiesleutel, nooit de sleutel zelf.
+CREATE TABLE IF NOT EXISTS sessions (
+    token_hash    TEXT PRIMARY KEY,
+    user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+    last_seen_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    expires_at    TEXT NOT NULL,
+    user_agent    TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS sessions_user ON sessions(user_id);
+"""
+
+
+def _add_missing_recipe_columns(conn):
+    """Oudere databases hebben nog geen kolommen voor foto en bron."""
+    columns = [r[1] for r in conn.execute("PRAGMA table_info(recipes)")]
+    if not columns:
+        return
+    for column in ("image", "source_url"):
+        if column not in columns:
+            conn.execute(f"ALTER TABLE recipes ADD COLUMN {column} TEXT NOT NULL DEFAULT ''")
+
+
+def _migrate_week_shopping(conn):
+    """Eerdere versie had een lijst per week. Zet zelf toegevoegde producten over; geeft True als er omgezet is."""
+    columns = [r[1] for r in conn.execute("PRAGMA table_info(shopping_items)")]
+    if "week_start" not in columns:
+        return False
+    conn.execute("ALTER TABLE shopping_items RENAME TO shopping_items_week")
+    conn.executescript(SCHEMA)
+    conn.execute(
+        """INSERT INTO shopping_items (name, quantity, unit, checked, created_at)
+           SELECT name, quantity, unit, checked, created_at FROM shopping_items_week"""
+    )
+    conn.execute("DROP TABLE shopping_items_week")
+    return True
+
+
+def _rename_old_menu_options(conn):
+    """De eerste versie van menu_options had geen id-kolom; zet die tabel opzij om over te nemen."""
+    columns = [r[1] for r in conn.execute("PRAGMA table_info(menu_options)")]
+    if columns and "id" not in columns:
+        conn.execute("ALTER TABLE menu_options RENAME TO menu_options_v1")
+
+
+def _migrate_old_menu_options(conn):
+    exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'menu_options_v1'").fetchone()
+    if not exists:
+        return
+    conn.execute(
+        """INSERT OR IGNORE INTO menu_options (date, recipe_id, reason, position)
+           SELECT date, recipe_id, reason, position FROM menu_options_v1"""
+    )
+    conn.execute("DROP TABLE menu_options_v1")
+
+
+def _migrate_plan_entries(conn):
+    """Oudere databases hadden `plan_entries` met ontbijt/lunch/diner; neem het avondeten over."""
+    exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'plan_entries'").fetchone()
+    if not exists:
+        return
+    conn.execute(
+        """INSERT OR IGNORE INTO dinner_choices (date, recipe_id, servings)
+           SELECT date, recipe_id, servings FROM plan_entries WHERE slot = 'diner'"""
+    )
+    conn.execute(
+        """INSERT OR IGNORE INTO menu_options (date, recipe_id)
+           SELECT date, recipe_id FROM plan_entries WHERE slot = 'diner'"""
+    )
+    conn.execute("DROP TABLE plan_entries")
