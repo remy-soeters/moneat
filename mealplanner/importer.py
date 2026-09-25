@@ -31,6 +31,10 @@ UNITS = {
     "bos": "bos", "bosje": "bos", "takje": "takje", "takjes": "takje", "plak": "plak", "plakken": "plak",
     "snuf": "snuf", "snufje": "snuf", "mespunt": "mespunt", "scheut": "scheut", "handje": "handje", "handvol": "handvol",
     "cup": "cup", "cups": "cup", "kopje": "kopje", "kop": "kopje",
+    # vooral voor de boodschappenlijst
+    "pakken": "pak", "pakjes": "pak", "zakken": "zak", "zakjes": "zak", "bossen": "bos", "bosjes": "bos",
+    "plakjes": "plak", "fles": "fles", "flesje": "fles", "flessen": "fles", "pot": "pot", "potje": "pot",
+    "potten": "pot", "net": "net", "netje": "net", "bakje": "bak", "bakjes": "bak",
 }
 FRACTIONS = {"½": 0.5, "¼": 0.25, "¾": 0.75, "⅓": 1 / 3, "⅔": 2 / 3, "⅛": 0.125}
 QUANTITY = re.compile(

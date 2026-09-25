@@ -80,6 +80,8 @@ body {
 }
 
 svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; }
+/* het logo heeft zijn eigen kleuren: geen lijnen van de gewone iconen */
+.brand-mark { flex: none; stroke: none; }
 h1, h2, h3 { font-family: var(--serif); font-weight: 600; letter-spacing: -0.01em; }
 a { color: var(--main-ink); }
 :focus-visible { outline: 3px solid var(--main-strong); outline-offset: 2px; }
@@ -145,13 +147,15 @@ code {
 .field > span, .field > legend { font-size: 13px; font-weight: 700; letter-spacing: 0.04em; color: var(--ink-2); padding: 0; }
 .field small { letter-spacing: 0; font-weight: 500; color: var(--ink-3); margin-left: 4px; }
 .field-help { margin: 2px 0 0 !important; font-size: 13px; color: var(--ink-2) !important; }
-.field input, .field textarea, .ingredient-edit input, .key-input input {
+.field input, .field textarea, .field select, .ingredient-edit input, .key-input input {
   width: 100%; font: inherit; font-size: 16px; /* 16px: geen automatisch inzoomen op iPhone */
   color: var(--ink); background: var(--paper);
   border: 1.5px solid var(--line); border-radius: var(--radius-sm); padding: 11px 14px; outline: none; min-width: 0;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-.field input:focus, .field textarea:focus, .ingredient-edit input:focus, .key-input input:focus {
+.field select { appearance: none; -webkit-appearance: none; padding-right: 36px; cursor: pointer;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23356c38' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center / 16px; }
+.field input:focus, .field textarea:focus, .field select:focus, .ingredient-edit input:focus, .key-input input:focus {
   border-color: var(--main-strong); box-shadow: 0 0 0 4px var(--main-soft);
 }
 .field textarea { resize: vertical; line-height: 1.5; }

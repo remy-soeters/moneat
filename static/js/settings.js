@@ -9,8 +9,9 @@ import { $, $$, esc } from "./util.js";
 export async function loadSettingsPage() {
   renderAccount();
   const admin = Boolean(state.user?.is_admin);
-  $$(".admin-only").forEach((el) => (el.hidden = !admin));
+  $$(".admin-only:not(.settings-group)").forEach((el) => (el.hidden = !admin));
   $$(".member-only").forEach((el) => (el.hidden = admin));
+  showSettingsGroup(state.settingsGroup);
   if (!admin) return;
   $$(".key-section").forEach((section) => {
     $("[data-result]", section).hidden = true;
@@ -22,6 +23,25 @@ export async function loadSettingsPage() {
   renderSettings(settings);
 }
 
+// ---------- indeling: een overzicht van onderwerpen, en het gekozen onderwerp ----------
+// Op een breed scherm staan ze naast elkaar; op telefoon en iPad staand open je een onderwerp vanuit het overzicht.
+
+export const wideSettings = window.matchMedia("(min-width: 1024px)");
+
+export function showSettingsGroup(name) {
+  if (name && name !== "account" && !state.user?.is_admin) name = "account";
+  state.settingsGroup = name ?? null;
+  const current = name ?? (wideSettings.matches ? "account" : null);
+  $$(".settings-group").forEach((group) => (group.hidden = group.dataset.group !== current));
+  $$(".settings-row").forEach((row) => row.setAttribute("aria-current", String(row.dataset.settings === current)));
+  $("#page-settings").classList.toggle("in-group", Boolean(current) && !wideSettings.matches);
+}
+
+function summary(name, text) {
+  const el = $(`#sum-${name}`);
+  if (el) el.textContent = text;
+}
+
 // ---------- jouw account ----------
 
 export function renderAccount() {
@@ -30,6 +50,7 @@ export function renderAccount() {
   $("#account-avatar").textContent = initials(user.display_name);
   $("#account-title").textContent = user.display_name;
   $("#account-sub").textContent = `Ingelogd als ${user.username}${user.is_admin ? " · beheerder" : ""}`;
+  summary("account", `${user.display_name} · ${user.is_admin ? "beheerder" : user.username}`);
   $("#profile-form").display_name.value = user.display_name;
 }
 
@@ -79,6 +100,7 @@ export async function loadUsers() {
     )
     .join("");
   state.users = users;
+  summary("household", users.map((u) => u.display_name).join(", "));
 }
 
 function showNewPassword(user, password) {
@@ -197,14 +219,27 @@ export function renderSettings(settings) {
   $("#text-model-choice").innerHTML = choiceCards(gemini.text_models, gemini.text_model);
   $("#text-cost-note").innerHTML = textKey.set
     ? "Deze modellen zijn gratis via je gratis sleutel (met een limiet per minuut en per dag)."
-    : 'Gratis met een gratis sleutel; die stel je in bij <a href="#set-keys">Sleutels</a>. Zonder die sleutel betaal je een klein beetje per recept.';
+    : "Gratis met een gratis sleutel (hieronder). Zonder die sleutel betaal je een klein beetje per recept.";
   $("#claude-model-choice").innerHTML = choiceCards(claude.models, claude.model);
   $("#image-model-choice").innerHTML = choiceCards(gemini.image_models, gemini.image_model);
+
+  // korte samenvatting per onderwerp in het overzicht
+  const nameOf = (models, id) => models.find((m) => m.id === id)?.name ?? id;
+  const geminiKey = gemini.set || gemini.env;
+  summary("ai", settings.text_provider === "claude"
+    ? (claude.set || claude.env ? `Claude · ${nameOf(claude.models, claude.model)}` : "Claude · nog geen sleutel")
+    : textKey.set ? `Gemini · ${nameOf(gemini.text_models, gemini.text_model)} · gratis`
+      : geminiKey ? `Gemini · ${nameOf(gemini.text_models, gemini.text_model)}` : "Gemini · nog geen sleutel");
+  summary("photos", geminiKey
+    ? `${settings.auto_images ? "Automatisch" : "Alleen als je erom vraagt"} · ${nameOf(gemini.image_models, gemini.image_model)}`
+    : "Nog geen Gemini-sleutel");
+  summary("inspiration", `${settings.swipe_preload} gerechten klaar om te swipen`);
 }
 
 // ---------- Bring! ----------
 
 export function renderBring(status, lists) {
+  summary("shopping", status.connected ? `Bring! gekoppeld${status.list_name ? ` · ${status.list_name}` : ""}` : "Bring! niet gekoppeld");
   $("#bring-form").hidden = status.connected;
   $("#bring-connected").hidden = !status.connected;
   if (!status.connected) return;
@@ -299,6 +334,19 @@ export async function setProvider(provider) {
 }
 
 // Instellingen
+$$(".settings-icon").forEach((el) => (el.innerHTML = ICONS[el.dataset.icon]));
+$("#settings-menu").addEventListener("click", (e) => {
+  const row = e.target.closest("[data-settings]");
+  if (!row) return;
+  showSettingsGroup(row.dataset.settings);
+  if (!wideSettings.matches) window.scrollTo({ top: 0 });
+});
+$("#settings-back").addEventListener("click", () => {
+  showSettingsGroup(null);
+  window.scrollTo({ top: 0 });
+});
+wideSettings.addEventListener("change", () => showSettingsGroup(state.settingsGroup));
+
 $("#provider-choice").addEventListener("click", (e) => {
   const provider = e.target.closest("[data-provider]")?.dataset.provider;
   if (provider) setProvider(provider);

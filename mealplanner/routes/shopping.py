@@ -4,8 +4,10 @@ import json
 from http import HTTPStatus
 
 from .. import bring, setting_keys
+from ..groceries import product_key
 from ..importer import parse_ingredient
 from ..web import ApiError
+from .recipes import servings
 
 # Gangbare boodschappen als startpunt voor de suggesties, zolang er nog weinig geschiedenis is.
 STAPLES = [
@@ -17,25 +19,21 @@ MAX_RECIPE_INGREDIENTS = 100
 
 
 def bring_spec(items):
-    """Hoeveelheid voor Bring!, bijv. '500 g' of '2 stuks + 1 blik'."""
-    parts = []
-    for item in items:
-        quantity = item["quantity"]
-        amount = "" if quantity is None else (f"{quantity:g}".replace(".", ","))
-        parts.append(" ".join(p for p in (amount, item["unit"]) if p))
-    return " + ".join(p for p in parts if p)
+    """Hoeveelheid voor Bring!, bijv. '500 g' of '2 blikken + 1'."""
+    return " + ".join(item["amount"] for item in items if item["amount"])
 
 
 def register(r, app):
     db, icon_maker = app.db, app.icon_maker
 
-    def with_icons(items):
-        """Voeg aan elk product het icoon toe (als dat er al is) en laat ontbrekende iconen tekenen."""
+    def with_icons(items, draw=True):
+        """Voeg aan elk product het icoon toe (als dat er al is) en laat zo nodig ontbrekende iconen tekenen."""
         names = [i["name"] for i in items]
         icons = db.product_icons(names)
         for item in items:
             item["icon"] = icons.get(item["name"], "")
-        icon_maker.request([n for n in names if n not in icons])
+        if draw:
+            icon_maker.request([n for n in names if n not in icons])
         return items
 
     def bring_auth():
@@ -99,8 +97,18 @@ def register(r, app):
         if len(ingredients) > MAX_RECIPE_INGREDIENTS:
             raise ApiError(HTTPStatus.BAD_REQUEST, "Te veel ingrediënten tegelijk")
         recipe_id = body.get("recipe_id")
-        added = db.add_ingredients_to_list(ingredients, int(recipe_id) if recipe_id else None)
-        return {"added": added, **shopping_response()}
+        people = body.get("servings")
+        result = db.add_ingredients_to_list(
+            ingredients, int(recipe_id) if recipe_id else None, servings(body) if people else None
+        )
+        return {**result, **shopping_response()}
+
+    @r.put("/api/shopping/items")
+    def update_item(req):
+        """Wijzig een product: {key, name, quantity, unit}."""
+        body = req.json()
+        db.update_shopping_item(str(body.get("key") or ""), body.get("name"), body.get("quantity"), body.get("unit"))
+        return shopping_response()
 
     @r.delete("/api/shopping/items")
     def remove_item(req):
@@ -113,11 +121,20 @@ def register(r, app):
 
     @r.get("/api/shopping/suggestions")
     def suggestions(req):
-        """Vaak gekochte producten, aangevuld met gangbare boodschappen zolang er weinig geschiedenis is."""
-        frequent = [f["name"] for f in db.frequent_purchases(24)]
-        seen = {n.lower() for n in frequent}
-        names = frequent + [n for n in STAPLES if n.lower() not in seen]
-        return {"suggestions": with_icons([{"name": n} for n in names[:30]]), "has_history": bool(frequent)}
+        """Voor het toevoegen: wat je waarschijnlijk nodig hebt (op volgorde van kans), aangevuld met gangbare
+        boodschappen zolang er weinig geschiedenis is, plus alle bekende producten om in te zoeken."""
+        frequent = db.frequent_purchases(24)
+        seen = {product_key(f["name"]) for f in frequent}
+        staples = [{"name": n, "due": False} for n in STAPLES if product_key(n) not in seen]
+        top = [{"name": f["name"], "due": f["due"]} for f in frequent] + staples
+        for item in top:
+            item["product"] = product_key(item["name"])
+        catalog = [{"name": n, "product": product_key(n)} for n in db.product_catalog()]
+        return {
+            "suggestions": with_icons(top[:30]),
+            "catalog": with_icons(catalog, draw=False),  # geen iconen laten tekenen voor alles wat je ooit kookte
+            "has_history": bool(frequent),
+        }
 
     # ---------- Bring! (koppelen alleen door een beheerder) ----------
 

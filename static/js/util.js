@@ -101,11 +101,21 @@ export function scaledQty(quantity, unit, factor) {
   return whole ? `${whole}${fraction}` : fraction || "¼";
 }
 
+// Eenheid zoals je hem leest: "2 uien" in plaats van "2 stuks", "3 tenen" in plaats van "3 teen".
+const UNIT_PLURALS = { teen: "tenen", blik: "blikken", bos: "bossen", zak: "zakken", pak: "pakken", plak: "plakken", takje: "takjes" };
+
+export function unitLabel(unit, quantity) {
+  const u = String(unit ?? "").trim();
+  if (/^(stuks?|st)$/i.test(u)) return "";
+  return quantity != null && quantity > 1 && UNIT_PLURALS[u] ? UNIT_PLURALS[u] : u;
+}
+
 export function ingredientItems(ingredients, factor) {
   return ingredients
     .map((i) => {
-      const qty = factor === 1 ? formatQty(i.quantity) : scaledQty(i.quantity, i.unit, factor);
-      return `<li><span class="qty">${esc(`${qty} ${i.unit}`.trim())}</span><span class="name">${esc(i.name)}</span></li>`;
+      const qty = scaledQty(i.quantity, i.unit, factor);
+      const unit = unitLabel(i.unit, i.quantity == null ? null : i.quantity * factor);
+      return `<li><span class="qty">${esc(`${qty} ${unit}`.trim())}</span><span class="name">${esc(i.name)}</span></li>`;
     })
     .join("");
 }

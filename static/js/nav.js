@@ -22,6 +22,7 @@ const TITLES = {
 };
 
 export function showTab(tab) {
+  if (tab === "settings" && state.tab !== "settings") state.settingsGroup = null; // begin bij het overzicht
   state.tab = tab;
   save("tab", tab);
   $$("[data-tab]").forEach((b) => {
@@ -31,7 +32,7 @@ export function showTab(tab) {
   moveIndicator();
   $$(".page").forEach((p) => (p.hidden = p.id !== `page-${tab}`));
   $("#user-menu").hidden = true;
-  document.title = `${TITLES[tab]} · Mealplanner`;
+  document.title = `${TITLES[tab]} · MonEat`;
   window.scrollTo({ top: 0 });
   refresh();
 }

@@ -13,11 +13,8 @@
   width: min(440px, 100%); padding: 36px 32px 28px; border-radius: 28px; background: rgba(255, 255, 255, 0.92);
   border: 1px solid var(--line); box-shadow: 0 24px 60px rgba(40, 90, 60, 0.16);
 }
-.auth-logo {
-  display: grid; place-items: center; width: 64px; height: 64px; margin-bottom: 18px; border-radius: 20px;
-  background: linear-gradient(135deg, var(--main) 0%, var(--main-soft) 55%, var(--second) 100%);
-}
-.auth-logo svg { width: 32px; height: 32px; color: var(--main-ink); stroke-width: 2; }
+.auth-logo { margin-bottom: 18px; }
+.auth-logo .brand-mark { display: block; width: 68px; height: 68px; filter: drop-shadow(0 8px 16px color-mix(in srgb, oklch(45% 0.1 145) 30%, transparent)); }
 .auth-card h1 { margin: 0 0 8px; font-size: 32px; line-height: 1.1; }
 .auth-card .btn.block { min-height: 50px; font-size: 16px; margin-top: 4px; }
 .auth-error {

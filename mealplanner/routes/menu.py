@@ -1,5 +1,6 @@
 """Weekmenu: opties per avond, kiezen, bijzondere avonden, aanvullen met AI en de startpagina."""
 
+import re
 from datetime import date, timedelta
 
 from .. import ai
@@ -9,16 +10,25 @@ from .recipes import annotate, servings
 MAX_WISHES = 500
 
 
+def dish_key(name):
+    """Naam van een gerecht om dubbelingen te herkennen: kleine letters, zonder leestekens."""
+    return " ".join(re.sub(r"[^\w\s]", " ", str(name or "").lower()).split())
+
+
 def register(r, app):
     db = app.db
 
     def fill(user, week_day, per_day, wishes, people, only=None, avoid=(), replace=()):
         """Laat de AI komende avonden zonder keuze aanvullen tot `per_day` opties (optioneel alleen `only`).
-        Opties in `replace` tellen niet mee en worden pas weggehaald als er nieuwe zijn."""
+        Opties in `replace` tellen niet mee en worden pas weggehaald als er nieuwe zijn.
+
+        Een gerecht staat maar één keer in de week op het menu, en wat deze week al voorbijkwam zonder
+        gekozen te worden (weggeklikt, of een andere avond laten liggen) komt die week niet terug."""
         menu = db.get_week_menu(week_day)
         replace_ids = {o["id"] for o in replace}
         options = [o for o in menu["options"] if o["id"] not in replace_ids]
-        decided = {c["date"] for c in menu["choices"]} | {s["date"] for s in menu["specials"]}
+        chosen = {c["date"]: c["recipe_id"] for c in menu["choices"]}
+        decided = set(chosen) | {s["date"] for s in menu["specials"]}
         today = date.today().isoformat()
         needs = {}
         for day in menu["days"]:
@@ -29,23 +39,42 @@ def register(r, app):
                 needs[day] = per_day - count
         if not needs:
             return 0
+        left_over = [o["name"] for o in options
+                     if o["date"] in decided and not (o["date"] in chosen and o["recipe_id"] == chosen[o["date"]])]
+        passed = list(dict.fromkeys([*avoid, *db.passed_dishes(week_day), *left_over]))
+        recipes = annotate(db, user["id"], db.list_recipes())
         suggestions = ai.suggest_menu_options(
-            annotate(db, user["id"], db.list_recipes()),
+            recipes,
             needs,
-            current_menu=[{"date": o["date"], "gerecht": o["name"]} for o in options],
+            current_menu=[{"date": o["date"], "gerecht": o["name"]} for o in options if o["date"] not in decided]
+            + [{"date": c["date"], "gerecht": c["recipe_name"], "gekozen": True} for c in menu["choices"]],
             wishes=str(wishes or "")[:MAX_WISHES],
             servings=people,
-            avoid=avoid,
+            avoid=passed,
+            recent=db.recent_dinners(menu["days"][0]),
         )
         for option_id in replace_ids:  # nu pas: lukte de AI niet, dan blijven de oude opties staan
             db.remove_menu_option(option_id)
+        db.pass_dishes(week_day, [o["name"] for o in replace])
+
+        # Voor de zekerheid ook zelf controleren: geen dubbelingen in de week en niets wat al afgewezen is.
+        names = {r["id"]: r["name"] for r in recipes}
+        taken_ids = {o["recipe_id"] for o in options if o["recipe_id"] is not None} | set(chosen.values())
+        taken = {dish_key(o["name"]) for o in options} | {dish_key(n) for n in passed}
+        taken |= {dish_key(c["recipe_name"]) for c in menu["choices"]}
         added = 0
         for s in suggestions:
-            if s["existing_recipe_id"] is not None:
-                db.add_menu_option(s["date"], s["existing_recipe_id"], s["reason"], source="claude")
-                added += 1
-            elif db.add_suggested_option(s["date"], s["new_recipe"], s["reason"]) is not None:
-                added += 1
+            recipe_id = s["existing_recipe_id"]
+            key = dish_key(names.get(recipe_id, "") if recipe_id is not None else s["new_recipe"]["name"])
+            if (recipe_id is not None and recipe_id in taken_ids) or key in taken:
+                continue
+            if recipe_id is not None:
+                db.add_menu_option(s["date"], recipe_id, s["reason"], source="claude")
+            elif db.add_suggested_option(s["date"], s["new_recipe"], s["reason"]) is None:
+                continue
+            taken_ids.add(recipe_id)  # None voor een nieuw recept; dat telt hierboven niet mee
+            taken.add(key)
+            added += 1
         return added
 
     def per_day(body):

@@ -46,10 +46,10 @@ def main():
         if e.errno != errno.EADDRINUSE:
             raise
         raise SystemExit(
-            f"Poort {args.port} is al in gebruik; waarschijnlijk draait Mealplanner al.\n"
+            f"Poort {args.port} is al in gebruik; waarschijnlijk draait MonEat al.\n"
             f"Stop die eerst met Ctrl+C in de terminal waar hij draait, of kies een andere poort: --port {args.port + 1}"
         )
-    print(f"Mealplanner draait op http://{args.host}:{args.port}  (Ctrl+C om te stoppen)", flush=True)
+    print(f"MonEat draait op http://{args.host}:{args.port}  (Ctrl+C om te stoppen)", flush=True)
     if app.config.trust_proxy:
         print("Achter een proxy: X-Forwarded-Proto/-For en X-Real-IP worden vertrouwd.", flush=True)
     if app.setup_code:

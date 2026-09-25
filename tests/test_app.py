@@ -50,33 +50,34 @@ class DatabaseTest(unittest.TestCase):
         self.db.add_menu_option("2026-09-23", pasta["id"])  # alleen een optie: telt niet mee
 
         items = {i["key"]: i for i in self.db.shopping_list()}
-        self.assertEqual(items["buy:pasta|g"]["quantity"], 400 + 200 + 200)
-        self.assertEqual(set(items["buy:pasta|g"]["recipes"]), {"Pasta carbonara", "Pasta pesto"})
-        self.assertEqual(items["buy:pesto|el"]["quantity"], 3 + 1.5)
-        self.assertIsNone(items["buy:basilicum|"]["quantity"])
+        self.assertEqual(items["buy:pasta"]["quantity"], 400 + 200 + 200)
+        self.assertEqual(set(items["buy:pasta"]["recipes"]), {"Pasta carbonara", "Pasta pesto"})
+        self.assertEqual(items["buy:pasta"]["amount"], "800 g")
+        self.assertEqual(items["buy:pesto"]["amount"], "")  # eetlepels koop je niet: alleen het product
+        self.assertIsNone(items["buy:basilicum"]["quantity"])
 
     def test_list_follows_dinner_choices(self):
         pasta = self.db.create_recipe(PASTA)
         soup = self.db.create_recipe({"name": "Soep", "ingredients": [{"name": "ui", "quantity": 1, "unit": ""}]})
         self.db.choose_dinner("2026-09-21", pasta["id"])
-        self.db.set_shopping_check("buy:pasta|g", True)  # pasta al gekocht
+        self.db.set_shopping_check("buy:pasta", True)  # pasta al gekocht
 
         self.db.choose_dinner("2026-09-21", pasta["id"], servings=4)  # meer personen
         items = {i["key"]: i for i in self.db.shopping_list()}
-        self.assertEqual(items["buy:pesto|el"]["quantity"], 3)  # opnieuw berekend
-        self.assertEqual(items["bought:pasta|g"]["quantity"], 200)  # gekocht blijft staan...
-        self.assertNotIn("buy:pasta|g", items)  # ...en komt niet nog eens op de lijst
+        self.assertIn("buy:pesto", items)  # opnieuw berekend
+        self.assertEqual(items["bought:pasta"]["quantity"], 200)  # gekocht blijft staan...
+        self.assertNotIn("buy:pasta", items)  # ...en komt niet nog eens op de lijst
 
         self.db.choose_dinner("2026-09-21", soup["id"])  # andere keuze
-        self.assertEqual({i["key"] for i in self.db.shopping_list()}, {"bought:pasta|g", "buy:ui|"})
+        self.assertEqual({i["key"] for i in self.db.shopping_list()}, {"bought:pasta", "buy:ui"})
         self.db.clear_dinner_choice("2026-09-21")
-        self.assertEqual({i["key"] for i in self.db.shopping_list()}, {"bought:pasta|g"})
+        self.assertEqual({i["key"] for i in self.db.shopping_list()}, {"bought:pasta"})
 
     def test_changing_or_deleting_a_recipe_updates_the_list(self):
         soup = self.db.create_recipe({"name": "Soep", "ingredients": [{"name": "ui", "quantity": 1, "unit": ""}]})
         self.db.choose_dinner("2026-09-21", soup["id"])
         self.db.update_recipe(soup["id"], {"name": "Soep", "ingredients": [{"name": "prei", "quantity": 2, "unit": ""}]})
-        self.assertEqual([i["key"] for i in self.db.shopping_list()], ["buy:prei|"])
+        self.assertEqual([i["key"] for i in self.db.shopping_list()], ["buy:prei"])
         self.db.delete_recipe(soup["id"])
         self.assertEqual(self.db.shopping_list(), [])
 
@@ -114,7 +115,7 @@ class DatabaseTest(unittest.TestCase):
         menu = self.db.get_week_menu("2026-09-22")
         self.assertTrue(menu["options"][0]["saved"])
         self.assertEqual(menu["choices"][0]["recipe_name"], "Risotto")
-        self.assertEqual({i["key"]: i["quantity"] for i in self.db.shopping_list()}["buy:pasta|g"], 400)
+        self.assertEqual({i["key"]: i["quantity"] for i in self.db.shopping_list()}["buy:pasta"], 400)
 
     def test_removing_suggestion_leaves_no_recipe(self):
         option_id = self.db.add_suggested_option("2026-09-22", {"name": "Risotto"})
@@ -213,7 +214,7 @@ class ApiTest(unittest.TestCase):
 
     def pasta_on_list(self):
         items = {i["key"]: i["quantity"] for i in self.call("GET", "/api/shopping")[1]["items"]}
-        return items.get("buy:pasta|g") or 0
+        return items.get("buy:pasta") or 0
 
     def test_full_flow(self):
         pasta_before = self.pasta_on_list()  # andere tests kunnen ook pasta op de (ene) lijst zetten
@@ -285,7 +286,7 @@ class ApiTest(unittest.TestCase):
 
     def test_serves_frontend(self):
         with urllib.request.urlopen(self.base + "/") as res:
-            self.assertIn(b"Mealplanner", res.read())
+            self.assertIn(b"MonEat", res.read())
         with urllib.request.urlopen(self.base + "/../mealplanner/db/base.py") as res:
             self.assertNotIn(b"sqlite3", res.read())
 

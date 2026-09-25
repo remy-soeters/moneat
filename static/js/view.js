@@ -41,7 +41,7 @@ export function openView({ option = null, recipe = null, idea = null, card = nul
   renderView();
   openSheet("#view-sheet");
   $("#view-body").scrollTop = 0;
-  if (state.view.recipe) loadReviews(state.view.recipe.id);
+  if (state.view.recipe) loadDetails(state.view.recipe.id);
 }
 
 function renderView() {
@@ -133,11 +133,15 @@ function ratingHtml(recipe) {
     <button type="button" class="btn link" data-view-action="rate">${recipe.my_rating ? "Opnieuw beoordelen" : "Beoordeel"}</button></div>`;
 }
 
-// Notities van eerdere keren ("volgende keer meer knoflook") komen los binnen.
-async function loadReviews(recipeId) {
+// Notities van eerdere keren ("volgende keer meer knoflook") en ingrediënten waarvan je een eigen recept hebt
+// (zoals naan) komen los binnen.
+async function loadDetails(recipeId) {
   try {
-    const { ratings } = await api(`/api/recipes/${recipeId}`);
-    if (state.view?.recipe?.id === recipeId) renderReviews(ratings);
+    const { ratings, homemade } = await api(`/api/recipes/${recipeId}`);
+    if (state.view?.recipe?.id !== recipeId) return;
+    state.view.homemade = homemade;
+    renderReviews(ratings);
+    renderViewServings();
   } catch {} // alleen extra informatie; zonder gaat het ook
 }
 
@@ -195,7 +199,12 @@ export function renderViewServings() {
   const list = $("#view-ingredients");
   if (list) {
     list.innerHTML = ingredientItems(source.ingredients, servings / base);
-    $$("li", list).forEach((li, i) => li.classList.toggle("done", done.ingredients.has(i)));
+    const items = $$("li", list);
+    items.forEach((li, i) => li.classList.toggle("done", done.ingredients.has(i)));
+    for (const part of state.view.homemade ?? []) {
+      items[part.index]?.querySelector(".name").insertAdjacentHTML("beforeend",
+        ` <button type="button" class="own-recipe" data-own="${part.recipe_id}">${ICONS.book}eigen recept</button>`);
+    }
   }
   $('[data-view-action="servings-down"]').disabled = servings <= 1;
   $('[data-view-action="servings-up"]').disabled = servings >= 20;
@@ -244,6 +253,14 @@ function toggleDone(kind, index, element) {
   }
 }
 
+// Het eigen recept van een ingrediënt (zoals naan) openen; niet overal is het receptenboek al geladen.
+async function openOwnRecipe(id) {
+  await guarded(async () => {
+    const recipe = state.recipes.find((r) => r.id === id) ?? (await api(`/api/recipes/${id}`));
+    openView({ recipe });
+  });
+}
+
 // ---------- acties ----------
 
 export async function addViewToShopping() {
@@ -259,12 +276,13 @@ export async function addViewToShopping() {
   await guarded(async () => {
     const res = await api("/api/shopping/recipe", {
       method: "POST",
-      body: { ingredients, recipe_id: recipe?.id ?? (option?.saved ? option.recipe_id : null) },
+      body: { ingredients, servings, recipe_id: recipe?.id ?? (option?.saved ? option.recipe_id : null) },
     });
     applyShopping(res);
     button.innerHTML = `${ICONS.check}<span>Op je lijst</span>`;
     button.dataset.done = "true";
-    toast(`${res.added} ${res.added === 1 ? "ingrediënt" : "ingrediënten"} voor ${personen(servings)} op je boodschappenlijst`);
+    const own = res.homemade?.length ? ` (${res.homemade.join(", ")} maak je zelf: die ingrediënten staan erbij)` : "";
+    toast(`${res.added} ${res.added === 1 ? "ingrediënt" : "ingrediënten"} voor ${personen(servings)} op je boodschappenlijst${own}`);
   });
   if (!button.dataset.done) button.disabled = false;
 }
@@ -366,6 +384,8 @@ $("#view-sheet").addEventListener("click", (e) => {
   if (action) return viewAction(action);
   const timer = e.target.closest("[data-timer]")?.dataset.timer;
   if (timer) return timerAction(timer);
+  const own = e.target.closest("[data-own]");
+  if (own) return openOwnRecipe(Number(own.dataset.own));
   const step = e.target.closest("[data-step]");
   if (step) return toggleDone("steps", Number(step.dataset.step), step);
   const ingredient = state.view?.cooking && e.target.closest("#view-ingredients li");

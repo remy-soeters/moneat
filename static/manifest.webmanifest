@@ -1,6 +1,6 @@
 {
-  "name": "Mealplanner",
-  "short_name": "Mealplanner",
+  "name": "MonEat",
+  "short_name": "MonEat",
   "description": "Weekmenu, receptenboek en boodschappenlijst voor je huishouden.",
   "lang": "nl",
   "start_url": "/",

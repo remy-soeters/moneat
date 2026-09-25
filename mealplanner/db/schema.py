@@ -67,6 +67,22 @@ CREATE TABLE IF NOT EXISTS swipe_cards (
     swiped_at    TEXT
 );
 
+-- Gerechten die deze week al voorbijkwamen en niet gekozen zijn ("andere opties"): die komen niet terug.
+CREATE TABLE IF NOT EXISTS passed_dishes (
+    week        TEXT NOT NULL,
+    name        TEXT NOT NULL,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (week, name)
+);
+
+-- Wanneer iets gekocht is, om te voorspellen wat je binnenkort weer nodig hebt.
+CREATE TABLE IF NOT EXISTS purchase_log (
+    id         INTEGER PRIMARY KEY,
+    key        TEXT NOT NULL,
+    bought_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS purchase_log_key ON purchase_log(key);
+
 -- Instellingen van de app, zoals de Anthropic API-sleutel.
 CREATE TABLE IF NOT EXISTS settings (
     key    TEXT PRIMARY KEY,

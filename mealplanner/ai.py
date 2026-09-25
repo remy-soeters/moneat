@@ -92,8 +92,9 @@ SWIPE_SCHEMA = {
     "additionalProperties": False,
 }
 
-RECIPE_RULES = """Recepten: Nederlandse namen, ingrediënten in metrische eenheden (g, ml, stuks, el, tl, teen)
-met hoeveelheden voor het opgegeven aantal personen, tags als korte kommagescheiden woorden
+RECIPE_RULES = """Recepten: Nederlandse namen, ingrediënten in metrische eenheden (g, ml, el, tl, teen, blik)
+met hoeveelheden voor het opgegeven aantal personen; laat de eenheid leeg bij hele stuks (2 uien, 1 citroen)
+en schrijf producten uit blik als "tomatenblokjes" met eenheid "blik". Tags als korte kommagescheiden woorden
 (bijv. "vegetarisch, pasta, snel"), en een bereiding met één genummerde stap per regel."""
 
 MENU_SYSTEM = f"""Je bent een praktische maaltijdplanner voor een Nederlands huishouden.
@@ -102,7 +103,10 @@ waaruit het huishouden er later één kiest. Hergebruik bestaande recepten waar 
 existing_recipe_id en laat new_recipe null). Stel een nieuw recept voor wanneer dat het menu
 gevarieerder maakt of beter bij de wensen past (zet dan new_recipe en laat existing_recipe_id null).
 Maak de opties op één dag duidelijk verschillend (bijv. vlees, vis, vegetarisch of snel versus uitgebreid),
-herhaal geen gerecht dat al op het menu van die dag staat, en zorg voor afwisseling over de week.
+en zorg voor afwisseling over de week. Elk gerecht komt maar één keer in de week voor: stel niets voor wat al
+op het menu van deze week staat (op welke dag dan ook), en geef hetzelfde gerecht nooit op twee datums.
+Gerechten die deze week al afgewezen of niet gekozen zijn, stel je deze week niet opnieuw voor (ook niet een
+variant ervan). Wat recent gegeten is, liever nog niet opnieuw, tenzij het een favoriet is.
 Kies bestaande recepten met "favoriet": true of een hoge "beoordeling" (4 of 5 sterren) vaker; recepten met een
 beoordeling van 2 of lager liever niet, en stel dan ook geen vergelijkbaar nieuw gerecht voor.
 {RECIPE_RULES}
@@ -304,13 +308,14 @@ def _ask_claude(system, user_message, schema, effort):
     return json.loads(text)
 
 
-def suggest_menu_options(recipes, needs, current_menu, wishes="", servings=2, avoid=()):
+def suggest_menu_options(recipes, needs, current_menu, wishes="", servings=2, avoid=(), recent=()):
     """Vraag Claude om opties voor het avondeten.
 
     needs: {datum: aantal opties dat er voor die avond bij moet}
     recipes: bestaande recepten (dicts met id, name, tags, prep_minutes)
     current_menu: opties die al op het menu staan (om dubbelingen te voorkomen)
-    avoid: gerechten die net zijn afgewezen ("andere opties"), die niet terug moeten komen
+    avoid: gerechten die deze week afgewezen of niet gekozen zijn, die niet terug moeten komen
+    recent: wat de afgelopen weken gegeten is
     """
     known_ids = {r["id"] for r in recipes}
     catalog = []
@@ -328,7 +333,8 @@ def suggest_menu_options(recipes, needs, current_menu, wishes="", servings=2, av
         f"Aantal personen: {servings}.\n"
         f"Wensen: {wishes.strip() or 'geen bijzondere wensen'}.\n\n"
         f"Staat al op het menu:\n{json.dumps(current_menu, ensure_ascii=False)}\n\n"
-        + (f"Net afgewezen, stel deze en vergelijkbare gerechten niet voor: {json.dumps(list(avoid), ensure_ascii=False)}\n\n" if avoid else "")
+        + (f"Deze week afgewezen of niet gekozen, stel deze en vergelijkbare gerechten niet voor: {json.dumps(list(avoid), ensure_ascii=False)}\n\n" if avoid else "")
+        + (f"Recent gegeten: {json.dumps(list(recent), ensure_ascii=False)}\n\n" if recent else "")
         + f"Bestaande recepten:\n{json.dumps(catalog, ensure_ascii=False)}",
         SUGGESTIONS_SCHEMA,
     )["suggestions"]

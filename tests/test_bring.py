@@ -135,7 +135,7 @@ class BringTest(unittest.TestCase):
             "Brood": "", "Zwiebeln": "2", "Tomaten": "500 g + 1 blik", "Boerenkool": "1,5 kg",
         })
 
-        key = next(i["key"] for i in self.db.shopping_list() if i["name"] == "ui")
+        key = next(i["key"] for i in self.db.shopping_list() if i["name"] == "Ui")
         self.db.set_shopping_check(key, True)
         res = self.call("POST", "/api/bring/sync", {})[1]
         self.assertEqual((res["sent"], res["checked_off"]), (2, 1))

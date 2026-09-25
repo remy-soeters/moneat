@@ -21,7 +21,7 @@ export function showAuthScreen(status) {
   const setup = Boolean(status?.setup_required);
   $("#login-form").hidden = setup;
   $("#setup-form").hidden = !setup;
-  $("#auth-title").textContent = setup ? "Welkom bij Mealplanner" : "Fijn dat je er bent";
+  $("#auth-title").textContent = setup ? "Welkom bij MonEat" : "Fijn dat je er bent";
   $("#auth-intro").textContent = setup
     ? "Maak eerst jouw account aan. Jij wordt de beheerder en kunt daarna de rest van het huishouden toevoegen."
     : "Log in om je weekmenu, recepten en boodschappen te zien.";

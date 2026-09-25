@@ -27,10 +27,10 @@ class ShoppingDbTest(unittest.TestCase):
         milk = self.db.add_shopping_item("Melk", 1, "l")
         self.assertEqual(self.db.add_shopping_item("melk", 1, "l"), milk)  # samengevoegd
         items = self.db.shopping_list()
-        self.assertEqual([(i["key"], i["name"], i["quantity"], i["manual"]) for i in items], [("buy:melk|l", "Melk", 2, True)])
+        self.assertEqual([(i["key"], i["name"], i["quantity"], i["manual"]) for i in items], [("buy:melk", "Melk", 2, True)])
 
-        self.db.set_shopping_check("buy:melk|l", True)
-        self.assertEqual([(i["key"], i["checked"]) for i in self.db.shopping_list()], [("bought:melk|l", True)])
+        self.db.set_shopping_check("buy:melk", True)
+        self.assertEqual([(i["key"], i["checked"]) for i in self.db.shopping_list()], [("bought:melk", True)])
         self.assertEqual(self.db.clear_bought_items(), 1)
         self.assertEqual(self.db.shopping_list(), [])
 
@@ -39,23 +39,95 @@ class ShoppingDbTest(unittest.TestCase):
         self.db.choose_dinner(WEEK, soup["id"])
         self.db.add_shopping_item("ui", 1)
         (item,) = self.db.shopping_list()
-        self.assertEqual((item["key"], item["quantity"], item["recipes"], item["manual"]), ("buy:ui|", 3, ["Soep"], True))
-        self.db.remove_shopping_item("buy:ui|")
+        self.assertEqual((item["key"], item["quantity"], item["recipes"], item["manual"]), ("buy:ui", 3, ["Soep"], True))
+        self.db.remove_shopping_item("buy:ui")
         self.assertEqual(self.db.shopping_list(), [])
         with self.assertRaises(NotFound):
-            self.db.remove_shopping_item("buy:ui|")
+            self.db.remove_shopping_item("buy:ui")
 
     def test_bought_items_become_frequent(self):
         recipe = self.db.create_recipe({"name": "Soep", "ingredients": [{"name": "ui", "quantity": 1, "unit": ""}]})
         self.db.choose_dinner(WEEK, recipe["id"])
-        self.db.set_shopping_check("buy:ui|", True)
-        self.db.set_shopping_check("bought:ui|", True)  # al gekocht: telt niet nog eens
-        self.db.set_shopping_check("bought:ui|", False)
-        self.db.set_shopping_check("buy:ui|", True)
+        self.db.set_shopping_check("buy:ui", True)
+        self.db.set_shopping_check("bought:ui", True)  # al gekocht: telt niet nog eens
+        self.db.set_shopping_check("bought:ui", False)
+        self.db.set_shopping_check("buy:ui", True)
         self.db.add_shopping_item("Brood")
-        self.db.set_shopping_check("buy:brood|", True)
+        self.db.set_shopping_check(next(i["key"] for i in self.db.shopping_list() if i["name"] == "Brood"), True)
         counts = {f["name"]: f["count"] for f in self.db.frequent_purchases()}
-        self.assertEqual(counts, {"ui": 1, "Brood": 1})
+        self.assertEqual(counts, {"Ui": 1, "Brood": 1})
+
+    def items(self):
+        return {i["name"]: i for i in self.db.shopping_list()}
+
+    def test_same_product_in_shop_units(self):
+        """Blikken in plaats van grammen, hele stuks, en geen eetlepels op de lijst."""
+        chili = self.db.create_recipe({"name": "Chili", "servings": 2, "ingredients": [
+            {"name": "tomatenblokjes uit blik", "quantity": 400, "unit": "g"},
+            {"name": "kidneybonen (blik)", "quantity": 240, "unit": "g"},
+            {"name": "rode ui, gesnipperd", "quantity": 0.5, "unit": "stuks"},
+            {"name": "olijfolie", "quantity": 2, "unit": "el"},
+        ]})
+        self.db.choose_dinner(WEEK, chili["id"])
+        self.db.add_shopping_item("tomatenblokjes", 1, "blik")
+        self.db.add_shopping_item("rode uien", 1)
+        items = self.items()
+        self.assertEqual(items["Tomatenblokjes"]["amount"], "2 blikken")
+        self.assertEqual(items["Kidneybonen"]["amount"], "1 blik")
+        self.assertEqual(items["Rode ui"]["amount"], "2")  # een halve en een hele: twee kopen
+        self.assertEqual(items["Olijfolie"]["amount"], "")
+        self.assertEqual(len(items), 4)
+
+    def test_fresh_and_canned_stay_apart(self):
+        self.db.add_shopping_item("tomaten", 3)
+        self.db.add_shopping_item("tomaten uit blik", 400, "g")
+        items = self.items()
+        self.assertEqual((items["Tomaten"]["amount"], items["Tomaten (blik)"]["amount"]), ("3", "1 blik"))
+
+    def test_homemade_parts_are_replaced_by_their_ingredients(self):
+        """Staat naan in je receptenboek, dan komen de ingrediënten daarvan op de lijst in plaats van naan."""
+        self.db.create_recipe({"name": "Zelfgemaakte naan", "servings": 4, "ingredients": [
+            {"name": "bloem", "quantity": 400, "unit": "g"}, {"name": "yoghurt", "quantity": 200, "unit": "ml"}]})
+        curry = self.db.create_recipe({"name": "Curry", "servings": 2, "ingredients": [
+            {"name": "naanbrood", "quantity": 2, "unit": "stuks"}, {"name": "kip", "quantity": 300, "unit": "g"}]})
+        self.db.choose_dinner(WEEK, curry["id"], servings=2)
+        items = self.items()
+        self.assertNotIn("Naanbrood", items)
+        self.assertEqual((items["Bloem"]["amount"], items["Yoghurt"]["amount"]), ("200 g", "100 ml"))
+        self.assertEqual(items["Bloem"]["recipes"], ["Zelfgemaakte naan"])
+
+        result = self.db.add_ingredients_to_list([{"name": "naan", "quantity": 1, "unit": ""}], servings=4)
+        self.assertEqual(result, {"added": 2, "homemade": ["Zelfgemaakte naan"]})
+
+    def test_edit_an_item(self):
+        self.db.add_shopping_item("tomatenblokjes uit blik", 400, "g")
+        self.db.add_shopping_item("tomatenblokjes", 1, "blik")
+        (item,) = self.db.shopping_list()
+        self.assertEqual((item["quantity"], item["unit"]), (2, "blik"))
+        self.db.update_shopping_item(item["key"], "Tomatenblokjes met basilicum", 3, "blik")
+        (item,) = self.db.shopping_list()
+        self.assertEqual((item["name"], item["amount"], item["manual"]), ("Tomatenblokjes met basilicum", "3 blikken", True))
+        with self.assertRaises(ValueError):
+            self.db.update_shopping_item(item["key"], "", 1, "")
+        with self.assertRaises(ValueError):
+            self.db.update_shopping_item(item["key"], "Tomaten", "veel", "")
+
+    def test_suggestions_follow_your_rhythm(self):
+        """Wat je elke week koopt en alweer een week geleden kocht, staat bovenaan."""
+        with self.db.connect() as conn:
+            for name, count, days in (("Melk", 3, 8), ("Koffie", 5, 1), ("Taart", 1, 90)):
+                key = name.lower()
+                conn.execute(
+                    "INSERT INTO purchase_counts (key, name, count, last_at) VALUES (?, ?, ?, datetime('now', ?))",
+                    (key, name, count, f"-{days} days"),
+                )
+                for i in range(count):
+                    conn.execute(
+                        "INSERT INTO purchase_log (key, bought_at) VALUES (?, datetime('now', ?))", (key, f"-{days + 7 * i} days")
+                    )
+        found = self.db.frequent_purchases()
+        self.assertEqual([f["name"] for f in found], ["Melk", "Koffie", "Taart"])
+        self.assertEqual([f["due"] for f in found], [True, False, False])
 
     def test_icons_are_shared_per_product(self):
         self.db.set_product_icon("Rode ui ", "/images/" + "a" * 32 + ".png")
@@ -133,7 +205,7 @@ class ShoppingApiTest(unittest.TestCase):
         status, result = self.call("POST", "/api/shopping/items", {"text": "2 liter melk"})
         self.assertEqual(status, 200)
         item = result["items"][0]
-        self.assertEqual((item["name"], item["quantity"], item["unit"], item["icon"]), ("melk", 2, "l", "/images/" + "b" * 32 + ".png"))
+        self.assertEqual((item["name"], item["quantity"], item["unit"], item["icon"]), ("Melk", 2, "l", "/images/" + "b" * 32 + ".png"))
         self.assertEqual(result["icons"]["enabled"], False)
         self.assertEqual(self.call("POST", "/api/shopping/items", {"text": "  "})[0], 400)
 

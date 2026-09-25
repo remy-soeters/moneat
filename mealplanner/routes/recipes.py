@@ -43,6 +43,7 @@ def register(r, app):
     def get_recipe(req, recipe_id):
         recipe = one(req, db.get_recipe(int(recipe_id)))
         recipe["ratings"] = db.recipe_ratings(recipe["id"])
+        recipe["homemade"] = db.homemade_parts(recipe)  # bijv. naan waarvan je een eigen recept hebt
         return recipe
 
     @r.put(r"/api/recipes/(\d+)")

@@ -8,9 +8,9 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="Mealplanner">
+  <meta name="apple-mobile-web-app-title" content="MonEat">
   <meta name="description" content="Weekmenu, receptenboek en boodschappenlijst voor je huishouden.">
-  <title>Mealplanner</title>
+  <title>MonEat</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
@@ -33,10 +33,8 @@
   <!-- Inloggen en eerste account -->
   <div id="auth" class="auth" hidden>
     <div class="auth-card">
-      <div class="auth-logo" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><path d="M7 3v7a2 2 0 0 0 4 0V3M9 10v11M17 21V3c-2 1.5-3 4-3 7v3h3"/></svg>
-      </div>
-      <p class="kicker">Mealplanner</p>
+      <div class="auth-logo"><svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="18" fill="#539156"/><path d="M32 27C25 27 19.5 22.5 19 15C26 15 31 19.5 32 27Z" fill="#cfefcf"/> <path d="M32 24C33 16.5 38 12 45.5 12C45 19.5 39.5 24 32 24Z" fill="#fbc1db"/> <path d="M32 33V22" stroke="#fff" stroke-width="3" stroke-linecap="round"/> <path d="M13 33H51A19 19 0 0 1 13 33Z" fill="#fff"/> <rect x="25" y="49.5" width="14" height="4" rx="2" fill="#fff"/></svg></div>
+      <p class="kicker">MonEat</p>
       <h1 id="auth-title">Fijn dat je er bent</h1>
       <p class="intro" id="auth-intro"></p>
 
@@ -72,9 +70,9 @@
   <div id="app" hidden>
     <header class="site-header">
       <div class="site-header-inner">
-        <a class="logo" href="/" aria-label="Mealplanner, naar Vandaag">
-          <span class="logo-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m16 2-2.3 2.3a3 3 0 0 0 0 4.2l1.8 1.8a3 3 0 0 0 4.2 0L22 8"/><path d="M15 15 3.3 3.3a4.2 4.2 0 0 0 0 6l7.3 7.3c.7.7 2 .7 2.8 0L15 15Zm0 0 7 7"/><path d="m2.1 21.8 6.4-6.3"/><path d="m19 5-7 7"/></svg></span>
-          <span>Mealplanner</span>
+        <a class="logo" href="/" aria-label="MonEat, naar Vandaag">
+          <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="18" fill="#539156"/><path d="M32 27C25 27 19.5 22.5 19 15C26 15 31 19.5 32 27Z" fill="#cfefcf"/> <path d="M32 24C33 16.5 38 12 45.5 12C45 19.5 39.5 24 32 24Z" fill="#fbc1db"/> <path d="M32 33V22" stroke="#fff" stroke-width="3" stroke-linecap="round"/> <path d="M13 33H51A19 19 0 0 1 13 33Z" fill="#fff"/> <rect x="25" y="49.5" width="14" height="4" rx="2" fill="#fff"/></svg>
+          <span class="wordmark">Mon<b>Eat</b></span>
         </a>
         <div class="user">
           <button type="button" class="avatar" id="user-button" aria-haspopup="true" aria-expanded="false"></button>
@@ -224,35 +222,52 @@
         </div>
         <button type="button" class="btn outline" id="bring-sync" hidden>Naar Bring! sturen</button>
       </div>
-      <div class="shop-add" id="shop-add">
-        <form class="shop-input" id="shop-add-form" autocomplete="off">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-          <input name="text" placeholder="Wat heb je nodig?" aria-label="Product toevoegen" enterkeyhint="done">
-          <button type="button" class="btn link" id="shop-add-done" hidden>Klaar</button>
-        </form>
-        <div class="shop-suggest" id="shop-suggest" hidden></div>
-      </div>
       <div id="shopping"></div>
+      <p class="shop-hint">Tik op een product als je het hebt; houd het ingedrukt om het te wijzigen.</p>
+      <button type="button" class="shop-add-bar" id="shop-add-open">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Wat heb je nodig?</span>
+      </button>
     </section>
 
-    <!-- Instellingen -->
+    <!-- Instellingen: links (of eerst) een overzicht van onderwerpen, daarna het gekozen onderwerp -->
     <section id="page-settings" class="page settings-page" hidden>
       <div class="page-head">
         <div>
-          <p class="kicker">Mealplanner</p>
+          <p class="kicker">MonEat</p>
           <h1 class="page-title">Instellingen</h1>
         </div>
       </div>
-      <nav class="settings-nav admin-only" aria-label="Onderdelen van de instellingen">
-        <a href="#set-account">Jouw account</a>
-        <a href="#set-household">Huishouden</a>
-        <a href="#set-ai">Recepten en menu</a>
-        <a href="#set-photos">Foto's en iconen</a>
-        <a href="#set-shopping">Boodschappen</a>
-        <a href="#set-keys">Sleutels</a>
+      <div class="settings-layout">
+      <nav class="settings-menu" id="settings-menu" aria-label="Onderwerpen">
+        <button type="button" class="settings-row" data-settings="account">
+          <span class="settings-icon" data-icon="user" aria-hidden="true"></span>
+          <span class="settings-row-text"><strong>Jouw account</strong><small id="sum-account"></small></span><svg class="menu-go" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+        <button type="button" class="settings-row admin-only" data-settings="household">
+          <span class="settings-icon" data-icon="people" aria-hidden="true"></span>
+          <span class="settings-row-text"><strong>Huishouden</strong><small id="sum-household"></small></span><svg class="menu-go" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+        <button type="button" class="settings-row admin-only" data-settings="ai">
+          <span class="settings-icon" data-icon="sparkle" aria-hidden="true"></span>
+          <span class="settings-row-text"><strong>Slimme hulp (AI)</strong><small id="sum-ai"></small></span><svg class="menu-go" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+        <button type="button" class="settings-row admin-only" data-settings="photos">
+          <span class="settings-icon" data-icon="image" aria-hidden="true"></span>
+          <span class="settings-row-text"><strong>Foto's en iconen</strong><small id="sum-photos"></small></span><svg class="menu-go" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+        <button type="button" class="settings-row admin-only" data-settings="inspiration">
+          <span class="settings-icon" data-icon="book" aria-hidden="true"></span>
+          <span class="settings-row-text"><strong>Inspiratie en swipen</strong><small id="sum-inspiration"></small></span><svg class="menu-go" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+        <button type="button" class="settings-row admin-only" data-settings="shopping">
+          <span class="settings-icon" data-icon="cart" aria-hidden="true"></span>
+          <span class="settings-row-text"><strong>Boodschappen</strong><small id="sum-shopping"></small></span><svg class="menu-go" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+        <p class="help member-only">De overige instellingen, zoals de AI-sleutels, beheert de beheerder van je huishouden.</p>
       </nav>
-
-      <section class="settings-group" id="set-account">
+      <div class="settings-content">
+        <button type="button" class="btn link settings-back" id="settings-back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>Alle instellingen</button>
+      <section class="settings-group" id="set-account" data-group="account" hidden>
         <div class="account-head">
           <span class="avatar large" id="account-avatar" aria-hidden="true"></span>
           <div><h2 class="group-title" id="account-title"></h2><p class="muted-line" id="account-sub"></p></div>
@@ -275,10 +290,8 @@
           <button type="button" class="btn outline" id="logout-others">Uitloggen op andere apparaten</button>
           <button type="button" class="btn link danger" id="logout-here">Uitloggen</button>
         </div>
-        <p class="help member-only">De overige instellingen, zoals de AI-sleutels, beheert de beheerder van je huishouden.</p>
       </section>
-
-      <section class="settings-group admin-only" id="set-household">
+      <section class="settings-group admin-only" id="set-household" data-group="household" hidden>
         <h2 class="group-title">Huishouden</h2>
         <p class="intro">Iedereen hier heeft een eigen login, maar jullie delen het weekmenu, de recepten en de boodschappenlijst.</p>
         <ul class="user-list" id="user-list"></ul>
@@ -296,10 +309,9 @@
           <button type="submit" class="btn primary">Account aanmaken</button>
         </form>
       </section>
-
-      <section class="settings-group admin-only" id="set-ai">
-        <h2 class="group-title">Recepten en menu</h2>
-        <p class="intro">Welke AI vult je weekmenu aan, bedenkt recepten en zoekt inspiratie?</p>
+      <section class="settings-group admin-only" id="set-ai" data-group="ai" hidden>
+        <h2 class="group-title">Slimme hulp (AI)</h2>
+                <p class="intro">Welke AI vult je weekmenu aan, bedenkt recepten en zoekt inspiratie?</p>
         <div class="provider-choice" id="provider-choice" role="radiogroup">
           <button type="button" role="radio" data-provider="gemini" aria-checked="false">
             <strong>Gemini</strong><small>Gratis met een gratis sleutel</small>
@@ -312,17 +324,59 @@
           <h4 class="settings-subtitle">Welk Gemini-model?</h4>
           <div class="provider-choice model-choice" id="text-model-choice" role="radiogroup"></div>
           <p class="help" id="text-cost-note"></p>
+  <section class="key-section" data-provider="gemini_text">
+            <h3 class="settings-title">Gratis Gemini-sleutel voor tekst <small class="optional">aanrader</small></h3>
+            <p class="intro">Tekst (recepten, menu, inspiratie) is bij Gemini <strong>gratis</strong>, maar alleen met een sleutel uit een Google-project <em>zonder</em> betaalgegevens. Maak in AI Studio een tweede project aan, zet daar géén betalen aan, en plak die sleutel hier. Let op: bij gratis gebruik mag Google je invoer gebruiken om hun diensten te verbeteren.</p>
+            <ul class="status-list" data-status></ul>
+            <form class="key-form">
+              <label class="field">
+                <span data-key-label>API-sleutel</span>
+                <span class="key-input">
+                  <input name="key" type="password" autocomplete="off" spellcheck="false" placeholder="AQ.… of AIza…">
+                  <button type="button" class="btn link" data-toggle>Toon</button>
+                </span>
+              </label>
+              <div class="key-actions">
+                <button type="submit" class="btn primary">Opslaan</button>
+                <button type="button" class="btn outline" data-test>Test verbinding</button>
+                <span class="spacer"></span>
+                <button type="button" class="btn link danger" data-delete>Sleutel verwijderen</button>
+              </div>
+            </form>
+            <p class="test-result" data-result hidden></p>
+          </section>
         </div>
         <div id="claude-models" hidden>
           <h4 class="settings-subtitle">Welk Claude-model?</h4>
           <div class="provider-choice model-choice three" id="claude-model-choice" role="radiogroup"></div>
           <p class="help">Je betaalt per gebruik bij Anthropic; Haiku kost een fractie van Opus.</p>
+  <section class="key-section" data-provider="claude">
+            <h3 class="settings-title">Claude-sleutel</h3>
+            <p class="intro">Betaald per gebruik via Anthropic.</p>
+            <ul class="status-list" data-status></ul>
+            <form class="key-form">
+              <label class="field">
+                <span data-key-label>API-sleutel</span>
+                <span class="key-input">
+                  <input name="key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…">
+                  <button type="button" class="btn link" data-toggle>Toon</button>
+                </span>
+              </label>
+              <p class="help">Maak een sleutel aan op <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">console.anthropic.com</a> onder <em>API Keys</em>.</p>
+              <div class="key-actions">
+                <button type="submit" class="btn primary">Opslaan</button>
+                <button type="button" class="btn outline" data-test>Test verbinding</button>
+                <span class="spacer"></span>
+                <button type="button" class="btn link danger" data-delete>Sleutel verwijderen</button>
+              </div>
+            </form>
+            <p class="test-result" data-result hidden></p>
+          </section>
         </div>
       </section>
-
-      <section class="settings-group admin-only" id="set-photos">
+      <section class="settings-group admin-only" id="set-photos" data-group="photos" hidden>
         <h2 class="group-title">Foto's en iconen</h2>
-        <p class="intro">Foto's bij recepten en swipekaarten, en iconen voor je boodschappen, worden gemaakt door Gemini. Dat is <strong>niet gratis</strong>: je betaalt per foto.</p>
+                <p class="intro">Foto's bij recepten en swipekaarten, en iconen voor je boodschappen, worden gemaakt door Gemini. Dat is <strong>niet gratis</strong>: je betaalt per foto.</p>
         <h4 class="settings-subtitle">Automatisch laten maken</h4>
         <div class="chips pick" id="auto-images-choice" data-single>
           <button type="button" class="chip" data-value="on">Automatisch aan</button>
@@ -331,35 +385,9 @@
         <p class="help">Staat het uit, dan maakt de app op de achtergrond niets meer. Zelf op <em>Maak foto</em> drukken kan altijd, en geïmporteerde recepten houden de foto van de website.</p>
         <h4 class="settings-subtitle">Welk model?</h4>
         <div class="provider-choice model-choice" id="image-model-choice" role="radiogroup"></div>
-        <h4 class="settings-subtitle">Gerechten klaarzetten om te swipen</h4>
-        <div class="chips pick" id="swipe-preload-choice" data-single></div>
-        <p class="help">De app houdt zoveel gerechten mét foto klaar, zodat je niet hoeft te wachten. Pas je je voorkeuren aan, dan worden ze opnieuw gemaakt.</p>
-      </section>
-
-      <section class="settings-group admin-only" id="set-shopping">
-        <h2 class="group-title">Boodschappen</h2>
-        <h4 class="settings-subtitle">Bring!</h4>
-        <p class="intro">Stuur je boodschappenlijst met één knop naar de Bring!-app, bijvoorbeeld om samen boodschappen te doen. Bring! heeft geen officiële koppeling; deze werkt zoals de Bring!-app zelf. Je wachtwoord wordt alleen gebruikt om in te loggen en niet bewaard.</p>
-        <form class="key-form" id="bring-form" autocomplete="off">
-          <label class="field"><span>E-mailadres van Bring!</span><input name="email" type="email" autocomplete="off" spellcheck="false"></label>
-          <label class="field"><span>Wachtwoord van Bring!</span><input name="password" type="password" autocomplete="off"></label>
-          <div class="key-actions"><button type="submit" class="btn primary">Koppelen</button></div>
-        </form>
-        <div id="bring-connected" hidden>
-          <ul class="status-list"><li class="ok"><span class="dot" id="bring-dot"></span><div><strong>Gekoppeld</strong><small id="bring-email"></small></div></li></ul>
-          <h4 class="settings-subtitle">Naar welke lijst?</h4>
-          <div class="chips pick" id="bring-list-choice" data-single></div>
-          <div class="key-actions"><span class="spacer"></span><button type="button" class="btn link danger" id="bring-disconnect">Ontkoppelen</button></div>
-        </div>
-      </section>
-
-      <section class="settings-group admin-only" id="set-keys">
-        <h2 class="group-title">Sleutels</h2>
-        <p class="intro">De app praat met Gemini en Claude via je eigen API-sleutels. Ze worden alleen in de app op deze computer bewaard.</p>
-
-        <section class="key-section" data-provider="gemini">
-          <h3 class="settings-title">Gemini: sleutel met betalen</h3>
-          <p class="intro">Nodig voor <strong>foto's en iconen</strong>. Zet in Google AI Studio betalen aan voor het project van deze sleutel. Heb je hieronder geen gratis sleutel ingevuld, dan gebruikt de app deze ook voor tekst, en dan betaal je daar ook voor.</p>
+<section class="key-section" data-provider="gemini">
+          <h3 class="settings-title">Gemini-sleutel met betalen</h3>
+          <p class="intro">Nodig voor <strong>foto's en iconen</strong>. Zet in Google AI Studio betalen aan voor het project van deze sleutel. Heb je bij <em>Slimme hulp</em> geen gratis sleutel ingevuld, dan gebruikt de app deze ook voor tekst, en dan betaal je daar ook voor.</p>
           <ul class="status-list" data-status></ul>
           <form class="key-form">
             <label class="field">
@@ -379,52 +407,32 @@
           </form>
           <p class="test-result" data-result hidden></p>
         </section>
-
-        <section class="key-section" data-provider="gemini_text">
-          <h3 class="settings-title">Gemini: gratis sleutel voor tekst <small class="optional">optioneel</small></h3>
-          <p class="intro">Tekst (recepten, menu, inspiratie) is bij Gemini <strong>gratis</strong>, maar alleen met een sleutel uit een Google-project <em>zonder</em> betaalgegevens. Maak in AI Studio een tweede project aan, zet daar géén betalen aan, en plak die sleutel hier. Let op: bij gratis gebruik mag Google je invoer gebruiken om hun diensten te verbeteren.</p>
-          <ul class="status-list" data-status></ul>
-          <form class="key-form">
-            <label class="field">
-              <span data-key-label>API-sleutel</span>
-              <span class="key-input">
-                <input name="key" type="password" autocomplete="off" spellcheck="false" placeholder="AQ.… of AIza…">
-                <button type="button" class="btn link" data-toggle>Toon</button>
-              </span>
-            </label>
-            <div class="key-actions">
-              <button type="submit" class="btn primary">Opslaan</button>
-              <button type="button" class="btn outline" data-test>Test verbinding</button>
-              <span class="spacer"></span>
-              <button type="button" class="btn link danger" data-delete>Sleutel verwijderen</button>
-            </div>
-          </form>
-          <p class="test-result" data-result hidden></p>
-        </section>
-
-        <section class="key-section" data-provider="claude">
-          <h3 class="settings-title">Claude</h3>
-          <p class="intro">Alleen nodig als je bij <a href="#set-ai">Recepten en menu</a> voor Claude kiest. Betaald per gebruik via Anthropic.</p>
-          <ul class="status-list" data-status></ul>
-          <form class="key-form">
-            <label class="field">
-              <span data-key-label>API-sleutel</span>
-              <span class="key-input">
-                <input name="key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…">
-                <button type="button" class="btn link" data-toggle>Toon</button>
-              </span>
-            </label>
-            <p class="help">Maak een sleutel aan op <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">console.anthropic.com</a> onder <em>API Keys</em>.</p>
-            <div class="key-actions">
-              <button type="submit" class="btn primary">Opslaan</button>
-              <button type="button" class="btn outline" data-test>Test verbinding</button>
-              <span class="spacer"></span>
-              <button type="button" class="btn link danger" data-delete>Sleutel verwijderen</button>
-            </div>
-          </form>
-          <p class="test-result" data-result hidden></p>
-        </section>
       </section>
+      <section class="settings-group admin-only" id="set-inspiration" data-group="inspiration" hidden>
+        <h2 class="group-title">Inspiratie en swipen</h2>
+        <p class="intro">Instellingen voor het swipen door gerechten op de inspiratiepagina.</p>
+        <h4 class="settings-subtitle">Gerechten klaarzetten om te swipen</h4>
+        <div class="chips pick" id="swipe-preload-choice" data-single></div>
+        <p class="help">De app houdt zoveel gerechten mét foto klaar, zodat je niet hoeft te wachten. Pas je je voorkeuren aan, dan worden ze opnieuw gemaakt.</p>
+      </section>
+      <section class="settings-group admin-only" id="set-shopping" data-group="shopping" hidden>
+        <h2 class="group-title">Boodschappen</h2>
+        <h4 class="settings-subtitle">Bring!</h4>
+        <p class="intro">Stuur je boodschappenlijst met één knop naar de Bring!-app, bijvoorbeeld om samen boodschappen te doen. Bring! heeft geen officiële koppeling; deze werkt zoals de Bring!-app zelf. Je wachtwoord wordt alleen gebruikt om in te loggen en niet bewaard.</p>
+        <form class="key-form" id="bring-form" autocomplete="off">
+          <label class="field"><span>E-mailadres van Bring!</span><input name="email" type="email" autocomplete="off" spellcheck="false"></label>
+          <label class="field"><span>Wachtwoord van Bring!</span><input name="password" type="password" autocomplete="off"></label>
+          <div class="key-actions"><button type="submit" class="btn primary">Koppelen</button></div>
+        </form>
+        <div id="bring-connected" hidden>
+          <ul class="status-list"><li class="ok"><span class="dot" id="bring-dot"></span><div><strong>Gekoppeld</strong><small id="bring-email"></small></div></li></ul>
+          <h4 class="settings-subtitle">Naar welke lijst?</h4>
+          <div class="chips pick" id="bring-list-choice" data-single></div>
+          <div class="key-actions"><span class="spacer"></span><button type="button" class="btn link danger" id="bring-disconnect">Ontkoppelen</button></div>
+        </div>
+      </section>
+      </div>
+      </div>
     </section>
     </main>
     <nav class="nav-tabs" aria-label="Onderdelen">
@@ -448,6 +456,52 @@
     </div>
     <div class="recipe-scroll" id="view-body"></div>
     <div class="modal-foot recipe-foot" id="view-foot-bar"><span class="spacer"></span><div id="view-foot" class="foot-actions"></div></div>
+  </dialog>
+
+  <!-- Boodschappen toevoegen: invoerveld bovenin, suggesties eronder, toetsenbord onderin -->
+  <dialog id="shop-add-sheet" class="modal shop-add-sheet" aria-label="Boodschappen toevoegen">
+    <form class="shop-add-top" id="shop-add-form" autocomplete="off">
+      <label class="shop-input">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input name="text" placeholder="Wat heb je nodig?" aria-label="Product toevoegen" enterkeyhint="done"
+          autocomplete="off" autocorrect="off" spellcheck="false">
+      </label>
+      <button type="button" class="btn primary small" data-close>Klaar</button>
+    </form>
+    <p class="shop-added" id="shop-added" aria-live="polite"></p>
+    <div class="shop-suggest" id="shop-suggest"></div>
+  </dialog>
+
+  <!-- Een product wijzigen (lang indrukken op een tegel) -->
+  <dialog id="shop-edit-sheet" class="modal shop-edit">
+    <form id="shop-edit-form">
+      <div class="modal-head">
+        <div><p class="kicker">Boodschappen</p><h2>Product wijzigen</h2></div>
+        <button type="button" class="close" data-close aria-label="Sluiten"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="modal-scroll">
+        <label class="field"><span>Product</span><input name="name" required maxlength="80" autocomplete="off"></label>
+        <div class="field-row">
+          <label class="field"><span>Hoeveel <small>optioneel</small></span>
+            <input name="quantity" inputmode="decimal" autocomplete="off" placeholder="bijv. 2"></label>
+          <label class="field"><span>Eenheid</span>
+            <select name="unit">
+              <option value="">stuks</option><option value="g">gram</option><option value="kg">kilo</option>
+              <option value="ml">ml</option><option value="l">liter</option><option value="blik">blik</option>
+              <option value="pak">pak</option><option value="zak">zak</option><option value="fles">fles</option>
+              <option value="pot">pot</option><option value="bos">bos</option><option value="net">net</option>
+              <option value="teen">teen</option><option value="plak">plak</option>
+            </select></label>
+        </div>
+        <p class="field-help" id="shop-edit-for"></p>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn link danger" id="shop-edit-remove">Verwijderen</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn outline" data-close>Annuleren</button>
+        <button type="submit" class="btn primary">Opslaan</button>
+      </div>
+    </form>
   </dialog>
 
   <!-- Beoordelen na het koken -->

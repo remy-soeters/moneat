@@ -182,6 +182,31 @@ class MenuMixin:
             })
         return result
 
+    def pass_dishes(self, any_day, names):
+        """Onthoud gerechten die deze week weggeklikt zijn, zodat de AI ze die week niet opnieuw voorstelt."""
+        week = week_dates(any_day)[0]
+        rows = [(week, str(n).strip()[:150]) for n in names if str(n or "").strip()]
+        with self.connect() as conn:
+            conn.executemany("INSERT INTO passed_dishes (week, name) VALUES (?, ?) ON CONFLICT DO NOTHING", rows)
+
+    def passed_dishes(self, any_day):
+        week = week_dates(any_day)[0]
+        with self.connect() as conn:
+            rows = conn.execute("SELECT name FROM passed_dishes WHERE week = ? ORDER BY created_at", (week,)).fetchall()
+        return [r["name"] for r in rows]
+
+    def recent_dinners(self, before_day, days=14):
+        """Namen van wat er in de `days` dagen vóór `before_day` gegeten is."""
+        check_date(before_day)
+        start = (date.fromisoformat(before_day) - timedelta(days=days)).isoformat()
+        with self.connect() as conn:
+            rows = conn.execute(
+                """SELECT DISTINCT r.name FROM dinner_choices c JOIN recipes r ON r.id = c.recipe_id
+                   WHERE c.date >= ? AND c.date < ? ORDER BY c.date""",
+                (start, before_day),
+            ).fetchall()
+        return [r["name"] for r in rows]
+
     def _sync_dinner_to_list(self, day):
         """Zet de ingrediënten van het gekozen avondeten van `day` op de boodschappenlijst.
 
@@ -200,19 +225,25 @@ class MenuMixin:
             bought = {
                 (r["name"].lower(), r["unit"].lower())
                 for r in conn.execute(
-                    "SELECT name, unit FROM shopping_items WHERE source_date = ? AND source_recipe_id = ? AND checked = 1",
-                    (day, choice["recipe_id"]),
+                    "SELECT name, unit FROM shopping_items WHERE source_date = ? AND checked = 1", (day,)
                 )
             }
             factor = choice["servings"] / choice["base"]
-            for ing in conn.execute("SELECT name, quantity, unit FROM ingredients WHERE recipe_id = ? ORDER BY position", (choice["recipe_id"],)):
-                if (ing["name"].lower(), ing["unit"].lower()) in bought:
+            ingredients = [
+                (ing["name"].strip(), round(ing["quantity"] * factor, 2) if ing["quantity"] is not None else None, ing["unit"].strip())
+                for ing in conn.execute(
+                    "SELECT name, quantity, unit FROM ingredients WHERE recipe_id = ? ORDER BY position", (choice["recipe_id"],)
+                )
+            ]
+            # Wat je zelf maakt (zoals naan uit je receptenboek) wordt vervangen door de ingrediënten daarvan.
+            expanded, _ = self._expand_homemade(conn, ingredients, choice["recipe_id"], choice["servings"])
+            for name, quantity, unit, source in expanded:
+                if (name.lower(), unit.lower()) in bought:
                     continue
-                quantity = round(ing["quantity"] * factor, 2) if ing["quantity"] is not None else None
                 conn.execute(
                     """INSERT INTO shopping_items (name, quantity, unit, source_date, source_recipe_id)
                        VALUES (?, ?, ?, ?, ?)""",
-                    (ing["name"].strip(), quantity, ing["unit"].strip(), day, choice["recipe_id"]),
+                    (name, quantity, unit, day, source or choice["recipe_id"]),
                 )
 
     def copy_menu_from_previous_week(self, any_day):

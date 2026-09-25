@@ -25,7 +25,7 @@ class SpecialDinnerTest(unittest.TestCase):
 
     def test_special_replaces_choice_and_its_shopping(self):
         self.db.choose_dinner(DAY, self.soup["id"])
-        self.assertEqual([i["name"] for i in self.db.shopping_list()], ["prei"])
+        self.assertEqual([i["name"] for i in self.db.shopping_list()], ["Prei"])
         self.db.set_special_dinner(DAY, "uiteten")
         menu = self.db.get_week_menu(DAY)
         self.assertEqual(menu["choices"], [])
@@ -107,3 +107,43 @@ class JourneyApiTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NoRepeatsTest(unittest.TestCase):
+    """Wat je deze week niet wilde, komt die week niet terug; en geen gerecht op twee avonden."""
+
+    def setUp(self):
+        self.api = api_test(self)
+        self.db = self.api.db
+        first = TODAY + timedelta(days=1)
+        if first.weekday() == 6:  # zondag: dan maandag en dinsdag, zodat beide avonden in dezelfde week vallen
+            first += timedelta(days=1)
+        self.day, self.next_day = first.isoformat(), (first + timedelta(days=1)).isoformat()
+
+    def suggest(self, day, *names):
+        return [{"date": day, "existing_recipe_id": None, "new_recipe": idea(n), "reason": "nieuw"} for n in names]
+
+    def test_refreshed_dishes_stay_away_for_the_week(self):
+        self.db.add_suggested_option(self.day, idea("Curry"), "lekker")
+        with mock.patch.object(ai, "suggest_menu_options", return_value=self.suggest(self.day, "Wok")):
+            self.api.call("POST", "/api/menu/refresh", {"date": self.day, "per_day": 1})
+        self.assertEqual(self.db.passed_dishes(self.day), ["Curry"])
+
+        # Een andere avond: Curry is afgewezen en Wok staat al op het menu, dus die vallen af.
+        returned = self.suggest(self.next_day, "curry", "Wok", "Salade", "Salade")
+        with mock.patch.object(ai, "suggest_menu_options", return_value=returned) as suggest:
+            status, body = self.api.call("POST", "/api/menu/fill", {"week": self.next_day, "dates": [self.next_day], "per_day": 3})
+        self.assertEqual((status, body), (200, {"added": 1}))
+        self.assertIn("Curry", suggest.call_args.kwargs["avoid"])
+        options = [o["name"] for o in self.db.get_week_menu(self.next_day)["options"] if o["date"] == self.next_day]
+        self.assertEqual(options, ["Salade"])
+
+    def test_left_over_options_of_a_chosen_day_count_as_passed(self):
+        chosen = self.db.add_suggested_option(self.day, idea("Pasta"), "snel")
+        self.db.add_suggested_option(self.day, idea("Stamppot"), "stevig")
+        self.db.choose_option(chosen)
+        with mock.patch.object(ai, "suggest_menu_options", return_value=self.suggest(self.next_day, "Stamppot", "Pasta", "Wraps")) as suggest:
+            self.api.call("POST", "/api/menu/fill", {"week": self.next_day, "dates": [self.next_day], "per_day": 3})
+        self.assertEqual(suggest.call_args.kwargs["avoid"], ["Stamppot"])
+        options = [o["name"] for o in self.db.get_week_menu(self.next_day)["options"] if o["date"] == self.next_day]
+        self.assertEqual(options, ["Wraps"])

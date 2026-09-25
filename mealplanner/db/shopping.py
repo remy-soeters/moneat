@@ -1,12 +1,18 @@
 """Eén doorlopende boodschappenlijst, iconen en 'vaak gekocht'."""
 
+from datetime import datetime, timezone
+
+from ..groceries import (
+    combine, display_name, format_amount, homemade_match, primary, product_key, recipe_key, shopping_product,
+)
 from .base import NotFound
 from .cleaning import icon_key
 
 
 class ShoppingMixin:
     def shopping_list(self):
-        """De hele lijst, met gelijke producten (naam + eenheid) samengevoegd tot één regel."""
+        """De hele lijst: hetzelfde product (ook als het anders geschreven is) op één tegel, met een
+        hoeveelheid om mee te winkelen (zie groceries.py)."""
         with self.connect() as conn:
             rows = conn.execute(
                 """SELECT s.*, r.name AS recipe FROM shopping_items s
@@ -15,31 +21,63 @@ class ShoppingMixin:
             ).fetchall()
         groups = {}
         for row in rows:
-            key = f"{'bought' if row['checked'] else 'buy'}:{row['name'].strip().lower()}|{row['unit'].strip().lower()}"
+            product, name = shopping_product(row["name"], row["unit"])
+            key = f"{'bought' if row['checked'] else 'buy'}:{product}"
             item = groups.setdefault(key, {
-                "key": key, "name": row["name"].strip(), "unit": row["unit"].strip(), "quantity": None,
+                "key": key, "product": product, "name": name, "entries": [],
                 "recipes": [], "checked": bool(row["checked"]), "manual": False,
             })
-            if row["quantity"] is not None:
-                item["quantity"] = round((item["quantity"] or 0) + row["quantity"], 2)
+            item["entries"].append((row["quantity"], row["unit"]))
             if row["recipe"] and row["recipe"] not in item["recipes"]:
                 item["recipes"].append(row["recipe"])
             if row["source_date"] is None:
                 item["manual"] = True
-        return list(groups.values())
+        items = []
+        for item in groups.values():
+            totals = combine(item.pop("entries"), item["product"], canned=item["product"].endswith(" blik"))
+            item["amount"] = format_amount(totals)
+            item["quantity"], item["unit"] = primary(totals)
+            items.append(item)
+        return items
 
     def _group_rows(self, conn, key):
-        state, _, rest = key.partition(":")
-        name, _, unit = rest.partition("|")
-        if state not in ("buy", "bought") or not name:
+        state, _, product = key.partition(":")
+        if state not in ("buy", "bought") or not product:
             raise NotFound("Dit product staat niet (meer) op de lijst")
-        rows = conn.execute(
-            "SELECT id, name FROM shopping_items WHERE lower(trim(name)) = ? AND lower(trim(unit)) = ? AND checked = ?",
-            (name, unit, int(state == "bought")),
-        ).fetchall()
+        rows = [
+            r for r in conn.execute(
+                "SELECT id, name, unit FROM shopping_items WHERE checked = ? ORDER BY id", (int(state == "bought"),)
+            )
+            if shopping_product(r["name"], r["unit"])[0] == product
+        ]
         if not rows:
             raise NotFound("Dit product staat niet (meer) op de lijst")
         return rows
+
+    def update_shopping_item(self, key, name, quantity=None, unit=""):
+        """Wijzig een product op de lijst (naam en hoeveelheid). Het wordt dan één eigen regel."""
+        name = str(name or "").strip()[:80]
+        if not name:
+            raise ValueError("Geef het product een naam")
+        if quantity not in (None, ""):
+            try:
+                quantity = round(float(str(quantity).replace(",", ".")), 2)
+            except ValueError:
+                raise ValueError("De hoeveelheid moet een getal zijn") from None
+            if not 0 < quantity < 100000:
+                raise ValueError("Kies een hoeveelheid groter dan 0")
+        else:
+            quantity = None
+        unit = str(unit or "").strip().lower()[:20]
+        if unit == "stuks":
+            unit = ""
+        with self.connect() as conn:
+            ids = [r["id"] for r in self._group_rows(conn, key)]
+            conn.execute(f"DELETE FROM shopping_items WHERE id IN ({','.join('?' * len(ids))})", ids)
+            conn.execute(
+                "INSERT INTO shopping_items (name, quantity, unit, checked) VALUES (?, ?, ?, ?)",
+                (name, quantity, unit, int(key.startswith("bought:"))),
+            )
 
     def add_shopping_item(self, name, quantity=None, unit=""):
         name = str(name or "").strip()
@@ -62,9 +100,10 @@ class ShoppingMixin:
                 "INSERT INTO shopping_items (name, quantity, unit) VALUES (?, ?, ?)", (name[:80], quantity, unit)
             ).lastrowid
 
-    def add_ingredients_to_list(self, ingredients, recipe_id=None):
+    def add_ingredients_to_list(self, ingredients, recipe_id=None, servings=None):
         """Zet ingrediënten (al omgerekend naar het gewenste aantal personen) op de boodschappenlijst.
-        Met een bewaard recept erbij zie je op de tegel voor welk recept het is."""
+        Met een bewaard recept erbij zie je op de tegel voor welk recept het is. Iets wat je zelf maakt
+        (zoals naan, als dat in je receptenboek staat) wordt vervangen door de ingrediënten daarvan."""
         rows = []
         for ing in ingredients:
             name = str(ing.get("name") or "").strip()[:80]
@@ -78,11 +117,52 @@ class ShoppingMixin:
         with self.connect() as conn:
             if recipe_id is not None and not conn.execute("SELECT 1 FROM recipes WHERE id = ?", (recipe_id,)).fetchone():
                 recipe_id = None
+            expanded, homemade = self._expand_homemade(conn, rows, recipe_id, servings)
             conn.executemany(
                 "INSERT INTO shopping_items (name, quantity, unit, source_recipe_id) VALUES (?, ?, ?, ?)",
-                [(*row, recipe_id) for row in rows],
+                [(name, quantity, unit, source or recipe_id) for name, quantity, unit, source in expanded],
             )
-        return len(rows)
+        return {"added": len(expanded), "homemade": homemade}
+
+    def _homemade_index(self, conn):
+        """Eigen recepten op sleutel, om te herkennen wat je zelf maakt."""
+        index = {}
+        for row in conn.execute("SELECT id, name, servings FROM recipes"):
+            key = recipe_key(row["name"])
+            if len(key) >= 3:
+                index.setdefault(key, dict(row))
+        return index
+
+    def homemade_parts(self, recipe):
+        """Ingrediënten van dit recept die je zelf maakt: [{index, recipe_id, name}]."""
+        with self.connect() as conn:
+            index = self._homemade_index(conn)
+        parts = []
+        for i, ing in enumerate(recipe["ingredients"]):
+            own = homemade_match(ing["name"], index)
+            if own and own["id"] != recipe["id"]:
+                parts.append({"index": i, "recipe_id": own["id"], "name": own["name"]})
+        return parts
+
+    def _expand_homemade(self, conn, rows, recipe_id=None, servings=None):
+        """Vervang ingrediënten die je zelf maakt door de ingrediënten van dat eigen recept (één laag diep).
+        Geeft ([(naam, hoeveelheid, eenheid, bron-recept of None)], [namen van zelfgemaakte recepten])."""
+        index = self._homemade_index(conn)
+        result, homemade = [], []
+        for name, quantity, unit in rows:
+            own = homemade_match(name, index)
+            if own is None or own["id"] == recipe_id:
+                result.append((name, quantity, unit, None))
+                continue
+            factor = (servings or own["servings"]) / own["servings"]
+            for ing in conn.execute(
+                "SELECT name, quantity, unit FROM ingredients WHERE recipe_id = ? ORDER BY position", (own["id"],)
+            ):
+                amount = round(ing["quantity"] * factor, 2) if ing["quantity"] is not None else None
+                result.append((ing["name"].strip(), amount, ing["unit"].strip(), own["id"]))
+            if own["name"] not in homemade:
+                homemade.append(own["name"])
+        return result, homemade
 
     def remove_shopping_item(self, key):
         """Haal een (samengevoegd) product van de lijst."""
@@ -108,12 +188,52 @@ class ShoppingMixin:
             self._count_purchase(conn, rows[0]["name"], 1 if checked else -1)
 
     def frequent_purchases(self, limit=24):
+        """Wat je vaak koopt, het meest waarschijnlijke eerst.
+
+        Telt hoe vaak je iets gekocht hebt, en kijkt naar het ritme: koop je iets ongeveer elke week en is
+        dat alweer een week geleden, dan komt het bovenaan (due). Wat je lang niet gekocht hebt, zakt."""
         with self.connect() as conn:
-            rows = conn.execute(
-                "SELECT name, count FROM purchase_counts WHERE count > 0 ORDER BY count DESC, last_at DESC LIMIT ?",
-                (limit,),
-            ).fetchall()
-        return [{"name": r["name"], "count": r["count"]} for r in rows]
+            counts = conn.execute("SELECT key, name, count, last_at FROM purchase_counts WHERE count > 0").fetchall()
+            log = {}
+            for row in conn.execute("SELECT key, bought_at FROM purchase_log ORDER BY bought_at"):
+                log.setdefault(row["key"], []).append(_when(row["bought_at"]))
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        result = []
+        for row in counts:
+            since = (now - _when(row["last_at"])).total_seconds() / 86400
+            times = log.get(row["key"], [])
+            due = None
+            if len(times) >= 2:
+                interval = (times[-1] - times[0]).total_seconds() / 86400 / (len(times) - 1)
+                if interval >= 1:
+                    due = since / interval
+            score = row["count"] * (0.6 + min(due, 1.5) if due is not None else 1)
+            if since > 60:
+                score *= 0.4
+            result.append({"name": display_name(row["name"]), "count": row["count"], "due": due is not None and due >= 0.85, "score": score})
+        result.sort(key=lambda r: -r["score"])
+        seen, unique = set(), []  # oudere tellingen kunnen nog onder een andere schrijfwijze staan
+        for item in result:
+            key = product_key(item["name"])
+            if key not in seen:
+                seen.add(key)
+                unique.append(item)
+        return unique[:limit]
+
+    def product_catalog(self, limit=400):
+        """Namen om uit te kiezen bij het toevoegen: wat je ooit kocht en de ingrediënten van je recepten."""
+        with self.connect() as conn:
+            bought = [r["name"] for r in conn.execute("SELECT name FROM purchase_counts ORDER BY count DESC")]
+            used = [r["name"] for r in conn.execute(
+                "SELECT name, COUNT(*) AS n FROM ingredients GROUP BY lower(name) ORDER BY n DESC"
+            )]
+        seen, names = set(), []
+        for name in [*bought, *used]:
+            key = product_key(name)
+            if key and key not in seen:
+                seen.add(key)
+                names.append(display_name(name))
+        return names[:limit]
 
     def product_icons(self, names):
         """{naam: afbeelding} voor de producten die al een icoon hebben."""
@@ -134,14 +254,24 @@ class ShoppingMixin:
             )
 
     def _count_purchase(self, conn, name, delta):
-        key = name.strip().lower()
+        name = display_name(name)
+        key = product_key(name)
         if not key:
             return
         if delta > 0:
             conn.execute(
                 """INSERT INTO purchase_counts (key, name, count) VALUES (?, ?, 1)
                    ON CONFLICT (key) DO UPDATE SET count = count + 1, name = excluded.name, last_at = datetime('now')""",
-                (key, name.strip()),
+                (key, name),
             )
+            conn.execute("INSERT INTO purchase_log (key) VALUES (?)", (key,))
         else:
             conn.execute("UPDATE purchase_counts SET count = MAX(count - 1, 0) WHERE key = ?", (key,))
+            conn.execute(
+                "DELETE FROM purchase_log WHERE id = (SELECT MAX(id) FROM purchase_log WHERE key = ?)", (key,)
+            )
+
+
+def _when(text):
+    """Tijdstip uit SQLite (UTC, 'JJJJ-MM-DD UU:MM:SS')."""
+    return datetime.fromisoformat(str(text).replace("T", " ")[:19])

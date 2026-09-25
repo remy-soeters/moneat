@@ -1,4 +1,4 @@
-# Mealplanner
+# MonEat
 
 Web-app voor het avondeten van je huishouden.
 
@@ -8,7 +8,8 @@ Web-app voor het avondeten van je huishouden.
   Kies er één, vraag om **andere opties**, of kies **Anders…**: uit de vriezer, uit eten, afhalen, restjes of
   iets uit je receptenboek. Swipe (of tik) door naar de volgende avond; aan het eind zie je je week.
   Gekozen gerechten komen vanzelf op de boodschappenlijst; nieuwe recepten van de AI komen pas in je
-  receptenboek als je ze kiest of bewaart.
+  receptenboek als je ze kiest of bewaart. Een gerecht staat maar één keer in de week op het menu, en wat je
+  deze week al hebt weggeklikt of op een andere avond hebt laten liggen, komt die week niet terug.
 - **Receptenboek:** schrijf recepten zelf, importeer ze via een link van een receptensite (inclusief foto)
   of laat Claude er een bedenken. Je kunt ook je eigen foto uploaden. Met een **hartje** maak je een recept
   favoriet (ieder voor zich); het filter *Favorieten* toont alleen die.
@@ -22,8 +23,12 @@ Web-app voor het avondeten van je huishouden.
   in je receptenboek, naar links slaat het over; gezien gerechten komen niet terug. De server zet op de
   achtergrond een voorraad gerechten mét foto klaar (instelbaar: 5, 10, 15 of 20), zodat je niet hoeft te wachten.
 - **Boodschappen:** één doorlopende lijst met tegels (zoals Bring!), in de secties *Kopen* en *Gekocht*.
-  Kies je een avondeten, dan komen de ingrediënten er vanzelf op (voor het gekozen aantal personen);
-  gelijke producten worden één tegel. Zelf iets toevoegen kan met suggesties van wat je vaak koopt, en
+  Kies je een avondeten, dan komen de ingrediënten er vanzelf op (voor het gekozen aantal personen).
+  Hetzelfde product is één tegel, ook als recepten het anders schrijven, met een hoeveelheid om mee te
+  winkelen: "2 blikken" in plaats van "400 g + 1 blik", hele uien, en geen eetlepels olijfolie. Iets wat je zelf
+  maakt (staat "Naan" in je receptenboek, dan is naanbrood in een ander recept dat recept) komt niet op de lijst:
+  de ingrediënten ervan wel. Houd een tegel ingedrukt om hem te wijzigen. Toevoegen gaat via de balk onderin:
+  het veld schuift naar boven met suggesties, eerst wat je volgens je koopritme waarschijnlijk weer nodig hebt.
   Gemini tekent voor elk product één keer een icoon.
 - **Inspiratie:** wat er deze maand in het seizoen is, en collecties van 6 recepten per thema
   (of zelf ingetypt) die je bewaart of direct op het menu zet.
@@ -78,17 +83,17 @@ functies met Claude.
 
 ### AI: Claude en Gemini
 
-In **Instellingen** (rondje rechtsboven) kies je wie de recepten schrijft en voeg je de API-sleutels toe:
+In **Instellingen** (rondje rechtsboven) staat per onderwerp wat je kunt instellen, met de sleutel die erbij hoort:
 
 - **Gemini** (Google): tekst (recepten, menu, inspiratie) is gratis met limieten, maar **alleen met een
   sleutel uit een Google-project zonder betaalgegevens**. Gemini maakt ook de **foto's en iconen**; die zijn
   niet gratis (Nano Banana 2 Lite kost ongeveer $0,03 per foto) en vragen een sleutel uit een project mét
-  betalen. Vul daarom bij Instellingen → Sleutels allebei in: de betaalde voor foto's, de gratis voor tekst.
+  betalen. Vul daarom allebei in: de gratis bij **Slimme hulp (AI)**, de betaalde bij **Foto's en iconen**.
   Sleutels via https://aistudio.google.com/apikey.
-- **Claude** (Anthropic): betaald, beste kwaliteit. Kies Opus 5, Sonnet 5 of Haiku 4.5. Sleutel via
-  https://console.anthropic.com.
+- **Claude** (Anthropic): betaald, beste kwaliteit. Kies bij **Slimme hulp (AI)** Opus 5, Sonnet 5 of Haiku 4.5.
+  Sleutel via https://console.anthropic.com.
 
-Tekst- en beeldmodellen kies je bij Instellingen; foto's automatisch laten maken kun je daar ook uitzetten.
+Het beeldmodel kies je bij **Foto's en iconen**; foto's automatisch laten maken kun je daar ook uitzetten.
 
 ### Bring!
 
@@ -179,6 +184,7 @@ Zo is de app van buitenaf bereikbaar via een eigen adres met HTTPS, bijvoorbeeld
 | `mealplanner/gemini.py` | Google Gemini (Interactions API) voor tekst en foto's |
 | `mealplanner/bring.py` | Koppeling met de Bring!-boodschappenapp |
 | `mealplanner/importer.py` | Recepten van websites importeren (schema.org/Recipe) |
+| `mealplanner/groceries.py` | Boodschappen samenvoegen: zelfde product, winkeleenheden (blikken, hele stuks), zelfgemaakte onderdelen |
 | `mealplanner/images.py` | Opslag van receptfoto's |
 | `mealplanner/preloader.py` | Houdt op de achtergrond swipekaarten mét foto klaar |
 | `mealplanner/icons.py` | Laat Gemini op de achtergrond iconen voor producten tekenen |
@@ -238,10 +244,11 @@ login (sessie-cookie). Verzoeken die iets wijzigen moeten de kop `X-Requested-Wi
 | GET | `/api/shopping` | De hele boodschappenlijst (samengevoegd per product, met iconen) |
 | POST | `/api/shopping/check` | `{key, checked}` product als gekocht markeren of terugzetten |
 | POST | `/api/shopping/items` | `{text}` zelf iets toevoegen, bijv. "2 liter melk" |
-| POST | `/api/shopping/recipe` | `{ingredients, recipe_id}` ingrediënten van een recept op de lijst zetten |
+| POST | `/api/shopping/recipe` | `{ingredients, recipe_id, servings}` ingrediënten van een recept op de lijst zetten (zelfgemaakte onderdelen vervangen door hun ingrediënten) |
+| PUT | `/api/shopping/items` | `{key, name, quantity, unit}` product wijzigen |
 | DELETE | `/api/shopping/items?key=…` | Product van de lijst halen |
 | POST | `/api/shopping/clear-bought` | Alles wat gekocht is van de lijst halen |
-| GET | `/api/shopping/suggestions` | Vaak gekochte producten (aangevuld met gangbare boodschappen) |
+| GET | `/api/shopping/suggestions` | Wat je waarschijnlijk nodig hebt (op koopritme), gangbare boodschappen, en alle bekende producten om in te zoeken |
 | POST | `/api/bring/sync` | Alles onder "Kopen" naar Bring! sturen |
 | POST/DELETE | `/api/bring/login`, `/api/bring` | Bring! koppelen / ontkoppelen (beheerder) |
 | GET | `/api/health` | Controle of de server draait (voor Docker) |

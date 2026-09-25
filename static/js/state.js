@@ -16,6 +16,7 @@ export const state = {
   planTarget: null, // {recipeId, name} of {idea: index} in het inplanvenster
   inspiration: { theme: null, data: null, loading: false, saved: new Map() },
   settings: null,
+  settingsGroup: null, // gekozen onderwerp bij Instellingen (null = overzicht)
   home: null, // gegevens van de startpagina
   user: null, // ingelogde gebruiker
   users: [], // accounts in het huishouden (voor de beheerder)
@@ -23,4 +24,4 @@ export const state = {
   photoBusy: new Set(), // recept-id's of "idea:<index>" waarvoor nu een foto gemaakt wordt
 };
 
-export const shop = { items: [], icons: null, suggestions: [], poll: null, hasHistory: false };
+export const shop = { items: [], icons: null, suggestions: [], catalog: [], poll: null, hasHistory: false, editing: null };
