@@ -11,6 +11,15 @@ def week_dates(any_day):
     return [(monday + timedelta(days=i)).isoformat() for i in range(7)]
 
 
+# Avonden zonder recept, met hoe ze in de app heten.
+SPECIAL_DINNERS = {
+    "vriezer": "Uit de vriezer",
+    "uiteten": "Uit eten",
+    "afhalen": "Afhalen",
+    "restjes": "Restjes",
+}
+
+
 def icon_key(name):
     """Eén icoon per product, ongeacht hoofdletters of spaties: 'Rode ui ' en 'rode ui' delen er een."""
     return " ".join(str(name or "").lower().split())[:60]

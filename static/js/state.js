@@ -2,7 +2,7 @@
 import { load, mondayOf } from "./util.js";
 
 export const state = {
-  tab: "plan",
+  tab: "home",
   week: mondayOf(new Date()),
   recipes: [],
   menu: { days: [], options: [], choices: [] },
@@ -16,6 +16,7 @@ export const state = {
   planTarget: null, // {recipeId, name} of {idea: index} in het inplanvenster
   inspiration: { theme: null, data: null, loading: false, saved: new Map() },
   settings: null,
+  home: null, // gegevens van de startpagina
   user: null, // ingelogde gebruiker
   users: [], // accounts in het huishouden (voor de beheerder)
   swipe: { cards: [], stats: null, prefs: null, preload: null, warned: false, poll: null },

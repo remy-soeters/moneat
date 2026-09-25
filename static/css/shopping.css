@@ -3,9 +3,9 @@
 .shop-add { position: relative; margin-bottom: 28px; }
 .shop-input {
   display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-radius: 14px;
-  background: var(--paper); border: 1.5px solid var(--line); color: var(--pink-ink); min-height: 56px;
+  background: var(--paper); border: 1.5px solid var(--line); color: var(--main-ink); min-height: 56px;
 }
-.shop-input:focus-within { border-color: var(--pink-strong); box-shadow: 0 0 0 4px var(--pink-soft); }
+.shop-input:focus-within { border-color: var(--main-strong); box-shadow: 0 0 0 4px var(--main-soft); }
 .shop-input svg { width: 22px; height: 22px; flex: none; stroke-width: 2.4; }
 .shop-input input { flex: 1; min-width: 0; border: 0; background: none; font: inherit; font-size: 17px; color: var(--ink); outline: none; }
 .shop-suggest {
@@ -16,7 +16,7 @@
 .shop-suggest .tiles-grid { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
 .shop-suggest .shop-tile { background: var(--paper-2); color: var(--ink); min-height: 92px; }
 .shop-suggest .shop-tile .tile-icon { width: 38px; height: 38px; font-size: 26px; }
-.shop-suggest .shop-tile.add-typed { background: var(--pink-soft); color: var(--pink-ink); }
+.shop-suggest .shop-tile.add-typed { background: var(--main-soft); color: var(--main-ink); }
 
 .shop-section { margin-bottom: 32px; }
 .shop-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 2px 12px; }
@@ -27,13 +27,13 @@
 .shop-tile {
   position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
   aspect-ratio: 1; min-height: 104px; height: auto; padding: 10px 8px; border-radius: 18px; border: 0; cursor: pointer;
-  background: var(--pink); color: var(--primary-ink); font: inherit; text-align: center; user-select: none;
-  box-shadow: 0 2px 6px rgba(242, 171, 193, 0.35);
+  background: var(--main); color: var(--primary-ink); font: inherit; text-align: center; user-select: none;
+  box-shadow: 0 2px 6px rgba(120, 190, 145, 0.35);
   transition: transform 0.12s, background 0.2s, opacity 0.2s; -webkit-tap-highlight-color: transparent;
 }
 .shop-tile:hover { transform: translateY(-2px); }
 .shop-tile:active { transform: scale(0.95); }
-.shop-tile:focus-visible { outline: 3px solid var(--pink-ink); outline-offset: 2px; }
+.shop-tile:focus-visible { outline: 3px solid var(--main-ink); outline-offset: 2px; }
 .shop-tile.pop { animation: tile-pop 0.3s ease; }
 @keyframes tile-pop { 40% { transform: scale(1.08); } }
 .shop-tile .tile-icon {
@@ -54,11 +54,11 @@
 }
 .shop-tile .tile-remove:hover { opacity: 1; background: #fff; }
 .shop-tile .tile-remove svg { width: 11px; height: 11px; stroke-width: 3; }
-.shop-tile.bought { background: var(--green-soft); color: var(--green-ink); box-shadow: none; }
+.shop-tile.bought { background: var(--second-soft); color: var(--second-ink); box-shadow: none; }
 .shop-tile.bought .tile-icon { filter: grayscale(0.5); opacity: 0.8; }
 .shop-tile.bought .tile-name { text-decoration: line-through; text-decoration-thickness: 1.5px; }
-.shop-tile.bought .tile-remove { background: rgba(255, 255, 255, 0.8); color: var(--green-ink); }
-.shop-empty { padding: 28px 16px; text-align: center; color: var(--ink-2); border: 2px dashed var(--pink-strong); border-radius: var(--radius); background: var(--paper); }
+.shop-tile.bought .tile-remove { background: rgba(255, 255, 255, 0.8); color: var(--second-ink); }
+.shop-empty { padding: 28px 16px; text-align: center; color: var(--ink-2); border: 2px dashed var(--main-strong); border-radius: var(--radius); background: var(--paper); }
 .icons-note { display: flex; align-items: center; gap: 8px; margin: -16px 2px 20px; font-size: 13px; color: var(--ink-2); }
 .icons-note .spinner { width: 14px; height: 14px; }
 

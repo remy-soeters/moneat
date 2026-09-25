@@ -42,6 +42,13 @@ CREATE TABLE IF NOT EXISTS dinner_choices (
     servings   INTEGER NOT NULL CHECK (servings > 0)
 );
 
+-- Avonden zonder recept: uit de vriezer, uit eten, afhalen of restjes. Sluit een gekozen recept uit.
+CREATE TABLE IF NOT EXISTS special_dinners (
+    date  TEXT PRIMARY KEY,
+    kind  TEXT NOT NULL,
+    note  TEXT NOT NULL DEFAULT ''
+);
+
 -- Bewaarde inspiratie van Claude, zodat een thema niet elke keer opnieuw gegenereerd hoeft te worden.
 CREATE TABLE IF NOT EXISTS inspiration (
     key         TEXT PRIMARY KEY,

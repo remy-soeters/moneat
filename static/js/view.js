@@ -16,7 +16,7 @@ import { $, $$, addDays, dayName, esc, formatShort, ingredientItems, isoDate, pe
 
 // Toont een recept. Precies één van: `option` (menu-optie), `recipe` (uit het receptenboek)
 // of `idea` (inspiratie van de AI die nog niet bewaard is: {recipe, description, index}).
-export function openView({ option = null, recipe = null, idea = null, card = null }) {
+export function openView({ option = null, recipe = null, idea = null, card = null, servings = null, planned = false }) {
   const source = option
     ? option.saved
       ? state.recipes.find((r) => r.id === option.recipe_id)
@@ -31,7 +31,7 @@ export function openView({ option = null, recipe = null, idea = null, card = nul
   state.view = {
     option, idea, card, source,
     recipe: option?.saved || recipe ? source : null,
-    servings: chosen?.servings ?? state.household,
+    servings: servings ?? chosen?.servings ?? state.household,
   };
 
   const methodSteps = steps(source.instructions);
@@ -124,11 +124,11 @@ export function openView({ option = null, recipe = null, idea = null, card = nul
   } else if (card) {
     foot.push(`<button class="btn outline" data-view-action="swipe-nope">✕ Overslaan</button>`);
     foot.push(`<button class="btn primary" data-view-action="swipe-like">♥ Bewaren</button>`);
-  } else if (recipe) {
+  } else if (recipe && !planned) {
     foot.push(`<button class="btn primary" data-view-action="plan"><span class="label-long">Op het menu zetten</span><span class="label-short">Op het menu</span></button>`);
   }
   // Gekozen avondeten staat al vanzelf op de lijst; dan geen losse knop.
-  if (source.ingredients?.length && !(option && isChosen(option))) {
+  if (source.ingredients?.length && !planned && !(option && isChosen(option))) {
     foot.unshift(`<button class="btn outline" data-view-action="to-shopping">${ICONS.cart}<span class="label-long">Op boodschappenlijst</span><span class="label-short">Op de lijst</span></button>`);
   }
   $("#view-foot").innerHTML = foot.join("");

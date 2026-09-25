@@ -8,7 +8,7 @@ dialog.book {
   --book-ink-2: #7d6c75;
   --note: #fff3c9;
   --note-ink: #4a3b2a;
-  background: linear-gradient(135deg, #f6c9d7 0%, #f9dde6 45%, #cfeada 100%); /* de kaft */
+  background: linear-gradient(135deg, #c2e6cc 0%, #e3f3e8 50%, #f7d3de 100%); /* de kaft */
   padding: 12px;
 }
 dialog.modal.wide.book {
@@ -44,13 +44,13 @@ dialog.book .modal-foot { background: var(--paper-edge); border-top: 1px solid r
 .book-photo {
   position: relative; flex: 1 1 0; min-height: 7em; max-height: 60vh; margin: 0.4em 0.4em 1.4em;
   display: grid; place-items: center; background: var(--plate, var(--paper-2)) center / cover no-repeat;
-  border: 0.55em solid #fff; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06), 0 12px 28px rgba(150, 70, 100, 0.18);
+  border: 0.55em solid #fff; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06), 0 12px 28px rgba(40, 90, 60, 0.18);
   transform: rotate(-1.2deg);
 }
 .book-photo .dish { font-size: 5em; filter: drop-shadow(0 10px 14px rgba(60, 30, 10, 0.2)); }
 .book-photo:not(.busy)::before, .book-photo:not(.busy)::after {  /* fotohoekjes */
   content: ""; position: absolute; width: 2em; height: 2em; z-index: 1;
-  background: linear-gradient(135deg, rgba(242, 171, 193, 0.85) 50%, transparent 50%);
+  background: linear-gradient(135deg, rgba(120, 190, 145, 0.85) 50%, transparent 50%);
 }
 .book-photo:not(.busy)::before { top: -0.7em; left: -0.7em; }
 .book-photo:not(.busy)::after { bottom: -0.7em; right: -0.7em; transform: rotate(180deg); }
@@ -98,7 +98,7 @@ dialog.book .modal-foot { background: var(--paper-edge); border-top: 1px solid r
 .book-col { min-width: 0; }
 .book-heading {
   display: flex; align-items: baseline; gap: 0.5em; margin: 0 0 0.6em; padding-bottom: 0.35em;
-  font-family: var(--serif); font-size: 1.55em; font-weight: 600; border-bottom: 2px solid var(--pink-strong);
+  font-family: var(--serif); font-size: 1.55em; font-weight: 600; border-bottom: 2px solid var(--main-strong);
 }
 .ingredients-heading { justify-content: space-between; align-items: center; flex-wrap: wrap; row-gap: 0.3em; }
 .ingredients-heading h3 { margin: 0; font: inherit; }
@@ -111,7 +111,7 @@ dialog.book .modal-foot { background: var(--paper-edge); border-top: 1px solid r
   width: 2.2em; height: 2.2em; border-radius: 50%; border: 0; cursor: pointer; font-size: 1.3em; line-height: 1;
   background: var(--paper-page); color: var(--accent); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
-.servings-control button:hover:not(:disabled) { background: var(--pink); color: var(--primary-ink); }
+.servings-control button:hover:not(:disabled) { background: var(--main); color: var(--primary-ink); }
 .servings-control button:disabled { opacity: 0.35; cursor: default; }
 .servings-note { margin: -0.3em 0 0.6em; font-size: 0.72em; font-style: italic; color: var(--book-ink-2); }
 .servings-note:empty { display: none; }

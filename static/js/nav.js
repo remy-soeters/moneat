@@ -1,5 +1,6 @@
 // ---------- navigatie ----------
 import { api } from "./api.js";
+import { renderHome } from "./home.js";
 import { renderInspiration } from "./inspiration.js";
 import { renderMenu } from "./menu.js";
 import { renderRecipes } from "./recipes.js";
@@ -9,11 +10,12 @@ import { state } from "./state.js";
 import { guarded } from "./ui.js";
 import { $, $$, mondayOf, save, weekLabel } from "./util.js";
 
-export const TABS = ["inspiration", "plan", "recipes", "shopping", "settings"];
+export const TABS = ["home", "plan", "inspiration", "recipes", "shopping", "settings"];
 
 const TITLES = {
+  home: "Vandaag",
   inspiration: "Inspiratie",
-  plan: "Weekmenu",
+  plan: "Plannen",
   recipes: "Receptenboek",
   shopping: "Boodschappen",
   settings: "Instellingen",
@@ -42,7 +44,9 @@ export async function refresh() {
   $$(".week-label").forEach((el) => (el.textContent = weekLabel(state.week)));
   $$(".this-week").forEach((el) => (el.hidden = state.week === mondayOf(new Date())));
   await guarded(async () => {
-    if (state.tab === "plan") {
+    if (state.tab === "home") {
+      await renderHome();
+    } else if (state.tab === "plan") {
       [state.recipes, state.menu] = await Promise.all([api("/api/recipes"), api(`/api/menu?week=${state.week}`)]);
       renderMenu();
     } else if (state.tab === "recipes") {

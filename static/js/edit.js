@@ -76,6 +76,7 @@ export async function saveRecipe(event) {
     const saved = await api(id ? `/api/recipes/${id}` : "/api/recipes", { method: id ? "PUT" : "POST", body });
     if (state.editMenuDate) {
       await api("/api/menu/options", { method: "POST", body: { date: state.editMenuDate, recipe_id: saved.id } });
+      window.dispatchEvent(new CustomEvent("mp:menu-changed"));
     }
     closeSheet("#edit-sheet");
     toast(state.editMenuDate ? `${saved.name} staat op het menu` : "Recept opgeslagen");

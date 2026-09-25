@@ -302,12 +302,13 @@ def _ask_claude(system, user_message, schema, effort):
     return json.loads(text)
 
 
-def suggest_menu_options(recipes, needs, current_menu, wishes="", servings=2):
+def suggest_menu_options(recipes, needs, current_menu, wishes="", servings=2, avoid=()):
     """Vraag Claude om opties voor het avondeten.
 
     needs: {datum: aantal opties dat er voor die avond bij moet}
     recipes: bestaande recepten (dicts met id, name, tags, prep_minutes)
     current_menu: opties die al op het menu staan (om dubbelingen te voorkomen)
+    avoid: gerechten die net zijn afgewezen ("andere opties"), die niet terug moeten komen
     """
     known_ids = {r["id"] for r in recipes}
     catalog = [
@@ -320,7 +321,8 @@ def suggest_menu_options(recipes, needs, current_menu, wishes="", servings=2):
         f"Aantal personen: {servings}.\n"
         f"Wensen: {wishes.strip() or 'geen bijzondere wensen'}.\n\n"
         f"Staat al op het menu:\n{json.dumps(current_menu, ensure_ascii=False)}\n\n"
-        f"Bestaande recepten:\n{json.dumps(catalog, ensure_ascii=False)}",
+        + (f"Net afgewezen, stel deze en vergelijkbare gerechten niet voor: {json.dumps(list(avoid), ensure_ascii=False)}\n\n" if avoid else "")
+        + f"Bestaande recepten:\n{json.dumps(catalog, ensure_ascii=False)}",
         SUGGESTIONS_SCHEMA,
     )["suggestions"]
 

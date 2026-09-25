@@ -4,7 +4,7 @@ import json
 from datetime import date, timedelta
 
 from .base import NotFound
-from .cleaning import check_date, clean_recipe, positive_int, week_dates
+from .cleaning import SPECIAL_DINNERS, check_date, clean_recipe, positive_int, week_dates
 
 
 class MenuMixin:
@@ -19,12 +19,20 @@ class MenuMixin:
                 (days[0], days[-1]),
             ).fetchall()
             choices = conn.execute(
-                """SELECT c.date, c.recipe_id, c.servings, r.name AS recipe_name
+                """SELECT c.date, c.recipe_id, c.servings, r.name AS recipe_name, r.image AS recipe_image
                    FROM dinner_choices c JOIN recipes r ON r.id = c.recipe_id
                    WHERE c.date BETWEEN ? AND ?""",
                 (days[0], days[-1]),
             ).fetchall()
-        return {"days": days, "options": [_option(r) for r in rows], "choices": [dict(r) for r in choices]}
+            specials = conn.execute(
+                "SELECT date, kind, note FROM special_dinners WHERE date BETWEEN ? AND ?", (days[0], days[-1])
+            ).fetchall()
+        return {
+            "days": days,
+            "options": [_option(r) for r in rows],
+            "choices": [dict(r) for r in choices],
+            "specials": [_special(r) for r in specials],
+        }
 
     def get_option(self, option_id):
         with self.connect() as conn:
@@ -108,12 +116,71 @@ class MenuMixin:
                    ON CONFLICT (date) DO UPDATE SET recipe_id = excluded.recipe_id, servings = excluded.servings""",
                 (day, recipe_id, servings),
             )
+            conn.execute("DELETE FROM special_dinners WHERE date = ?", (day,))
         self._sync_dinner_to_list(day)
 
     def clear_dinner_choice(self, day):
         with self.connect() as conn:
             conn.execute("DELETE FROM dinner_choices WHERE date = ?", (day,))
+            conn.execute("DELETE FROM special_dinners WHERE date = ?", (day,))
         self._sync_dinner_to_list(day)
+
+    def set_special_dinner(self, day, kind, note=""):
+        """Geen recept die avond (vriezer, uit eten, …): een gekozen recept vervalt, en ook zijn boodschappen."""
+        check_date(day)
+        if kind not in SPECIAL_DINNERS:
+            raise ValueError(f"Onbekende keuze: {kind}")
+        with self.connect() as conn:
+            conn.execute("DELETE FROM dinner_choices WHERE date = ?", (day,))
+            conn.execute(
+                """INSERT INTO special_dinners (date, kind, note) VALUES (?, ?, ?)
+                   ON CONFLICT (date) DO UPDATE SET kind = excluded.kind, note = excluded.note""",
+                (day, kind, str(note or "").strip()[:200]),
+            )
+        self._sync_dinner_to_list(day)
+
+    def ai_options(self, day):
+        """AI-voorstellen van een avond, behalve het gekozen gerecht (die kunnen vervangen worden)."""
+        check_date(day)
+        with self.connect() as conn:
+            chosen = conn.execute("SELECT recipe_id FROM dinner_choices WHERE date = ?", (day,)).fetchone()
+            rows = conn.execute(
+                """SELECT o.*, r.name AS recipe_name, r.tags, r.prep_minutes, r.image AS recipe_image
+                   FROM menu_options o LEFT JOIN recipes r ON r.id = o.recipe_id
+                   WHERE o.date = ? AND o.source = 'claude'""",
+                (day,),
+            ).fetchall()
+        return [_option(r) for r in rows if not (chosen and r["recipe_id"] == chosen["recipe_id"])]
+
+    def upcoming_dinners(self, start_day, count=7):
+        """Per avond vanaf `start_day`: het gekozen recept (volledig), een bijzondere avond of het aantal opties."""
+        first = check_date(start_day)
+        days = [(first + timedelta(days=i)).isoformat() for i in range(count)]
+        with self.connect() as conn:
+            choices = {
+                r["date"]: r for r in conn.execute(
+                    "SELECT date, recipe_id, servings FROM dinner_choices WHERE date BETWEEN ? AND ?", (days[0], days[-1])
+                )
+            }
+            specials = {
+                r["date"]: _special(r) for r in conn.execute(
+                    "SELECT date, kind, note FROM special_dinners WHERE date BETWEEN ? AND ?", (days[0], days[-1])
+                )
+            }
+            counts = dict(conn.execute(
+                "SELECT date, COUNT(*) FROM menu_options WHERE date BETWEEN ? AND ? GROUP BY date", (days[0], days[-1])
+            ).fetchall())
+        result = []
+        for day in days:
+            choice = choices.get(day)
+            result.append({
+                "date": day,
+                "recipe": self.get_recipe(choice["recipe_id"]) if choice else None,
+                "servings": choice["servings"] if choice else None,
+                "special": specials.get(day),
+                "options": counts.get(day, 0),
+            })
+        return result
 
     def _sync_dinner_to_list(self, day):
         """Zet de ingrediënten van het gekozen avondeten van `day` op de boodschappenlijst.
@@ -188,3 +255,7 @@ def _option(row):
             suggestion=suggestion,
         )
     return option
+
+
+def _special(row):
+    return {"date": row["date"], "kind": row["kind"], "label": SPECIAL_DINNERS.get(row["kind"], row["kind"]), "note": row["note"]}

@@ -1,0 +1,109 @@
+/* Plannen als stappenplan: intro, avond voor avond, afsluiting. */
+
+dialog.modal.journey { width: min(1040px, calc(100vw - 32px)); height: min(92vh, 920px); max-height: none; }
+.journey-top {
+  display: flex; align-items: center; gap: 12px; padding: 16px 20px 8px 24px;
+  padding-top: calc(16px + env(safe-area-inset-top));
+}
+.journey-dots { flex: 1; display: flex; justify-content: center; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.journey-dots button {
+  width: 42px; height: 42px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--paper);
+  font: inherit; font-size: 13px; font-weight: 800; color: var(--ink-2); cursor: pointer; transition: background 0.2s, transform 0.2s;
+}
+.journey-dots button.done { background: var(--second); border-color: var(--second-strong); color: var(--second-on); }
+.journey-dots button.current { background: var(--main); border-color: var(--main-strong); color: var(--primary-ink); transform: scale(1.1); }
+.journey-dots button.loading { animation: pulse 1.2s ease-in-out infinite; }
+
+.journey-body { flex: 1; overflow-y: auto; padding: 12px 32px 28px; touch-action: pan-y; overscroll-behavior: contain; }
+.journey-body.slide-left { animation: slide-in-left 0.28s ease; }
+.journey-body.slide-right { animation: slide-in-right 0.28s ease; }
+@keyframes slide-in-left { from { transform: translateX(48px); opacity: 0; } }
+@keyframes slide-in-right { from { transform: translateX(-48px); opacity: 0; } }
+.journey-wait { display: grid; place-items: center; height: 100%; }
+.journey-wait .spinner { width: 32px; height: 32px; }
+
+.journey-title { margin: 0 0 18px; font-size: clamp(28px, 4vw, 40px); line-height: 1.1; }
+.journey-day .kicker { margin-top: 6px; }
+
+.journey-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
+.j-card .plate { height: 170px; }
+.journey-busy { display: flex; align-items: center; gap: 10px; margin: 14px 0 0; color: var(--ink-2); font-family: var(--serif); font-style: italic; }
+
+.journey-picked {
+  display: flex; align-items: center; gap: 14px; margin: -4px 0 18px; padding: 12px 16px; border-radius: 16px;
+  background: var(--second-soft); border: 1px solid var(--second-line);
+}
+.journey-picked strong, .journey-picked small { display: block; }
+.journey-picked small { color: var(--second-ink); font-weight: 600; }
+.journey-picked > span:nth-child(2) { flex: 1; min-width: 0; }
+.picked-check { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--second-strong); color: var(--second-on); flex: none; }
+.picked-check svg { width: 18px; height: 18px; stroke-width: 2.6; }
+.picked-emoji { font-size: 34px; flex: none; }
+.journey-picked.special { background: var(--main-soft); border-color: var(--line); }
+.journey-picked.special small { color: var(--main-ink); }
+
+.journey-empty {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin-bottom: 16px; padding: 18px 20px;
+  border: 2px dashed var(--main-strong); border-radius: var(--radius); background: var(--paper);
+}
+.journey-empty p { margin: 0; color: var(--ink-2); }
+
+.journey-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: -6px 0 18px; }
+.journey-actions .btn { min-height: 38px; padding: 6px 16px; font-size: 14px; }
+.journey-others { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin: -6px 0 18px; }
+.other-choice {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-height: 84px; padding: 14px 16px;
+  border: 1.5px solid var(--line); border-radius: 16px; background: var(--paper); font: inherit; color: var(--ink); text-align: left; cursor: pointer;
+}
+.other-choice span { font-size: 28px; line-height: 1; }
+.other-choice:hover { border-color: var(--main-strong); background: var(--main-soft); }
+.other-choice.active { border-color: var(--second-strong); background: var(--second-soft); }
+
+/* intro */
+.journey-intro { max-width: 660px; margin: 0 auto; padding-top: 8px; }
+.journey-intro .field { margin-bottom: 22px; }
+.day-chips { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+.day-chip {
+  display: grid; place-items: center; gap: 0; min-height: 60px; padding: 6px 0; border-radius: 14px; cursor: pointer;
+  border: 1.5px solid var(--line); background: var(--paper); font: inherit; color: var(--ink-2); line-height: 1.2;
+}
+.day-chip strong { font-size: 15px; }
+.day-chip small { font-size: 12px; }
+.day-chip[aria-pressed="true"] { background: var(--main); border-color: var(--main-strong); color: var(--primary-ink); }
+.day-chip.done:not([aria-pressed="true"]) small { color: var(--second-ink); font-weight: 800; }
+.day-chip:disabled { opacity: 0.4; cursor: default; }
+.intro-row { display: flex; flex-wrap: wrap; gap: 8px 32px; }
+
+/* afsluiting */
+.journey-done { max-width: 560px; margin: 0 auto; padding-top: 12px; text-align: center; }
+.done-emoji { font-size: 64px; line-height: 1; margin-bottom: 10px; }
+.done-list { list-style: none; margin: 8px 0 0; padding: 0; text-align: left; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); }
+.done-list li { display: flex; gap: 14px; padding: 12px 18px; }
+.done-list li + li { border-top: 1px solid var(--line); }
+.done-day { flex: none; width: 96px; font-weight: 700; color: var(--ink-2); }
+
+@media (max-width: 767px) {
+  dialog.modal.journey { width: 100vw; max-width: 100vw; height: 100vh; height: 100dvh; max-height: none; margin: 0; border-radius: 0; }
+  .journey-top { padding: 10px 12px 6px; padding-top: calc(10px + env(safe-area-inset-top)); }
+  .journey-dots { justify-content: flex-start; gap: 4px; }
+  .journey-dots button { width: 38px; height: 38px; font-size: 12px; }
+  .journey-body { padding: 8px 16px 20px; }
+  .journey-title { font-size: 28px; margin-bottom: 14px; }
+  /* opties onder elkaar, met de foto links: zo zie je alle drie zonder veel te scrollen */
+  .journey-options { grid-template-columns: 1fr; gap: 10px; }
+  .j-card { flex-direction: row; }
+  .j-card .plate { flex: none; width: 108px; height: auto; min-height: 128px; }
+  .j-card .plate .dish { font-size: 44px; }
+  .j-card .plate-badges { left: 6px; top: 6px; }
+  .j-card .ribbon { bottom: 8px; font-size: 10.5px; padding: 3px 8px 3px 6px; }
+  .j-card .tile-body { padding: 12px 14px; gap: 4px; min-width: 0; }
+  .j-card .tile-title { font-size: 17px; }
+  .j-card .tile-reason { font-size: 14px; }
+  .j-card .tile-actions { padding-top: 6px; gap: 10px; }
+  .journey-others { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .other-choice { flex-direction: row; align-items: center; gap: 10px; min-height: 56px; padding: 8px 12px; }
+  .other-choice span { font-size: 24px; }
+  .other-choice strong { font-size: 14px; line-height: 1.2; }
+  .day-chip { min-height: 54px; }
+  .done-day { width: 84px; }
+}

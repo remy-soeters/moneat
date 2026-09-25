@@ -1,11 +1,11 @@
 // Startpunt: eerst kijken of je bent ingelogd, daarna de app laden.
 import { api } from "./api.js";
 import { initAuth, showApp, showAuthScreen } from "./auth.js";
-import { TABS, refresh, setWeek, showTab } from "./nav.js";
+import { refresh, setWeek, showTab } from "./nav.js";
 import { state } from "./state.js";
 import { kickPreload } from "./swipe.js";
 import { applyAiName, toast } from "./ui.js";
-import { $, $$, addDays, load, mondayOf } from "./util.js";
+import { $, $$, addDays, mondayOf } from "./util.js";
 
 export async function loadSettings() {
   try {
@@ -22,7 +22,7 @@ function start(user) {
   if (started) return refresh();
   started = true;
   loadSettings();
-  showTab(TABS.includes(load("tab")) ? load("tab") : "plan");
+  showTab("home"); // de app opent altijd op Vandaag
 }
 
 async function boot() {
@@ -50,7 +50,7 @@ window.addEventListener("mp:logged-out", () => {
 $$("[data-tab]").forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab)));
 $(".logo").addEventListener("click", (e) => {
   e.preventDefault();
-  showTab("plan");
+  showTab("home");
 });
 $$("[data-week-step]").forEach((b) =>
   b.addEventListener("click", () => {

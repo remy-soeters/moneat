@@ -1,52 +1,69 @@
-// ---------- weekmenu ----------
+// ---------- plannen: weekoverzicht (het kiezen zelf gebeurt in journey.js) ----------
 import { api } from "./api.js";
-import { dishFor, plateAttrs } from "./dishes.js";
+import { dishFor, plateAttrs, specialFor } from "./dishes.js";
 import { openEdit } from "./edit.js";
 import { ICONS } from "./icons.js";
+import { openJourney } from "./journey.js";
 import { refresh } from "./nav.js";
 import { state } from "./state.js";
-import { aiName, closeSheet, guarded, openSheet, toast } from "./ui.js";
-import { $, $$, dayName, esc, formatShort, isoDate, load, metaHtml, save, tagList } from "./util.js";
-import { openView } from "./view.js";
+import { closeSheet, guarded, openSheet, toast } from "./ui.js";
+import { $, addDays, dayName, esc, formatShort, isoDate, isoWeek, mondayOf, parseIso, personen, save, tagList } from "./util.js";
 
 export function renderMenu() {
   const today = isoDate(new Date());
-  const choices = new Map(state.menu.choices.map((c) => [c.date, c]));
+  const days = state.menu.days;
+  const decided = days.filter((d) => dinnerOf(d)).length;
+  const open = days.filter((d) => d >= today && !dinnerOf(d)).length;
+  const thisWeek = state.week === mondayOf(new Date());
+  const nextWeek = state.week === addDays(mondayOf(new Date()), 7);
+  const weekName = thisWeek ? "deze week" : nextWeek ? "volgende week" : `in week ${isoWeek(state.week)}`;
 
-  const chosen = state.menu.days.filter((d) => choices.has(d)).length;
-  $("#chosen-count").textContent = `${chosen} van 7`;
-  $("#progress-bar").style.width = `${(chosen / 7) * 100}%`;
-  $("#household").textContent = state.household;
-  $("#fill-status").hidden = !state.filling;
-  $("#open-fill").disabled = Boolean(state.filling);
-  $("#welcome").hidden = state.recipes.length > 0 || state.menu.options.length > 0 || Boolean(state.filling);
+  $("#plan-hero-title").textContent = decided === 7 ? "Je week staat!" : `Wat wil je ${weekName} eten?`;
+  $("#plan-hero-sub").textContent = `${decided} van 7 avonden gepland${open ? ` · nog ${open} ${open === 1 ? "avond" : "avonden"} open` : ""}`;
+  $("#progress-bar").style.width = `${(decided / 7) * 100}%`;
+  const start = $("#start-journey");
+  start.hidden = open === 0;
+  start.textContent = decided && open ? "Plan de rest van de week" : "Start met plannen";
 
-  $("#days").innerHTML = state.menu.days
-    .map((day) => {
-      const choice = choices.get(day);
-      const options = state.menu.options.filter((o) => o.date === day);
-      const skeletons = state.filling?.[day] ?? 0;
-      const status = choice
-        ? `<span class="day-status done">${ICONS.check}${esc(choice.recipe_name)}</span>`
-        : options.length
-          ? `<span class="day-status">Kies uit ${options.length} ${options.length === 1 ? "optie" : "opties"}</span>`
-          : `<span class="day-status">Nog geen opties</span>`;
-      return `<section class="day ${day < today ? "past" : ""} ${choice ? "decided" : ""}">
-        <div class="day-head">
-          <h2 class="day-name">${dayName(day)}</h2>
-          <span class="day-date">${formatShort(day)}</span>
-          ${day === today ? `<span class="today-pill">Vandaag</span>` : ""}
-          <span class="day-rule"></span>
-          ${status}
-        </div>
-        <div class="tiles">
-          ${options.map((o) => tileHtml(o, choice)).join("")}
-          ${Array.from({ length: skeletons }, skeletonHtml).join("")}
-          <button class="tile add" data-action="add" data-date="${day}">${ICONS.plus}<span>Optie toevoegen</span></button>
-        </div>
-      </section>`;
-    })
-    .join("");
+  $("#week-list").innerHTML = days.map((day) => weekRowHtml(day, today)).join("");
+}
+
+// Wat er op een avond gegeten wordt: {recipe_id, recipe_name, recipe_image} of {special}.
+export function dinnerOf(day) {
+  const choice = state.menu.choices.find((c) => c.date === day);
+  if (choice) return choice;
+  const special = state.menu.specials?.find((s) => s.date === day);
+  return special ? { special } : null;
+}
+
+function weekRowHtml(day, today) {
+  const dinner = dinnerOf(day);
+  const options = state.menu.options.filter((o) => o.date === day).length;
+  const past = day < today;
+  let thumb;
+  let title;
+  let sub;
+  if (dinner?.special) {
+    thumb = `<span class="row-thumb special" aria-hidden="true">${specialFor(dinner.special.kind).emoji}</span>`;
+    title = dinner.special.label;
+    sub = specialFor(dinner.special.kind).line;
+  } else if (dinner) {
+    const item = { name: dinner.recipe_name, image: dinner.recipe_image };
+    thumb = `<span ${plateAttrs(item, "row-thumb")} aria-hidden="true">${item.image ? "" : dishFor(item)}</span>`;
+    title = dinner.recipe_name;
+    sub = `Voor ${personen(dinner.servings)}`;
+  } else {
+    thumb = `<span class="row-thumb is-empty" aria-hidden="true">${ICONS.plus}</span>`;
+    title = past ? "Niets gepland" : "Nog niet gepland";
+    sub = options ? `${options} ${options === 1 ? "optie" : "opties"} klaar om uit te kiezen` : past ? "" : "Tik om te kiezen";
+  }
+  return `<button type="button" class="week-row ${dinner ? "planned" : ""} ${past ? "past" : ""}" data-day="${day}" ${past && !dinner ? "disabled" : ""}>
+    <span class="row-day"><strong>${dayName(day).slice(0, 2)}</strong><small>${parseIso(day).getDate()}</small></span>
+    ${thumb}
+    <span class="row-main"><span class="row-title">${esc(title)}</span>${sub ? `<span class="row-sub">${esc(sub)}</span>` : ""}</span>
+    ${day === today ? `<span class="today-pill">Vandaag</span>` : ""}
+    <span class="row-go" aria-hidden="true">${ICONS.chevron}</span>
+  </button>`;
 }
 
 export function badgesHtml(option) {
@@ -54,29 +71,6 @@ export function badgesHtml(option) {
     option.source === "claude" ? `<span class="badge claude">${ICONS.sparkle}AI</span>` : "",
     option.saved ? "" : `<span class="badge">Nieuw</span>`,
   ].join("");
-}
-
-export function tileHtml(option, choice) {
-  const isChosen = choice && option.saved && choice.recipe_id === option.recipe_id;
-  return `<article class="tile ${isChosen ? "chosen" : ""}" data-option="${option.id}">
-    <button ${plateAttrs(option)} data-action="view" aria-label="Bekijk recept ${esc(option.name)}">
-      <span class="dish" aria-hidden="true">${dishFor(option)}</span>
-      <span class="plate-badges">${badgesHtml(option)}</span>
-      ${isChosen ? `<span class="ribbon">${ICONS.check}Op het menu</span>` : ""}
-    </button>
-    <button class="remove" data-action="remove" aria-label="Haal ${esc(option.name)} van het menu">${ICONS.x}</button>
-    <div class="tile-body">
-      <h3 class="tile-title">${esc(option.name)}</h3>
-      ${metaHtml(option)}
-      ${option.reason ? `<p class="tile-reason">${esc(option.reason)}</p>` : ""}
-      <div class="tile-actions">
-        <button class="btn small choose ${isChosen ? "is-chosen" : ""}" data-action="choose" aria-pressed="${Boolean(isChosen)}">
-          ${isChosen ? `${ICONS.check}Gekozen` : "Kies"}
-        </button>
-        <button class="btn link" data-action="view">Bekijk recept</button>
-      </div>
-    </div>
-  </article>`;
 }
 
 export function skeletonHtml() {
@@ -99,6 +93,7 @@ export function isChosen(option) {
   return Boolean(choice && option.saved && choice.recipe_id === option.recipe_id);
 }
 
+// Kiezen of de keuze ongedaan maken. Laat andere onderdelen (zoals het stappenplan) weten dat het menu veranderde.
 export async function toggleChoice(option, servings = state.household) {
   await guarded(async () => {
     if (isChosen(option)) {
@@ -107,13 +102,7 @@ export async function toggleChoice(option, servings = state.household) {
       await api(`/api/menu/options/${option.id}/choose`, { method: "POST", body: { servings } });
       if (!option.saved) toast(`${option.name} is bewaard in je recepten`);
     }
-    await refresh();
-  });
-}
-
-export async function removeOption(option) {
-  await guarded(async () => {
-    await api(`/api/menu/options/${option.id}`, { method: "DELETE" });
+    window.dispatchEvent(new CustomEvent("mp:menu-changed"));
     await refresh();
   });
 }
@@ -121,7 +110,6 @@ export async function removeOption(option) {
 export function setHousehold(n) {
   state.household = Math.min(20, Math.max(1, n));
   save("household", state.household);
-  $("#household").textContent = state.household;
 }
 
 export async function copyPreviousWeek() {
@@ -129,49 +117,6 @@ export async function copyPreviousWeek() {
     const { copied } = await api("/api/menu/copy-previous", { method: "POST", body: { week: state.week } });
     toast(copied ? `${copied} ${copied === 1 ? "optie" : "opties"} overgenomen van vorige week` : "Vorige week stond er niets op het menu");
     await refresh();
-  });
-}
-
-// ---------- aanvullen met AI ----------
-
-export function openFillSheet() {
-  $$("#per-day button").forEach((b) => b.setAttribute("aria-checked", String(Number(b.dataset.value) === state.perDay)));
-  $("#fill-form").wishes.value = load("wishes") || "";
-  openSheet("#fill-sheet");
-}
-
-export async function fillMenu(event) {
-  event.preventDefault();
-  const wishes = $("#fill-form").wishes.value;
-  save("wishes", wishes);
-  closeSheet("#fill-sheet");
-
-  // Laat meteen zien waar opties bij komen.
-  const chosen = new Set(state.menu.choices.map((c) => c.date));
-  const today = isoDate(new Date());
-  state.filling = {};
-  for (const day of state.menu.days) {
-    const count = state.menu.options.filter((o) => o.date === day).length;
-    if (day >= today && !chosen.has(day) && count < state.perDay) state.filling[day] = state.perDay - count;
-  }
-  if (!Object.keys(state.filling).length) {
-    state.filling = null;
-    toast("Elke komende avond heeft al genoeg opties of een keuze");
-    return;
-  }
-  renderMenu();
-
-  await guarded(async () => {
-    try {
-      const res = await api("/api/menu/fill", {
-        method: "POST",
-        body: { week: state.week, wishes, servings: state.household, per_day: state.perDay },
-      });
-      toast(res.added ? `${aiName()} heeft ${res.added} opties toegevoegd` : res.message || `${aiName()} had geen nieuwe opties`);
-    } finally {
-      state.filling = null;
-      await refresh();
-    }
   });
 }
 
@@ -215,42 +160,18 @@ export async function addPicked() {
   await guarded(async () => {
     for (const id of selected) await api("/api/menu/options", { method: "POST", body: { date, recipe_id: id } });
     closeSheet("#picker-sheet");
+    window.dispatchEvent(new CustomEvent("mp:menu-changed"));
     await refresh();
   });
 }
 
-// Weekmenu
-$("#days").addEventListener("click", (e) => {
-  const button = e.target.closest("button");
-  if (!button) return;
-  if (button.dataset.action === "add") return openPicker(button.dataset.date);
-  const option = findOption(button.closest("[data-option]")?.dataset.option);
-  if (!option) return;
-  if (button.dataset.action === "choose") toggleChoice(option);
-  else if (button.dataset.action === "remove") removeOption(option);
-  else if (button.dataset.action === "view") openView({ option });
+// Weekoverzicht
+$("#week-list").addEventListener("click", (e) => {
+  const row = e.target.closest("[data-day]");
+  if (row && !row.disabled) openJourney({ week: state.week, day: row.dataset.day });
 });
-$(".stepper").addEventListener("click", (e) => {
-  const step = Number(e.target.closest("button")?.dataset.step);
-  if (step) setHousehold(state.household + step);
-});
+$("#start-journey").addEventListener("click", () => openJourney({ week: state.week }));
 $("#copy-previous").addEventListener("click", copyPreviousWeek);
-$("#open-fill").addEventListener("click", openFillSheet);
-$("#welcome").addEventListener("click", (e) => {
-  const action = e.target.closest("button")?.dataset.action;
-  if (action === "welcome-fill") openFillSheet();
-  if (action === "welcome-recipe") openEdit();
-});
-
-// Aanvullen met AI
-$("#per-day").addEventListener("click", (e) => {
-  const value = Number(e.target.closest("button")?.dataset.value);
-  if (!value) return;
-  state.perDay = value;
-  save("perDay", value);
-  $$("#per-day button").forEach((b) => b.setAttribute("aria-checked", String(Number(b.dataset.value) === value)));
-});
-$("#fill-form").addEventListener("submit", fillMenu);
 
 // Optie kiezen
 $("#picker-search").addEventListener("input", renderPicker);

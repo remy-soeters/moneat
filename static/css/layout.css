@@ -7,7 +7,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 0 28px 96px; }
 /* De vervaging zit op een laag ertussen, zodat de menubalk op de telefoon echt aan het scherm vast kan zitten. */
 .site-header::before {
   content: ""; position: absolute; inset: 0; z-index: -1;
-  background: rgba(255, 248, 250, 0.86); backdrop-filter: saturate(1.4) blur(14px); -webkit-backdrop-filter: saturate(1.4) blur(14px);
+  background: rgba(249, 251, 248, 0.86); backdrop-filter: saturate(1.4) blur(14px); -webkit-backdrop-filter: saturate(1.4) blur(14px);
 }
 .site-header-inner {
   max-width: 1200px; margin: 0 auto; padding: 10px 28px; min-height: 72px;
@@ -20,13 +20,13 @@ main { max-width: 1200px; margin: 0 auto; padding: 0 28px 96px; }
 }
 .logo-mark {
   display: grid; place-items: center; width: 40px; height: 40px; border-radius: 13px;
-  background: linear-gradient(135deg, var(--pink) 0%, var(--pink-soft) 55%, var(--green) 100%);
+  background: linear-gradient(135deg, var(--main) 0%, var(--main-soft) 55%, var(--second) 100%);
 }
-.logo svg { width: 22px; height: 22px; color: var(--pink-ink); stroke-width: 2.1; }
+.logo svg { width: 22px; height: 22px; color: var(--main-ink); stroke-width: 2.1; }
 
 .nav-tabs {
   display: flex; gap: 4px; padding: 5px; border-radius: 999px; background: var(--paper);
-  border: 1px solid var(--line); box-shadow: 0 1px 2px rgba(150, 70, 100, 0.04);
+  border: 1px solid var(--line); box-shadow: 0 1px 2px rgba(40, 90, 60, 0.04);
 }
 .nav-tabs button {
   display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 16px; border: 0; border-radius: 999px;
@@ -34,7 +34,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 0 28px 96px; }
   transition: background 0.15s, color 0.15s;
 }
 .nav-tabs button:hover { color: var(--ink); background: var(--paper-2); }
-.nav-tabs button[aria-current="page"] { background: var(--pink); color: var(--primary-ink); }
+.nav-tabs button[aria-current="page"] { background: var(--main); color: var(--primary-ink); }
 .nav-tabs svg { width: 19px; height: 19px; }
 .nav-tabs .label-short { display: none; }
 
@@ -51,7 +51,7 @@ main { max-width: 1200px; margin: 0 auto; padding: 0 28px 96px; }
   display: block; width: 100%; min-height: 42px; padding: 8px 12px; border: 0; border-radius: 10px; background: none;
   text-align: left; font: inherit; font-weight: 600; color: var(--ink); cursor: pointer;
 }
-.user-menu button:hover { background: var(--pink-soft); }
+.user-menu button:hover { background: var(--main-soft); }
 
 .page-head {
   display: flex; align-items: flex-end; justify-content: space-between; gap: 16px 24px; flex-wrap: wrap;
@@ -80,13 +80,13 @@ main { max-width: 1200px; margin: 0 auto; padding: 0 28px 96px; }
     display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0;
     padding: 6px 3px calc(6px + env(safe-area-inset-bottom)); border-radius: 22px 22px 0 0;
     border: 0; border-top: 1px solid var(--line); background: rgba(255, 255, 255, 0.96);
-    box-shadow: 0 -6px 24px rgba(150, 70, 100, 0.1);
+    box-shadow: 0 -6px 24px rgba(40, 90, 60, 0.1);
   }
   .nav-tabs button {
     flex-direction: column; gap: 3px; min-height: 56px; padding: 6px 0; border-radius: 16px;
     font-size: 10.5px; font-weight: 700; letter-spacing: -0.015em; color: var(--ink-2);
   }
-  .nav-tabs button[aria-current="page"] { background: var(--pink-soft); color: var(--pink-ink); }
+  .nav-tabs button[aria-current="page"] { background: var(--main-soft); color: var(--main-ink); }
   .nav-tabs svg { width: 23px; height: 23px; }
   .nav-tabs .label-long { display: none; }
   .nav-tabs .label-short { display: block; max-width: 100%; overflow: hidden; text-overflow: clip; white-space: nowrap; }

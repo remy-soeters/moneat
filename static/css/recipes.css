@@ -6,15 +6,15 @@
   background: var(--paper); border: 1.5px solid var(--line); border-radius: var(--radius); font: inherit; color: var(--ink);
   transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
 }
-.add-option:hover { border-color: var(--pink-strong); box-shadow: var(--shadow); transform: translateY(-1px); }
+.add-option:hover { border-color: var(--main-strong); box-shadow: var(--shadow); transform: translateY(-1px); }
 .add-option strong { display: block; font-family: var(--serif); font-size: 18px; font-weight: 600; }
 .add-option small { display: block; color: var(--ink-2); font-size: 13.5px; }
 .add-icon {
   flex: none; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center;
-  background: var(--pink-soft); color: var(--pink-ink);
+  background: var(--main-soft); color: var(--main-ink);
 }
-.add-option:nth-child(2) .add-icon { background: var(--green-soft); color: var(--green-ink); }
-.add-icon.claude { background: linear-gradient(135deg, var(--pink-soft), var(--green-soft)); color: var(--pink-ink); }
+.add-option:nth-child(2) .add-icon { background: var(--second-soft); color: var(--second-ink); }
+.add-icon.claude { background: linear-gradient(135deg, var(--main-soft), var(--second-soft)); color: var(--main-ink); }
 .add-icon svg { width: 22px; height: 22px; }
 .add-icon .sparkle { fill: currentColor; stroke: none; }
 
@@ -46,7 +46,7 @@
   width: 40px; height: 40px; border-radius: 50%; border: 0; background: transparent; color: var(--ink-3); cursor: pointer;
   display: grid; place-items: center; padding: 0;
 }
-.ingredient-edit .remove-ing:hover { background: var(--pink-soft); color: var(--pink-ink); }
+.ingredient-edit .remove-ing:hover { background: var(--main-soft); color: var(--main-ink); }
 .ingredient-edit .remove-ing svg { width: 14px; height: 14px; stroke-width: 2.5; }
 
 /* foto maken */

@@ -40,3 +40,15 @@ export function plateFor(item) {
   for (const ch of item.name) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
   return PLATES[hash % PLATES.length];
 }
+
+// Avonden zonder recept.
+export const SPECIALS = {
+  vriezer: { emoji: "🧊", label: "Uit de vriezer", line: "Makkelijk: iets uit de vriezer" },
+  uiteten: { emoji: "🍽️", label: "Uit eten", line: "Lekker de deur uit" },
+  afhalen: { emoji: "🥡", label: "Afhalen", line: "Afhalen of laten bezorgen" },
+  restjes: { emoji: "🍲", label: "Restjes", line: "Op met wat er nog staat" },
+};
+
+export function specialFor(kind) {
+  return SPECIALS[kind] ?? { emoji: "🍽️", label: kind, line: "" };
+}

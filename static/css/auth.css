@@ -4,24 +4,24 @@
   min-height: 100vh; min-height: 100dvh; display: grid; place-items: center;
   padding: calc(24px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));
   background:
-    radial-gradient(circle at 12% 18%, rgba(247, 197, 212, 0.75), transparent 38%),
-    radial-gradient(circle at 88% 82%, rgba(201, 234, 211, 0.85), transparent 40%),
+    radial-gradient(circle at 12% 18%, rgba(194, 230, 204, 0.85), transparent 40%),
+    radial-gradient(circle at 88% 82%, rgba(247, 201, 214, 0.55), transparent 36%),
     radial-gradient(circle at 80% 12%, rgba(255, 243, 201, 0.7), transparent 30%),
     var(--bg);
 }
 .auth-card {
   width: min(440px, 100%); padding: 36px 32px 28px; border-radius: 28px; background: rgba(255, 255, 255, 0.92);
-  border: 1px solid var(--line); box-shadow: 0 24px 60px rgba(150, 70, 100, 0.16);
+  border: 1px solid var(--line); box-shadow: 0 24px 60px rgba(40, 90, 60, 0.16);
 }
 .auth-logo {
   display: grid; place-items: center; width: 64px; height: 64px; margin-bottom: 18px; border-radius: 20px;
-  background: linear-gradient(135deg, var(--pink) 0%, var(--pink-soft) 55%, var(--green) 100%);
+  background: linear-gradient(135deg, var(--main) 0%, var(--main-soft) 55%, var(--second) 100%);
 }
-.auth-logo svg { width: 32px; height: 32px; color: var(--pink-ink); stroke-width: 2; }
+.auth-logo svg { width: 32px; height: 32px; color: var(--main-ink); stroke-width: 2; }
 .auth-card h1 { margin: 0 0 8px; font-size: 32px; line-height: 1.1; }
 .auth-card .btn.block { min-height: 50px; font-size: 16px; margin-top: 4px; }
 .auth-error {
-  margin: -4px 0 16px; padding: 10px 14px; border-radius: 12px; background: var(--pink-soft); color: #9c2f45; font-weight: 600;
+  margin: -4px 0 16px; padding: 10px 14px; border-radius: 12px; background: var(--second-soft); color: #9c2f45; font-weight: 600;
 }
 .auth-help { margin: 16px 0 0; font-size: 14px; color: var(--ink-2); text-align: center; }
 

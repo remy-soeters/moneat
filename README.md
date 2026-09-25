@@ -1,10 +1,14 @@
 # Mealplanner
 
-Web-app voor het avondeten: stel per week een menu samen met per avond een paar opties
-uit je eigen recepten, kies per avond wat je eet, en krijg automatisch een boodschappenlijst
-voor de gekozen maaltijden. Claude vult elke komende avond aan tot 3 opties (instelbaar); nieuwe
-recepten van Claude komen pas in je receptenboek als je ze kiest of bewaart.
+Web-app voor het avondeten van je huishouden.
 
+- **Vandaag:** de startpagina toont groot wat je vanavond eet (met foto en recept), en daaronder de
+  komende dagen.
+- **Plannen:** een stappenplan. "Wat wil je volgende week eten?", daarna per avond een paar opties van de AI.
+  Kies er één, vraag om **andere opties**, of kies **Anders…**: uit de vriezer, uit eten, afhalen, restjes of
+  iets uit je receptenboek. Swipe (of tik) door naar de volgende avond; aan het eind zie je je week.
+  Gekozen gerechten komen vanzelf op de boodschappenlijst; nieuwe recepten van de AI komen pas in je
+  receptenboek als je ze kiest of bewaart.
 - **Receptenboek:** schrijf recepten zelf, importeer ze via een link van een receptensite (inclusief foto)
   of laat Claude er een bedenken. Je kunt ook je eigen foto uploaden.
 - **Recepten swipen** (op de inspiratiepagina): geef je voedselvoorkeuren op (dieet, keukens, tijd,
@@ -42,7 +46,7 @@ python3 -m venv .venv
 ```
 
 Open daarna http://127.0.0.1:8000. De eerste keer maak je daar je eigen account aan (zie hieronder) en
-voeg je je API-sleutel(s) toe via **Instellingen**. De database komt in `data/mealplanner.db`, foto's in `data/images/`.
+voeg je je API-sleutel(s) toe via **Instellingen** (onder het rondje met je initialen rechtsboven). De database komt in `data/mealplanner.db`, foto's in `data/images/`.
 Opties: `./start.sh --port 8080`, `--host 0.0.0.0` (bereikbaar op je netwerk), `--db pad/naar/bestand.db`.
 
 Zonder `.venv` start de app ook met `python3 -m mealplanner.server`; alles werkt dan behalve de
@@ -66,7 +70,7 @@ functies met Claude.
 
 ### AI: Claude en Gemini
 
-In **Instellingen** in het menu kies je wie de recepten schrijft en voeg je de API-sleutels toe:
+In **Instellingen** (rondje rechtsboven) kies je wie de recepten schrijft en voeg je de API-sleutels toe:
 
 - **Gemini** (Google): tekst (recepten, menu, inspiratie) is gratis met limieten, maar **alleen met een
   sleutel uit een Google-project zonder betaalgegevens**. Gemini maakt ook de **foto's en iconen**; die zijn
@@ -171,8 +175,8 @@ Zo is de app van buitenaf bereikbaar via een eigen adres met HTTPS, bijvoorbeeld
 | `mealplanner/preloader.py` | Houdt op de achtergrond swipekaarten mét foto klaar |
 | `mealplanner/icons.py` | Laat Gemini op de achtergrond iconen voor producten tekenen |
 | `static/index.html` | De pagina's en vensters |
-| `static/css/` | Opmaak per onderdeel (pastel wit, roze en mint) |
-| `static/js/` | JavaScript-modules per onderdeel; `main.js` start de app |
+| `static/css/` | Opmaak per onderdeel (pastel wit, groen als hoofdkleur, roze als tweede kleur) |
+| `static/js/` | JavaScript-modules per onderdeel; `main.js` start de app, `home.js` is Vandaag, `journey.js` het stappenplan |
 | `tests/` | Unittests; `tests/helpers.py` start een testserver met een ingelogde gebruiker |
 
 ## API
@@ -215,9 +219,12 @@ login (sessie-cookie). Verzoeken die iets wijzigen moeten de kop `X-Requested-Wi
 | DELETE | `/api/menu/options/{id}` | Optie van het menu halen (en de keuze, als die het was) |
 | POST | `/api/menu/options/{id}/choose` | `{servings}` deze optie kiezen (een voorstel wordt dan als recept bewaard) |
 | POST | `/api/menu/options/{id}/save` | Voorstel van Claude bewaren in het receptenboek |
-| DELETE | `/api/menu/choice?date=…` | Keuze ongedaan maken |
+| DELETE | `/api/menu/choice?date=…` | Keuze (of bijzondere avond) ongedaan maken |
 | POST | `/api/menu/copy-previous` | `{week}` opties van vorige week overnemen |
-| POST | `/api/menu/fill` | `{week, wishes, servings, per_day}` Claude vult komende avonden zonder keuze aan tot `per_day` opties |
+| POST | `/api/menu/fill` | `{week, dates?, wishes, servings, per_day}` de AI vult komende avonden zonder keuze aan tot `per_day` opties (optioneel alleen `dates`) |
+| POST | `/api/menu/refresh` | `{date, per_day, servings, wishes}` "andere opties": nieuwe AI-opties voor één avond (de oude gaan pas weg als de nieuwe er zijn) |
+| POST | `/api/menu/special` | `{date, kind}` avond zonder recept: `vriezer`, `uiteten`, `afhalen` of `restjes` |
+| GET | `/api/home?today=JJJJ-MM-DD` | Startpagina: vanavond en de komende 6 dagen, en hoeveel er nog te halen is |
 | GET | `/api/shopping` | De hele boodschappenlijst (samengevoegd per product, met iconen) |
 | POST | `/api/shopping/check` | `{key, checked}` product als gekocht markeren of terugzetten |
 | POST | `/api/shopping/items` | `{text}` zelf iets toevoegen, bijv. "2 liter melk" |
