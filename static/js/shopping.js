@@ -1,13 +1,13 @@
 // ---------- boodschappen ----------
 import { api } from "./api.js";
 import { ICONS } from "./icons.js";
-import { refresh, showTab } from "./nav.js";
+import { refresh, registerPage, showTab } from "./nav.js";
 import { shop, state } from "./state.js";
 import { closeSheet, guarded, openSheet, toast } from "./ui.js";
-import { $, esc } from "./util.js";
+import { $, $$, esc } from "./util.js";
 
 // Emoji als icoon zolang Gemini nog geen eigen icoon getekend heeft (of als dat niet kan).
-export const PRODUCT_EMOJI = [
+const PRODUCT_EMOJI = [
   [/melk|karnemelk/, "🥛"], [/yoghurt|kwark|vla/, "🥣"], [/kaas|mozzarella|feta|parmezaan/, "🧀"], [/boter/, "🧈"],
   [/ei\b|eieren/, "🥚"], [/brood|stokbrood|bolletje|wrap|tortilla/, "🍞"], [/croissant/, "🥐"],
   [/aardappel|krieler/, "🥔"], [/appel/, "🍎"], [/peer/, "🍐"], [/banaan|bananen/, "🍌"], [/citroen|limoen/, "🍋"], [/sinaasappel|mandarijn/, "🍊"],
@@ -22,13 +22,12 @@ export const PRODUCT_EMOJI = [
   [/chips/, "🍿"], [/wc-papier|toiletpapier|keukenrol/, "🧻"], [/zeep|afwasmiddel|wasmiddel/, "🧼"], [/tandpasta/, "🪥"],
 ];
 
-export function productEmoji(name) {
+function productEmoji(name) {
   const text = String(name).toLowerCase();
   return PRODUCT_EMOJI.find(([re]) => re.test(text))?.[1] ?? "🛒";
 }
 
 export function applyShopping(data) {
-  $("#bring-sync").hidden = !data.bring;
   shop.items = data.items;
   shop.icons = data.icons;
   renderShopping();
@@ -36,7 +35,7 @@ export function applyShopping(data) {
 }
 
 // Zolang Gemini nog iconen tekent, af en toe verversen zodat ze vanzelf verschijnen.
-export function pollIcons() {
+function pollIcons() {
   clearTimeout(shop.poll);
   if (!shop.icons?.pending || state.tab !== "shopping") return;
   shop.poll = setTimeout(async () => {
@@ -55,11 +54,11 @@ export function pollIcons() {
   }, 3000);
 }
 
-export function tileIcon(item) {
+function tileIcon(item) {
   return item.icon ? `<img src="${esc(item.icon)}" alt="" loading="lazy">` : productEmoji(item.name);
 }
 
-export function shopTileHtml(item) {
+function shopTileHtml(item) {
   const title = item.recipes?.length ? `Voor: ${item.recipes.join(", ")}` : item.name;
   return `<div class="shop-tile ${item.checked ? "bought" : ""}" role="button" tabindex="0" data-key="${esc(item.key)}"
       aria-pressed="${item.checked}" title="${esc(title)}">
@@ -70,7 +69,7 @@ export function shopTileHtml(item) {
   </div>`;
 }
 
-export function renderShopping() {
+function renderShopping() {
   const el = $("#shopping");
   const byName = (a, b) => a.name.localeCompare(b.name, "nl");
   const toBuy = shop.items.filter((i) => !i.checked).sort(byName);
@@ -108,9 +107,9 @@ export function renderShopping() {
     </section>` : ""}`;
 }
 
-export const shopSaving = new Set(); // tegels die nog worden opgeslagen
+const shopSaving = new Set(); // tegels die nog worden opgeslagen
 
-export async function toggleShopItem(key) {
+async function toggleShopItem(key) {
   const item = shop.items.find((i) => i.key === key);
   if (!item || shopSaving.has(item.product)) return;
   shopSaving.add(item.product);
@@ -129,14 +128,14 @@ export async function toggleShopItem(key) {
   }
 }
 
-export async function removeShopItem(key) {
+async function removeShopItem(key) {
   shop.items = shop.items.filter((i) => i.key !== key);
   renderShopping();
   if ($("#shop-add-sheet").open) renderSuggestions();
   await guarded(() => api(`/api/shopping/items?key=${encodeURIComponent(key)}`, { method: "DELETE" }));
 }
 
-export async function clearBought() {
+async function clearBought() {
   await guarded(async () => {
     const { removed } = await api("/api/shopping/clear-bought", { method: "POST", body: {} });
     toast(`${removed} ${removed === 1 ? "product" : "producten"} opgeruimd`);
@@ -144,7 +143,7 @@ export async function clearBought() {
   });
 }
 
-export async function copyShoppingList() {
+async function copyShoppingList() {
   const text = shop.items
     .filter((i) => !i.checked)
     .map((i) => `- ${[i.amount, i.name].filter(Boolean).join(" ")}`)
@@ -157,19 +156,32 @@ export async function copyShoppingList() {
   }
 }
 
-// ---------- toevoegen: invoerveld bovenin, suggesties eronder, toetsenbord onderin ----------
+// ---------- toevoegen: suggesties bovenin, het invoerveld onderin (net boven het toetsenbord) ----------
 
-export function openShopAdd() {
+function openShopAdd() {
   const form = $("#shop-add-form");
   form.text.value = "";
   $("#shop-added").textContent = "";
   openSheet("#shop-add-sheet");
+  fitShopAdd();
   form.text.focus(); // meteen, binnen de tik: dan komt op de telefoon het toetsenbord omhoog
   renderSuggestions();
   guarded(loadSuggestions);
 }
 
-export async function loadSuggestions() {
+// Op de telefoon schuift het toetsenbord over de pagina heen. Het venster krijgt daarom de hoogte van het deel
+// van het scherm dat zichtbaar blijft (en schuift mee als de browser de pagina verschuift): zo staat het veld
+// onderin altijd net boven het toetsenbord.
+function fitShopAdd() {
+  const sheet = $("#shop-add-sheet");
+  const view = window.visualViewport;
+  if (!sheet.open || !view) return;
+  sheet.style.setProperty("--visible-height", `${view.height}px`);
+  sheet.style.setProperty("--visible-top", `${view.offsetTop}px`);
+  sheet.toggleAttribute("data-keyboard", window.innerHeight - view.height > 100);
+}
+
+async function loadSuggestions() {
   const data = await api("/api/shopping/suggestions");
   shop.suggestions = data.suggestions;
   shop.catalog = data.catalog;
@@ -204,7 +216,7 @@ function suggestTile(item, onList) {
   </button>`;
 }
 
-export function renderSuggestions() {
+function renderSuggestions() {
   const panel = $("#shop-suggest");
   if (!$("#shop-add-sheet").open) return;
   const typed = $("#shop-add-form").text.value.trim();
@@ -231,7 +243,7 @@ export function renderSuggestions() {
     + section(shop.hasHistory ? (due.length ? "Ook vaak gekocht" : "Vaak gekocht") : "Veelgekochte boodschappen", rest);
 }
 
-export async function addShopItem(text) {
+async function addShopItem(text) {
   text = text.trim();
   if (!text) return;
   await guarded(async () => {
@@ -244,7 +256,7 @@ export async function addShopItem(text) {
 
 // ---------- wijzigen: lang indrukken op een tegel ----------
 
-export function openShopEdit(key) {
+function openShopEdit(key) {
   const item = shop.items.find((i) => i.key === key);
   if (!item || $("#shop-edit-sheet").open) return;
   shop.editing = key;
@@ -254,7 +266,43 @@ export function openShopEdit(key) {
   if (![...form.unit.options].some((o) => o.value === item.unit)) form.unit.add(new Option(item.unit, item.unit));
   form.unit.value = item.unit || "";
   $("#shop-edit-for").textContent = item.recipes?.length ? `Voor: ${item.recipes.join(", ")}` : "";
+  form.icon_hint.value = "";
+  paintEditIcon(item);
   openSheet("#shop-edit-sheet");
+}
+
+// ---------- icoon van een product: opnieuw laten tekenen, een eigen afbeelding of gewoon de emoji ----------
+
+function paintEditIcon(item) {
+  $("#shop-edit-icon").innerHTML = tileIcon(item);
+  $("#shop-icon-emoji").hidden = !item.icon;
+}
+
+// `request(naam)` doet de wijziging op de server en geeft de nieuwe lijst terug (met `icon`).
+async function changeIcon(request, busyText) {
+  const item = shop.items.find((i) => i.key === shop.editing);
+  if (!item) return;
+  const field = $("#shop-icon-field");
+  const draw = $("#shop-icon-draw");
+  field.classList.add("busy");
+  $$("button, input", field).forEach((el) => (el.disabled = true));
+  if (busyText) draw.lastChild.textContent = busyText;
+  try {
+    const res = await request(item.name);
+    applyShopping(res);
+    paintEditIcon({ ...item, icon: res.icon });
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    field.classList.remove("busy");
+    $$("button, input", field).forEach((el) => (el.disabled = false));
+    draw.lastChild.textContent = "Nieuw icoon";
+  }
+}
+
+function drawIcon() {
+  const hint = $("#shop-edit-form").icon_hint.value;
+  changeIcon((name) => api("/api/shopping/icon", { method: "POST", body: { name, hint } }), "Tekenen…");
 }
 
 async function saveShopEdit(event) {
@@ -292,6 +340,7 @@ function movePress(e) {
 
 // ---------- events ----------
 
+registerPage("shopping", async () => applyShopping(await api("/api/shopping")));
 $("#shopping").addEventListener("pointerdown", startPress);
 $("#shopping").addEventListener("pointermove", movePress);
 ["pointerup", "pointercancel"].forEach((type) => $("#shopping").addEventListener(type, () => clearTimeout(press.timer)));
@@ -324,6 +373,8 @@ $("#shopping").addEventListener("keydown", (e) => {
 });
 
 $("#shop-add-open").addEventListener("click", openShopAdd);
+window.visualViewport?.addEventListener("resize", fitShopAdd);
+window.visualViewport?.addEventListener("scroll", fitShopAdd);
 $("#shop-add-form").addEventListener("submit", (e) => {
   e.preventDefault();
   const text = e.target.text.value.trim();
@@ -342,6 +393,23 @@ $("#shop-suggest").addEventListener("click", (e) => {
 });
 
 $("#shop-edit-form").addEventListener("submit", saveShopEdit);
+$("#shop-icon-draw").addEventListener("click", drawIcon);
+$("#shop-edit-form").icon_hint.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  e.preventDefault(); // Enter in de beschrijving tekent het icoon, in plaats van het product op te slaan
+  drawIcon();
+});
+$("#shop-icon-file").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  changeIcon(async (name) => {
+    const { image } = await api("/api/images", { method: "POST", body: file });
+    return api("/api/shopping/icon", { method: "PUT", body: { name, image } });
+  });
+});
+$("#shop-icon-emoji").addEventListener("click", () =>
+  changeIcon((name) => api("/api/shopping/icon", { method: "PUT", body: { name, image: "" } })));
 $("#shop-edit-remove").addEventListener("click", () => {
   closeSheet("#shop-edit-sheet");
   removeShopItem(shop.editing);

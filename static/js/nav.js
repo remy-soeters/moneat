@@ -1,16 +1,14 @@
 // ---------- navigatie ----------
-import { api } from "./api.js";
-import { renderHome } from "./home.js";
-import { renderInspiration } from "./inspiration.js";
-import { renderMenu } from "./menu.js";
-import { renderRecipes } from "./recipes.js";
-import { loadSettingsPage } from "./settings.js";
-import { applyShopping } from "./shopping.js";
+// Elke pagina meldt zich zelf aan met registerPage; zo hoeft de navigatie de pagina's niet te kennen.
 import { state } from "./state.js";
 import { guarded } from "./ui.js";
 import { $, $$, mondayOf, save, weekLabel } from "./util.js";
 
-export const TABS = ["home", "plan", "inspiration", "recipes", "shopping", "settings"];
+const pages = {}; // onderdeel -> functie die de pagina (opnieuw) laadt en tekent
+
+export function registerPage(tab, load) {
+  pages[tab] = load;
+}
 
 const TITLES = {
   home: "Vandaag",
@@ -38,7 +36,7 @@ export function showTab(tab) {
 }
 
 // Het groene blokje in de zwevende navigatie schuift naar het gekozen onderdeel.
-export function moveIndicator() {
+function moveIndicator() {
   const indicator = $(".nav-indicator");
   const active = $('.nav-tabs [aria-current="page"]');
   if (!indicator) return;
@@ -58,21 +56,5 @@ export function setWeek(week) {
 export async function refresh() {
   $$(".week-label").forEach((el) => (el.textContent = weekLabel(state.week)));
   $$(".this-week").forEach((el) => (el.hidden = state.week === mondayOf(new Date())));
-  await guarded(async () => {
-    if (state.tab === "home") {
-      await renderHome();
-    } else if (state.tab === "plan") {
-      [state.recipes, state.menu] = await Promise.all([api("/api/recipes"), api(`/api/menu?week=${state.week}`)]);
-      renderMenu();
-    } else if (state.tab === "recipes") {
-      state.recipes = await api("/api/recipes");
-      renderRecipes();
-    } else if (state.tab === "inspiration") {
-      renderInspiration();
-    } else if (state.tab === "settings") {
-      await loadSettingsPage();
-    } else {
-      applyShopping(await api("/api/shopping"));
-    }
-  });
+  await guarded(async () => pages[state.tab]?.());
 }

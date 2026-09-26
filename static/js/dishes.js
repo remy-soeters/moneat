@@ -1,7 +1,7 @@
 // Zonder foto krijgt elk gerecht een passend icoon op een zachte pastelkleur.
 import { esc } from "./util.js";
 
-export const DISHES = [
+const DISHES = [
   [/pasta|spaghetti|lasagne|penne|macaroni|tagliatelle|ravioli|gnocchi/, "🍝"],
   [/ramen|noedel|noodle|mie\b|pho|wok|pad thai/, "🍜"],
   [/curry|dahl|dal\b|korma|masala/, "🍛"],
@@ -35,7 +35,7 @@ export function plateAttrs(item, cls = "plate") {
     : `class="${cls}" style="--plate: ${plateFor(item)}"`;
 }
 
-export function plateFor(item) {
+function plateFor(item) {
   let hash = 0;
   for (const ch of item.name) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
   return PLATES[hash % PLATES.length];
@@ -51,4 +51,16 @@ export const SPECIALS = {
 
 export function specialFor(kind) {
   return SPECIALS[kind] ?? { emoji: "🍽️", icon: "utensils", label: kind, line: "" };
+}
+
+// Een lege kaart die knippert zolang de AI nog gerechten bedenkt.
+export function skeletonHtml() {
+  return `<div class="tile skeleton" aria-hidden="true">
+    <div class="plate"></div>
+    <div class="tile-body">
+      <div class="skeleton-line" style="width: 70%; height: 18px"></div>
+      <div class="skeleton-line" style="width: 45%"></div>
+      <div class="skeleton-line" style="width: 90%; margin-top: 8px"></div>
+    </div>
+  </div>`;
 }

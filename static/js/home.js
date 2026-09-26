@@ -3,13 +3,13 @@ import { api } from "./api.js";
 import { dishFor, plateAttrs, specialFor } from "./dishes.js";
 import { ICONS } from "./icons.js";
 import { openJourney } from "./journey.js";
-import { showTab } from "./nav.js";
+import { registerPage, showTab } from "./nav.js";
 import { openRating } from "./rating.js";
 import { shop, state } from "./state.js";
 import { $, dayName, esc, formatShort, isoDate, load, mondayOf, parseIso, personen, save, starsHtml, steps, tagList } from "./util.js";
 import { openView } from "./view.js";
 
-export async function renderHome() {
+async function renderHome() {
   const data = await api(`/api/home?today=${isoDate(new Date())}`);
   state.home = data;
   const now = new Date();
@@ -123,6 +123,7 @@ function rateCardHtml(rate) {
 
 // ---------- events ----------
 
+registerPage("home", renderHome);
 $("#page-home").addEventListener("click", (e) => {
   const target = e.target.closest("[data-home]");
   if (!target) return;

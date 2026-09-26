@@ -222,7 +222,6 @@
           <p class="kicker" id="shop-kicker">Boodschappen</p>
           <h1 class="page-title">Boodschappenlijst</h1>
         </div>
-        <button type="button" class="btn outline" id="bring-sync" hidden>Naar Bring! sturen</button>
       </div>
       <div id="shopping"></div>
       <p class="shop-hint">Tik op een product als je het hebt; houd het ingedrukt om het te wijzigen.</p>
@@ -261,9 +260,9 @@
           <span class="settings-icon" data-icon="book" aria-hidden="true"></span>
           <span class="settings-row-text"><strong>Inspiratie en swipen</strong><small id="sum-inspiration"></small></span><svg class="menu-go" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
         </button>
-        <button type="button" class="settings-row admin-only" data-settings="shopping">
-          <span class="settings-icon" data-icon="cart" aria-hidden="true"></span>
-          <span class="settings-row-text"><strong>Boodschappen</strong><small id="sum-shopping"></small></span><svg class="menu-go" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+        <button type="button" class="settings-row admin-only" data-settings="errors">
+          <span class="settings-icon" data-icon="alert" aria-hidden="true"></span>
+          <span class="settings-row-text"><strong>Foutmeldingen</strong><small id="sum-errors"></small></span><svg class="menu-go" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
         </button>
         <p class="help member-only">De overige instellingen, zoals de AI-sleutels, beheert de beheerder van je huishouden.</p>
       </nav>
@@ -417,21 +416,12 @@
         <div class="chips pick" id="swipe-preload-choice" data-single></div>
         <p class="help">De app houdt zoveel gerechten mét foto klaar, zodat je niet hoeft te wachten. Pas je je voorkeuren aan, dan worden ze opnieuw gemaakt.</p>
       </section>
-      <section class="settings-group admin-only" id="set-shopping" data-group="shopping" hidden>
-        <h2 class="group-title">Boodschappen</h2>
-        <h4 class="settings-subtitle">Bring!</h4>
-        <p class="intro">Stuur je boodschappenlijst met één knop naar de Bring!-app, bijvoorbeeld om samen boodschappen te doen. Bring! heeft geen officiële koppeling; deze werkt zoals de Bring!-app zelf. Je wachtwoord wordt alleen gebruikt om in te loggen en niet bewaard.</p>
-        <form class="key-form" id="bring-form" autocomplete="off">
-          <label class="field"><span>E-mailadres van Bring!</span><input name="email" type="email" autocomplete="off" spellcheck="false"></label>
-          <label class="field"><span>Wachtwoord van Bring!</span><input name="password" type="password" autocomplete="off"></label>
-          <div class="key-actions"><button type="submit" class="btn primary">Koppelen</button></div>
-        </form>
-        <div id="bring-connected" hidden>
-          <ul class="status-list"><li class="ok"><span class="dot" id="bring-dot"></span><div><strong>Gekoppeld</strong><small id="bring-email"></small></div></li></ul>
-          <h4 class="settings-subtitle">Naar welke lijst?</h4>
-          <div class="chips pick" id="bring-list-choice" data-single></div>
-          <div class="key-actions"><span class="spacer"></span><button type="button" class="btn link danger" id="bring-disconnect">Ontkoppelen</button></div>
-        </div>
+      <section class="settings-group admin-only" id="set-errors" data-group="errors" hidden>
+        <h2 class="group-title">Foutmeldingen</h2>
+        <p class="intro">Wat er de laatste tijd misging, met de precieze fout erbij. Zo zie je bijvoorbeeld wat Gemini
+          of Claude antwoordde: of er een limiet is bereikt, of je tegoed op is.</p>
+        <ul class="error-list" id="error-list"></ul>
+        <div class="key-actions"><span class="spacer"></span><button type="button" class="btn link danger" id="errors-clear">Alles wissen</button></div>
       </section>
       </div>
       </div>
@@ -460,9 +450,11 @@
     <div class="modal-foot recipe-foot" id="view-foot-bar"><span class="spacer"></span><div id="view-foot" class="foot-actions"></div></div>
   </dialog>
 
-  <!-- Boodschappen toevoegen: invoerveld bovenin, suggesties eronder, toetsenbord onderin -->
+  <!-- Boodschappen toevoegen: suggesties bovenin, het invoerveld onderin (net boven het toetsenbord) -->
   <dialog id="shop-add-sheet" class="modal shop-add-sheet" aria-label="Boodschappen toevoegen">
-    <form class="shop-add-top" id="shop-add-form" autocomplete="off">
+    <div class="shop-suggest" id="shop-suggest"></div>
+    <p class="shop-added" id="shop-added" aria-live="polite"></p>
+    <form class="shop-add-field" id="shop-add-form" autocomplete="off">
       <label class="shop-input">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
         <input name="text" placeholder="Wat heb je nodig?" aria-label="Product toevoegen" enterkeyhint="done"
@@ -470,8 +462,6 @@
       </label>
       <button type="button" class="btn primary small" data-close>Klaar</button>
     </form>
-    <p class="shop-added" id="shop-added" aria-live="polite"></p>
-    <div class="shop-suggest" id="shop-suggest"></div>
   </dialog>
 
   <!-- Een product wijzigen (lang indrukken op een tegel) -->
@@ -482,6 +472,21 @@
         <button type="button" class="close" data-close aria-label="Sluiten"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
       <div class="modal-scroll">
+        <div class="icon-field" id="shop-icon-field">
+          <span class="icon-preview" id="shop-edit-icon" aria-hidden="true"></span>
+          <div class="icon-actions">
+            <label class="field"><span>Icoon</span>
+              <input name="icon_hint" maxlength="200" autocomplete="off" placeholder="Hoe moet het eruitzien? (optioneel)"></label>
+            <div class="icon-buttons">
+              <button type="button" class="btn outline small make-photo" id="shop-icon-draw"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>Nieuw icoon</button>
+              <label class="btn outline small">
+                <input type="file" id="shop-icon-file" accept="image/jpeg,image/png,image/gif,image/webp" hidden>
+                Eigen afbeelding
+              </label>
+              <button type="button" class="btn link" id="shop-icon-emoji">Emoji</button>
+            </div>
+          </div>
+        </div>
         <label class="field"><span>Product</span><input name="name" required maxlength="80" autocomplete="off"></label>
         <div class="field-row">
           <label class="field"><span>Hoeveel <small>optioneel</small></span>

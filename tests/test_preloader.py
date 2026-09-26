@@ -4,7 +4,7 @@ import time
 import unittest
 from unittest import mock
 
-from mealplanner import ai
+from mealplanner import ai, setting_keys
 from mealplanner.db import Database
 from mealplanner.images import ImageStore
 from mealplanner.preloader import SwipePreloader
@@ -93,7 +93,7 @@ class PreloaderTest(unittest.TestCase):
         self.assertIsNotNone(self.preloader.status()["photos_failed"])  # opnieuw geprobeerd, nog steeds mis
 
     def test_no_photos_when_auto_images_is_off(self):
-        with mock.patch.object(ai, "_setting", lambda key, default=None: "off" if key == ai.AUTO_IMAGES else default):
+        with mock.patch.object(ai, "_setting", lambda key, default=None: "off" if key == setting_keys.AUTO_IMAGES else default):
             self.run_preloader()
             self.assertFalse(self.preloader.status()["photos_enabled"])
         self.assertEqual(ai.generate_photo.call_count, 0)

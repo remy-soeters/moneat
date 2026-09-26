@@ -131,7 +131,7 @@ class RolesTest(unittest.TestCase):
         self.assertNotIn("claude", settings)
         self.assertEqual(self.member.call("PUT", "/api/settings", {"text_provider": "gemini"})[0], 403)
         self.assertEqual(self.member.call("GET", "/api/users")[0], 403)
-        self.assertEqual(self.member.call("POST", "/api/bring/login", {})[0], 403)
+        self.assertEqual(self.member.call("GET", "/api/errors")[0], 403)
 
     def test_admin_manages_accounts(self):
         users = self.admin.call("GET", "/api/users")[1]

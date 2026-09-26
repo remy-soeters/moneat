@@ -5,16 +5,7 @@ import threading
 from contextlib import contextmanager
 from pathlib import Path
 
-from .schema import (
-    SCHEMA,
-    USERS_SCHEMA,
-    _add_missing_recipe_columns,
-    _mark_chosen_dinners_listed,
-    _migrate_old_menu_options,
-    _migrate_plan_entries,
-    _migrate_week_shopping,
-    _rename_old_menu_options,
-)
+from .schema import migrate
 
 
 class NotFound(Exception):
@@ -22,8 +13,6 @@ class NotFound(Exception):
 
 
 class BaseDatabase:
-    _pending_list_migration = False
-
     def __init__(self, path):
         self.path = str(path)
         if self.path != ":memory:":
@@ -35,28 +24,10 @@ class BaseDatabase:
             if self._memory_conn is None:
                 # WAL: lezen en schrijven tegelijk (meerdere mensen in het huishouden) zonder op elkaar te wachten.
                 conn.execute("PRAGMA journal_mode = WAL")
-            had_list = _has_table(conn, "shopping_items")
-            had_listed_days = _has_table(conn, "listed_days")
-            _rename_old_menu_options(conn)
-            _add_missing_recipe_columns(conn)
-            conn.executescript(SCHEMA)
-            conn.executescript(USERS_SCHEMA)
-            _migrate_old_menu_options(conn)
-            _migrate_plan_entries(conn)
-            if not had_listed_days:
-                _mark_chosen_dinners_listed(conn)
-            if _migrate_week_shopping(conn) or not had_list:
-                self._pending_list_migration = True
-        self._finish_migrations()
-
-    def _finish_migrations(self):
-        """Na het omzetten naar één lijst: zet gekozen avondeten vanaf vandaag er één keer op."""
-        if self._pending_list_migration:
-            self._pending_list_migration = False
-            with self.connect() as conn:
-                days = [r["date"] for r in conn.execute("SELECT date FROM dinner_choices WHERE date >= date('now')")]
-            for day in days:
-                self._sync_dinner_to_list(day)
+            if migrate(conn):
+                # Nieuwe of net omgezette lijst: zet het gekozen avondeten vanaf vandaag er één keer op.
+                for row in conn.execute("SELECT date FROM dinner_choices WHERE date >= date('now')").fetchall():
+                    self._sync_dinner_to_list(row["date"], conn)
 
     @contextmanager
     def connect(self):
@@ -78,6 +49,3 @@ class BaseDatabase:
         finally:
             conn.close()
 
-
-def _has_table(conn, name):
-    return conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (name,)).fetchone() is not None

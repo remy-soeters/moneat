@@ -1,9 +1,9 @@
-"""Boodschappenlijst (tegels, suggesties, iconen) en de koppeling met Bring!."""
+"""Boodschappenlijst: tegels, suggesties en iconen."""
 
-import json
 from http import HTTPStatus
 
-from .. import bring, setting_keys
+from .. import ai
+from ..db import icon_key
 from ..groceries import product_key
 from ..importer import parse_ingredient
 from ..web import ApiError
@@ -16,15 +16,11 @@ STAPLES = [
     "Thee", "Olijfolie", "Hagelslag", "Pindakaas", "Wc-papier",
 ]
 MAX_RECIPE_INGREDIENTS = 100
-
-
-def bring_spec(items):
-    """Hoeveelheid voor Bring!, bijv. '500 g' of '2 blikken + 1'."""
-    return " + ".join(item["amount"] for item in items if item["amount"])
+MAX_ICON_HINT = 200
 
 
 def register(r, app):
-    db, icon_maker = app.db, app.icon_maker
+    db, images, icon_maker = app.db, app.images, app.icon_maker
 
     def with_icons(items, draw=True):
         """Voeg aan elk product het icoon toe (als dat er al is) en laat zo nodig ontbrekende iconen tekenen."""
@@ -36,36 +32,8 @@ def register(r, app):
             icon_maker.request([n for n in names if n not in icons])
         return items
 
-    def bring_auth():
-        try:
-            return json.loads(db.get_setting(setting_keys.BRING_AUTH) or "null")
-        except ValueError:
-            return None
-
-    def save_bring_auth(auth):
-        db.set_setting(setting_keys.BRING_AUTH, json.dumps(auth) if auth else None)
-
-    def bring_session():
-        """Ingelogde Bring!-gegevens, zo nodig met vernieuwde toegang."""
-        auth = bring_auth()
-        if not auth:
-            raise ApiError(HTTPStatus.BAD_REQUEST, "Bring! is nog niet gekoppeld. Doe dat bij Instellingen.")
-        if bring.fresh(auth):
-            save_bring_auth(auth)
-        return auth
-
-    def bring_status():
-        auth = bring_auth()
-        if not auth:
-            return {"connected": False}
-        return {"connected": True, "email": auth.get("email"), "list_uuid": auth.get("list_uuid"),
-                "list_name": auth.get("list_name")}
-
-    app.bring_status = bring_status  # ook nodig voor de instellingen
-
     def shopping_response():
         return {
-            "bring": bring_status()["connected"],
             "items": with_icons(db.shopping_list()),
             "icons": {"pending": icon_maker.pending(), "enabled": icon_maker.enabled(), "failed": icon_maker.failed},
         }
@@ -119,6 +87,40 @@ def register(r, app):
     def clear_bought(req):
         return {"removed": db.clear_bought_items()}
 
+    # ---------- iconen: opnieuw laten tekenen, een eigen afbeelding of gewoon de emoji ----------
+
+    def product_name(body):
+        name = str(body.get("name") or "").strip()[:80]
+        if not icon_key(name):
+            raise ApiError(HTTPStatus.BAD_REQUEST, "Voor welk product?")
+        return name
+
+    def set_icon(name, image):
+        """Geef een product een ander icoon ("" = de emoji, en dan tekent de app er ook geen meer voor)."""
+        old = db.product_icons([name]).get(name)
+        db.set_product_icon(name, image)
+        app.release_image(old)
+        return {"icon": image, **shopping_response()}
+
+    @r.post("/api/shopping/icon")
+    def draw_icon(req):
+        """Laat Gemini een nieuw icoon tekenen, eventueel naar een beschrijving: {name, hint}."""
+        body = req.json()
+        name = product_name(body)
+        image = images.save(ai.generate_icon(name, str(body.get("hint") or "").strip()[:MAX_ICON_HINT]))
+        icon_maker.failed = None  # het lukt weer: dan ook op de achtergrond verder tekenen
+        return set_icon(name, image)
+
+    @r.put("/api/shopping/icon")
+    def choose_icon(req):
+        """Een eigen afbeelding (eerst geüpload via /api/images) of "" voor de emoji: {name, image}."""
+        body = req.json()
+        name = product_name(body)
+        image = str(body.get("image") or "")
+        if image and not images.path_for(image):
+            raise ApiError(HTTPStatus.BAD_REQUEST, "Deze afbeelding bestaat niet (meer); kies hem opnieuw")
+        return set_icon(name, image)
+
     @r.get("/api/shopping/suggestions")
     def suggestions(req):
         """Voor het toevoegen: wat je waarschijnlijk nodig hebt (op volgorde van kans), aangevuld met gangbare
@@ -135,61 +137,3 @@ def register(r, app):
             "catalog": with_icons(catalog, draw=False),  # geen iconen laten tekenen voor alles wat je ooit kookte
             "has_history": bool(frequent),
         }
-
-    # ---------- Bring! (koppelen alleen door een beheerder) ----------
-
-    @r.post("/api/bring/login", admin=True)
-    def bring_login(req):
-        body = req.json()
-        auth = bring.login(str(body.get("email") or "").strip()[:200], str(body.get("password") or "")[:200])
-        found = bring.lists(auth)
-        default = next((l for l in found if l["uuid"] == auth["list_uuid"]), found[0] if found else None)
-        auth["list_uuid"], auth["list_name"] = (default["uuid"], default["name"]) if default else ("", "")
-        save_bring_auth(auth)
-        db.set_setting(setting_keys.BRING_SYNCED, None)
-        return {**bring_status(), "lists": found}
-
-    @r.get("/api/bring/lists", admin=True)
-    def bring_lists(req):
-        return {**bring_status(), "lists": bring.lists(bring_session())}
-
-    @r.put("/api/bring/list", admin=True)
-    def bring_choose_list(req):
-        auth = bring_session()
-        wanted = str(req.json().get("list_uuid") or "")
-        chosen = next((l for l in bring.lists(auth) if l["uuid"] == wanted), None)
-        if not chosen:
-            raise ApiError(HTTPStatus.BAD_REQUEST, "Deze Bring!-lijst bestaat niet (meer)")
-        auth["list_uuid"], auth["list_name"] = chosen["uuid"], chosen["name"]
-        save_bring_auth(auth)
-        db.set_setting(setting_keys.BRING_SYNCED, None)
-        return bring_status()
-
-    @r.delete("/api/bring", admin=True)
-    def bring_disconnect(req):
-        save_bring_auth(None)
-        db.set_setting(setting_keys.BRING_SYNCED, None)
-        return bring_status()
-
-    @r.post("/api/bring/sync")
-    def bring_sync(req):
-        """Zet alles onder 'Kopen' op de Bring!-lijst; wat we eerder stuurden en hier niet meer
-        te koop staat, wordt in Bring! afgevinkt. Wat je zelf in Bring! zette, blijft staan."""
-        auth = bring_session()
-        groups = {}
-        for item in db.shopping_list():
-            if not item["checked"]:
-                groups.setdefault(bring.catalog_name(item["name"]), []).append(item)
-        try:
-            previous = set(json.loads(db.get_setting(setting_keys.BRING_SYNCED) or "[]"))
-        except ValueError:
-            previous = set()
-        changes = [(name, bring_spec(items), "TO_PURCHASE") for name, items in groups.items()]
-        done = sorted(previous - set(groups))
-        if done:
-            on_list = bring.purchase_names(auth, auth["list_uuid"])
-            done = [name for name in done if name in on_list]
-            changes += [(name, "", "TO_RECENTLY") for name in done]
-        bring.change(auth, auth["list_uuid"], changes)
-        db.set_setting(setting_keys.BRING_SYNCED, json.dumps(sorted(groups), ensure_ascii=False))
-        return {"sent": len(groups), "checked_off": len(done), "list_name": auth.get("list_name")}

@@ -1,7 +1,7 @@
 // ---------- Beoordelen na het koken: 1 tot 5 sterren en een korte notitie ----------
 import { api } from "./api.js";
 import { ICONS } from "./icons.js";
-import { state } from "./state.js";
+import { replaceRecipe } from "./state.js";
 import { closeSheet, guarded, openSheet, toast } from "./ui.js";
 import { $, $$, dayName, formatShort, isoDate } from "./util.js";
 
@@ -36,8 +36,7 @@ async function saveRating(event) {
       method: "POST",
       body: { stars: rating.stars, note: $("#rate-form").note.value, date: rating.date },
     });
-    const index = state.recipes.findIndex((r) => r.id === updated.id);
-    if (index >= 0) state.recipes[index] = updated;
+    replaceRecipe(updated);
     closeSheet("#rate-sheet");
     toast(rating.stars >= 4 ? "Genoteerd! Dit komt vaker terug op het menu." : "Bedankt, genoteerd.");
     rating.onSaved?.(updated);
@@ -47,8 +46,7 @@ async function saveRating(event) {
 // Hartje aan of uit; geeft het bijgewerkte recept terug.
 export async function toggleFavorite(recipe) {
   const updated = await api(`/api/recipes/${recipe.id}/favorite`, { method: "PUT", body: { favorite: !recipe.favorite } });
-  const index = state.recipes.findIndex((r) => r.id === updated.id);
-  if (index >= 0) state.recipes[index] = updated;
+  replaceRecipe(updated);
   return updated;
 }
 

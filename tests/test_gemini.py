@@ -9,7 +9,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest import mock
 
 from tests.helpers import ApiClient, api_test
-from mealplanner import ai, gemini
+from mealplanner import ai, gemini, setting_keys
 from mealplanner.db import Database
 from mealplanner.images import ImageStore
 from tests.test_import import tiny_png
@@ -70,7 +70,7 @@ class GeminiTest(unittest.TestCase):
     def setUp(self):
         FakeGemini.requests.clear()
         FakeGemini.mode = "ok"
-        self.settings = {ai.GEMINI_KEY: "test-key", ai.TEXT_PROVIDER: "gemini"}
+        self.settings = {setting_keys.GEMINI_KEY: "test-key", setting_keys.TEXT_PROVIDER: "gemini"}
         ai.set_settings(lambda key, default=None: self.settings.get(key, default))
 
     def tearDown(self):
@@ -97,16 +97,18 @@ class GeminiTest(unittest.TestCase):
         with self.assertRaisesRegex(ai.AIUnavailable, "niet geaccepteerd"):
             ai.generate_recipe("soep")
         FakeGemini.mode = "billing"
-        with self.assertRaisesRegex(ai.AIUnavailable, "betalen nodig"):
+        with self.assertRaisesRegex(ai.AIUnavailable, "betalen nodig") as caught:
             ai.generate_photo(RECIPE)
-        self.settings.pop(ai.GEMINI_KEY)
+        self.assertEqual(caught.exception.source, "Gemini")
+        self.assertIn("not available on the free tier", caught.exception.detail)  # het antwoord van Google, voor het logboek
+        self.settings.pop(setting_keys.GEMINI_KEY)
         with mock.patch.dict("os.environ", {}, clear=True):
             with self.assertRaisesRegex(ai.AIUnavailable, "Gemini API-sleutel"):
                 ai.generate_photo(RECIPE)
 
     def test_connection_check_reports_missing_models(self):
         ai.check_gemini()
-        self.settings[ai.GEMINI_IMAGE_MODEL] = "gemini-bestaat-niet"
+        self.settings[setting_keys.GEMINI_IMAGE_MODEL] = "gemini-bestaat-niet"
         with self.assertRaisesRegex(ai.AIUnavailable, "gemini-bestaat-niet"):
             ai.check_gemini()
 

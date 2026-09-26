@@ -1,5 +1,5 @@
 // Gedeelde toestand van de app (wat er geladen is en wat je aan het doen bent).
-import { load, mondayOf } from "./util.js";
+import { load, mondayOf, save } from "./util.js";
 
 export const state = {
   tab: "home",
@@ -25,3 +25,15 @@ export const state = {
 };
 
 export const shop = { items: [], icons: null, suggestions: [], catalog: [], poll: null, hasHistory: false, editing: null };
+
+// Voor hoeveel personen je kookt; blijft bewaard op dit apparaat.
+export function setHousehold(n) {
+  state.household = Math.min(20, Math.max(1, n));
+  save("household", state.household);
+}
+
+// Een bijgewerkt recept (hartje, sterren, foto) ook in de geladen lijst vervangen.
+export function replaceRecipe(recipe) {
+  const index = state.recipes.findIndex((r) => r.id === recipe.id);
+  if (index >= 0) state.recipes[index] = recipe;
+}

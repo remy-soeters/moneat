@@ -1,13 +1,16 @@
 // ---------- plannen als stappenplan: per avond een paar opties, andere opties, of iets anders ----------
 // Eerst "Wat wil je deze week eten?", daarna avond voor avond kiezen (swipen of knoppen), en tot slot een overzicht.
 import { api } from "./api.js";
-import { SPECIALS, dishFor, plateAttrs, specialFor } from "./dishes.js";
+import { SPECIALS, dishFor, plateAttrs, skeletonHtml, specialFor } from "./dishes.js";
 import { ICONS } from "./icons.js";
-import { badgesHtml, dinnerOf, findOption, isChosen, openPicker, putWeekOnList, setHousehold, skeletonHtml } from "./menu.js";
 import { refresh, showTab } from "./nav.js";
-import { state } from "./state.js";
+import { openPicker } from "./picker.js";
+import { badgesHtml, dinnerOf, findOption, isChosen, putWeekOnList } from "./plan.js";
+import { setHousehold, state } from "./state.js";
 import { aiName, closeSheet, guarded, openSheet, toast } from "./ui.js";
-import { $, $$, addDays, dayName, esc, formatShort, isoDate, isoWeek, load, mondayOf, parseIso, personen, save, tagsHtml, weekLabel } from "./util.js";
+import {
+  $, $$, addDays, dayName, esc, formatShort, isoDate, isoWeek, load, mondayOf, parseIso, personen, save, tagsHtml, weekLabel, weekName,
+} from "./util.js";
 import { openView } from "./view.js";
 
 const journey = {
@@ -48,7 +51,7 @@ export async function openJourney({ week = state.week, day = null } = {}) {
   render();
 }
 
-export async function reloadJourney() {
+async function reloadJourney() {
   if (!$("#journey").open) return;
   await guarded(loadMenu);
   render();
@@ -138,13 +141,6 @@ function renderDots() {
       return `<li><button type="button" class="${cls.join(" ")}" data-j-dot="${i}" aria-label="${dayName(d)}">${dayName(d).slice(0, 2)}</button></li>`;
     })
     .join("");
-}
-
-function weekName(week) {
-  const thisWeek = mondayOf(new Date());
-  if (week === thisWeek) return "deze week";
-  if (week === addDays(thisWeek, 7)) return "volgende week";
-  return `in week ${isoWeek(week)}`;
 }
 
 function introHtml() {

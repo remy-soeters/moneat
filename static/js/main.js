@@ -1,4 +1,11 @@
 // Startpunt: eerst kijken of je bent ingelogd, daarna de app laden.
+// De pagina's melden zich bij het laden zelf aan bij de navigatie en koppelen hun knoppen.
+import "./home.js";
+import "./menu.js";
+import "./inspiration.js";
+import "./recipes.js";
+import "./shopping.js";
+import "./settings.js";
 import { api } from "./api.js";
 import { initAuth, showApp, showAuthScreen } from "./auth.js";
 import { refresh, setWeek, showTab } from "./nav.js";
@@ -7,7 +14,7 @@ import { kickPreload } from "./swipe.js";
 import { applyAiName, toast } from "./ui.js";
 import { $, $$, addDays, mondayOf } from "./util.js";
 
-export async function loadSettings() {
+async function loadSettings() {
   try {
     state.settings = await api("/api/settings");
     applyAiName();

@@ -91,10 +91,6 @@ export function stopTimer() {
   timer.total = timer.left = 0;
 }
 
-export function timerRunning() {
-  return timer.running;
-}
-
 // De wekker: drie piepjes, trillen (op telefoons die dat kunnen) en een knipperende wekker.
 function ring() {
   document.getElementById("cook-timer")?.classList.add("ringing");

@@ -108,6 +108,18 @@ CREATE TABLE IF NOT EXISTS shopping_items (
     created_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Wat er misging: de melding die je zag en de precieze fout (bijv. het antwoord van Gemini). Zie db/errors.py.
+CREATE TABLE IF NOT EXISTS error_log (
+    id          INTEGER PRIMARY KEY,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    source      TEXT NOT NULL,
+    action      TEXT NOT NULL DEFAULT '',
+    message     TEXT NOT NULL,
+    detail      TEXT NOT NULL DEFAULT '',
+    user        TEXT NOT NULL DEFAULT '',
+    count       INTEGER NOT NULL DEFAULT 1
+);
+
 -- Iconen per product (door Gemini getekend), één keer gemaakt en daarna hergebruikt.
 CREATE TABLE IF NOT EXISTS product_icons (
     key    TEXT PRIMARY KEY,
@@ -170,6 +182,29 @@ CREATE INDEX IF NOT EXISTS ratings_recipe ON ratings(recipe_id);
 """
 
 
+def migrate(conn):
+    """Maak ontbrekende tabellen aan en zet een oudere database om. Elke stap kijkt zelf of hij nodig is,
+    dus dit draait gewoon bij elke start. Geeft True als de boodschappenlijst nieuw is (of net omgezet):
+    dan moet het gekozen avondeten er nog op."""
+    had_list = _has_table(conn, "shopping_items")
+    had_listed_days = _has_table(conn, "listed_days")
+    _rename_old_menu_options(conn)
+    _add_missing_recipe_columns(conn)
+    conn.executescript(SCHEMA)
+    conn.executescript(USERS_SCHEMA)
+    _migrate_old_menu_options(conn)
+    _migrate_plan_entries(conn)
+    if not had_listed_days:
+        _mark_chosen_dinners_listed(conn)
+    # De koppeling met Bring! is uit de app gehaald: gooi de bewaarde inlog (tokens) en sync-gegevens weg.
+    conn.execute("DELETE FROM settings WHERE key IN ('bring_auth', 'bring_synced')")
+    return _migrate_week_shopping(conn) or not had_list
+
+
+def _has_table(conn, name):
+    return conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (name,)).fetchone() is not None
+
+
 def _add_missing_recipe_columns(conn):
     """Oudere databases hebben nog geen kolommen voor foto en bron."""
     columns = [r[1] for r in conn.execute("PRAGMA table_info(recipes)")]
@@ -203,8 +238,7 @@ def _rename_old_menu_options(conn):
 
 
 def _migrate_old_menu_options(conn):
-    exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'menu_options_v1'").fetchone()
-    if not exists:
+    if not _has_table(conn, "menu_options_v1"):
         return
     conn.execute(
         """INSERT OR IGNORE INTO menu_options (date, recipe_id, reason, position)
@@ -220,8 +254,7 @@ def _mark_chosen_dinners_listed(conn):
 
 def _migrate_plan_entries(conn):
     """Oudere databases hadden `plan_entries` met ontbijt/lunch/diner; neem het avondeten over."""
-    exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'plan_entries'").fetchone()
-    if not exists:
+    if not _has_table(conn, "plan_entries"):
         return
     conn.execute(
         """INSERT OR IGNORE INTO dinner_choices (date, recipe_id, servings)

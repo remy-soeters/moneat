@@ -25,16 +25,18 @@ Web-app voor het avondeten van je huishouden.
   liever niet) en swipe door gerechten met foto en korte omschrijving. Naar rechts bewaart het recept
   in je receptenboek, naar links slaat het over; gezien gerechten komen niet terug. De server zet op de
   achtergrond een voorraad gerechten mét foto klaar (instelbaar: 5, 10, 15 of 20), zodat je niet hoeft te wachten.
-- **Boodschappen:** één doorlopende lijst met tegels (zoals Bring!), in de secties *Kopen* en *Gekocht*.
+- **Boodschappen:** één doorlopende lijst met tegels, in de secties *Kopen* en *Gekocht*.
   Met **Zet op boodschappenlijst** bij Plannen komen de ingrediënten van je gekozen avondeten erop (voor het
   gekozen aantal personen). Kies je daarna iets anders voor zo'n avond, dan verandert de lijst mee; wat je al
   gekocht hebt, blijft staan.
   Hetzelfde product is één tegel, ook als recepten het anders schrijven, met een hoeveelheid om mee te
   winkelen: "2 blikken" in plaats van "400 g + 1 blik", hele uien, en geen eetlepels olijfolie. Iets wat je zelf
   maakt (staat "Naan" in je receptenboek, dan is naanbrood in een ander recept dat recept) komt niet op de lijst:
-  de ingrediënten ervan wel. Houd een tegel ingedrukt om hem te wijzigen. Toevoegen gaat via de balk onderin:
-  het veld schuift naar boven met suggesties, eerst wat je volgens je koopritme waarschijnlijk weer nodig hebt.
-  Gemini tekent voor elk product één keer een icoon.
+  de ingrediënten ervan wel. Toevoegen gaat via de balk onderin: het veld blijft onderin, net boven het
+  toetsenbord, met de suggesties erboven; eerst wat je volgens je koopritme waarschijnlijk weer nodig hebt.
+  Gemini tekent voor elk product één keer een icoon. Houd een tegel ingedrukt om hem te wijzigen; daar kun je
+  ook een **nieuw icoon** laten tekenen (eventueel met een beschrijving, zoals "een fles"), een eigen afbeelding
+  kiezen of teruggaan naar de emoji.
 - **Inspiratie:** wat er deze maand in het seizoen is, en collecties van 6 recepten per thema
   (of zelf ingetypt) die je bewaart of direct op het menu zet.
 
@@ -76,7 +78,7 @@ functies met Claude.
   bijvoorbeeld `ABCD-1234` (in Docker: `docker compose logs mealplanner`). Met die code maak je in de app het
   eerste account aan; dat wordt de **beheerder**. Zo kan alleen iemand met toegang tot de server dat doen.
 - **Huishouden:** de beheerder voegt bij **Instellingen → Huishouden** anderen toe. Iedereen deelt dezelfde
-  recepten, het menu en de lijst. Alleen beheerders zien en wijzigen de AI-sleutels, modellen, Bring! en accounts.
+  recepten, het menu en de lijst. Alleen beheerders zien en wijzigen de AI-sleutels, modellen en accounts.
 - **Wachtwoord vergeten:** een beheerder maakt bij Huishouden een nieuw wachtwoord aan. Ben je de enige
   beheerder, dan kan het op de server:
 
@@ -100,12 +102,14 @@ In **Instellingen** (rondje rechtsboven) staat per onderwerp wat je kunt instell
 
 Het beeldmodel kies je bij **Foto's en iconen**; foto's automatisch laten maken kun je daar ook uitzetten.
 
-### Bring!
+### Foutmeldingen
 
-Bij Instellingen → Boodschappen koppel je de Bring!-app (inloggen met je Bring!-account; het wachtwoord
-wordt niet bewaard). Daarna stuurt de knop **Naar Bring! sturen** bij Boodschappen alles onder "Kopen" naar
-je Bring!-lijst. Bring! heeft geen officiële API; de koppeling werkt zoals de Bring!-app zelf en kan
-stoppen als Bring! iets verandert.
+Lukt iets niet, dan zegt de app in gewone taal wat er aan de hand is, bijvoorbeeld dat je Gemini-limiet per
+minuut of per dag bereikt is, dat je tegoed op is of dat je voor foto's moet betalen. Bij **Instellingen →
+Foutmeldingen** (beheerder) staat wat er de laatste tijd misging, met de precieze fout erbij: wat Gemini of Claude
+letterlijk antwoordde, of dat de verbinding wegviel ("Failed to fetch" in de browser). Zulke verbindingsfouten
+onthoudt de browser en stuurt hij naar het logboek zodra het weer lukt. Dezelfde regels staan ook in het
+serverlog (`docker compose logs`).
 
 Sleutels worden bewaard in `data/mealplanner.db` (niet in git) en daarna alleen gemaskeerd getoond. Een
 sleutel in de app gaat voor op de omgevingsvariabelen `ANTHROPIC_API_KEY` / `GEMINI_API_KEY`.
@@ -162,7 +166,7 @@ Zo is de app van buitenaf bereikbaar via een eigen adres met HTTPS, bijvoorbeeld
 - De recepten-import haalt alleen openbare websites op (poort 80/443) en nooit adressen op je eigen netwerk,
   zoals je router of Home Assistant; dat wordt ook bij doorverwijzingen gecontroleerd.
 - De container draait als gewone gebruiker, met een alleen-lezen bestandssysteem (behalve `/data`) en zonder extra rechten.
-- API-sleutels en Bring!-gegevens staan alleen in `data/` (niet in git) en worden nooit volledig teruggestuurd.
+- API-sleutels staan alleen in `data/` (niet in git) en worden nooit volledig teruggestuurd.
 
 **Naar een andere computer verhuizen.** Haal de code op met `git clone`, kopieer de map `data/` mee
 (daarin staan ook je API-sleutels en accounts; die staan bewust niet in git) en start met `docker compose up -d --build`.
@@ -187,7 +191,6 @@ Zo is de app van buitenaf bereikbaar via een eigen adres met HTTPS, bijvoorbeeld
 | `mealplanner/netguard.py` | Veilig webpagina's ophalen voor de import (niet het eigen netwerk in) |
 | `mealplanner/ai.py` | AI: menu-opties, recepten bedenken en uitlezen, inspiratie, foto's |
 | `mealplanner/gemini.py` | Google Gemini (Interactions API) voor tekst en foto's |
-| `mealplanner/bring.py` | Koppeling met de Bring!-boodschappenapp |
 | `mealplanner/importer.py` | Recepten van websites importeren (schema.org/Recipe) |
 | `mealplanner/groceries.py` | Boodschappen samenvoegen: zelfde product, winkeleenheden (blikken, hele stuks), zelfgemaakte onderdelen |
 | `mealplanner/images.py` | Opslag van receptfoto's |
@@ -195,7 +198,7 @@ Zo is de app van buitenaf bereikbaar via een eigen adres met HTTPS, bijvoorbeeld
 | `mealplanner/icons.py` | Laat Gemini op de achtergrond iconen voor producten tekenen |
 | `static/index.html` | De pagina's en vensters |
 | `static/css/` | Opmaak per onderdeel (pastel wit, groen als hoofdkleur, roze als tweede kleur) |
-| `static/js/` | JavaScript-modules per onderdeel; `main.js` start de app, `home.js` is Vandaag, `journey.js` het stappenplan, `view.js` de receptpagina, `cook.js` de kookmodus, `rating.js` sterren en hartjes |
+| `static/js/` | JavaScript-modules per onderdeel; `main.js` start de app, `nav.js` wisselt tussen de pagina's (die zich daar zelf aanmelden), `home.js` is Vandaag, `menu.js` Plannen, `journey.js` het stappenplan, `plan.js` wat die delen (keuzes, boodschappen), `view.js` de receptpagina, `cook.js` de kookmodus, `rating.js` sterren en hartjes |
 | `tests/` | Unittests; `tests/helpers.py` start een testserver met een ingelogde gebruiker |
 
 ## API
@@ -255,6 +258,8 @@ login (sessie-cookie). Verzoeken die iets wijzigen moeten de kop `X-Requested-Wi
 | DELETE | `/api/shopping/items?key=…` | Product van de lijst halen |
 | POST | `/api/shopping/clear-bought` | Alles wat gekocht is van de lijst halen |
 | GET | `/api/shopping/suggestions` | Wat je waarschijnlijk nodig hebt (op koopritme), gangbare boodschappen, en alle bekende producten om in te zoeken |
-| POST | `/api/bring/sync` | Alles onder "Kopen" naar Bring! sturen |
-| POST/DELETE | `/api/bring/login`, `/api/bring` | Bring! koppelen / ontkoppelen (beheerder) |
+| POST | `/api/shopping/icon` | `{name, hint}` Gemini tekent een nieuw icoon voor een product (eventueel naar een beschrijving) |
+| PUT | `/api/shopping/icon` | `{name, image}` eigen afbeelding als icoon (eerst uploaden via `/api/images`), of `""` voor de emoji |
+| GET/DELETE | `/api/errors` | Foutmeldingen bekijken / wissen (beheerder) |
+| POST | `/api/errors` | `{errors: [{method, path, message, detail, at}]}` fouten die de browser zag maar de server niet (geen verbinding, time-out) |
 | GET | `/api/health` | Controle of de server draait (voor Docker) |

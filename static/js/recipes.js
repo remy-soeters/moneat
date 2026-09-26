@@ -1,7 +1,9 @@
 // ---------- recepten ----------
+import { api } from "./api.js";
 import { dishFor, plateAttrs } from "./dishes.js";
 import { openAdd, openEdit } from "./edit.js";
 import { ICONS } from "./icons.js";
+import { registerPage } from "./nav.js";
 import { toggleFavorite } from "./rating.js";
 import { state } from "./state.js";
 import { aiName, guarded } from "./ui.js";
@@ -66,12 +68,16 @@ function recipeCard(r) {
 }
 
 // Hartje op een kaart; werkt via de klik-afhandeling van de lijst.
-export function heartHtml(recipe) {
+function heartHtml(recipe) {
   return `<button type="button" class="heart${recipe.favorite ? " on" : ""}" data-fav="${recipe.id}" aria-pressed="${Boolean(recipe.favorite)}"
     aria-label="${recipe.favorite ? "Uit je favorieten halen" : "Aan je favorieten toevoegen"}">${ICONS.heart}</button>`;
 }
 
 // Recepten
+registerPage("recipes", async () => {
+  state.recipes = await api("/api/recipes");
+  renderRecipes();
+});
 $("#recipe-search").addEventListener("input", renderRecipes);
 $("#tag-filter").addEventListener("click", (e) => {
   const chip = e.target.closest(".chip");

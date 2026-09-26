@@ -162,7 +162,10 @@ dialog.recipe-page.cooking .recipe-foot { display: none; }
 
 /* ---------- beoordelen ---------- */
 
-dialog.modal.rate { width: min(480px, calc(100vw - 32px)); }
+/* Smaller venster alleen op grotere schermen; op de telefoon een volle breedte onderin (zie base.css). */
+@media (min-width: 721px) {
+  dialog.modal.rate { width: min(480px, calc(100vw - 32px)); }
+}
 dialog.modal.rate .modal-head h2 { font-size: 23px; text-wrap: balance; }
 .stars-input { display: flex; justify-content: center; gap: 6px; margin: 10px 0 4px; }
 .stars-input button {

@@ -7,7 +7,7 @@ from http.server import ThreadingHTTPServer
 from unittest import mock
 
 from tests.helpers import ApiClient, api_test
-from mealplanner import ai, gemini
+from mealplanner import ai, gemini, setting_keys
 from mealplanner.db import Database
 
 KEY = "sk-ant-api03-" + "a" * 40 + "WXYZ"
@@ -62,7 +62,7 @@ class SettingsApiTest(unittest.TestCase):
         self.assertEqual(self.call("PUT", "/api/settings", {"gemini_image_model": "rm -rf /"})[0], 400)
 
     def test_auto_images_switch(self):
-        self.db.set_setting(ai.GEMINI_KEY, "AIza" + "x" * 35)
+        self.db.set_setting(setting_keys.GEMINI_KEY, "AIza" + "x" * 35)
         self.assertTrue(self.call("GET", "/api/settings")[1]["auto_images"])
         self.assertTrue(ai.auto_images())
         settings = self.call("PUT", "/api/settings", {"auto_images": False})[1]
@@ -118,7 +118,7 @@ class SettingsApiTest(unittest.TestCase):
 
     def test_ai_uses_key_from_settings(self):
         self.call("PUT", "/api/settings", {"claude_api_key": KEY})
-        self.assertEqual(ai._setting(ai.CLAUDE_KEY), KEY)
+        self.assertEqual(ai._setting(setting_keys.CLAUDE_KEY), KEY)
 
     def test_connection_test_reports_problems(self):
         with mock.patch.object(ai, "check_connection", side_effect=ai.AIUnavailable(ai.NO_KEY)):

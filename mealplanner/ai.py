@@ -5,6 +5,10 @@ import json
 import os
 
 from . import gemini
+from .setting_keys import (
+    AUTO_IMAGES, CLAUDE_KEY, CLAUDE_MODEL, GEMINI_IMAGE_MODEL, GEMINI_KEY, GEMINI_TEXT_KEY, GEMINI_TEXT_MODEL,
+    TEXT_PROVIDER,
+)
 
 MODEL = "claude-opus-5"  # standaard Claude-model
 # Keuzes in Instellingen. Haiku kan niet 'nadenken' (adaptive thinking) en kent geen effort-niveau;
@@ -17,7 +21,16 @@ CLAUDE_MODELS = [
 
 
 class AIUnavailable(Exception):
-    """De AI-functie kan niet draaien (SDK of API-sleutel ontbreekt, of Claude weigerde)."""
+    """De AI-functie kan niet draaien (SDK of API-sleutel ontbreekt, of de AI weigerde). `source` zegt welke AI het
+    was en `detail` wat die precies antwoordde; beide komen in het logboek bij Instellingen → Foutmeldingen."""
+
+    def __init__(self, message, detail="", source=""):
+        super().__init__(message)
+        self.detail = detail
+        self.source = source
+
+
+NO_KEY = "Er is nog geen Anthropic API-sleutel ingesteld. Voeg er een toe via Instellingen in het menu."
 
 
 INGREDIENT_SCHEMA = {
@@ -131,15 +144,6 @@ intro (twee zinnen) en per recept één aantrekkelijke zin die laat zien waarom 
 # Leest een instelling van de app: get(key, default). Ingesteld door de server.
 _setting = lambda key, default=None: default
 
-CLAUDE_KEY = "anthropic_api_key"
-CLAUDE_MODEL = "claude_model"
-GEMINI_KEY = "gemini_api_key"
-GEMINI_TEXT_KEY = "gemini_text_api_key"  # optioneel: sleutel uit een project zónder betalen, voor gratis tekst
-TEXT_PROVIDER = "text_provider"
-GEMINI_TEXT_MODEL = "gemini_text_model"
-GEMINI_IMAGE_MODEL = "gemini_image_model"
-AUTO_IMAGES = "auto_images"  # "off" = geen foto's/iconen op de achtergrond laten maken
-
 
 def set_settings(getter):
     global _setting
@@ -167,7 +171,7 @@ def gemini_models():
 
 
 def gemini_configured():
-    return bool(_setting(GEMINI_KEY) or os.environ.get("GEMINI_API_KEY"))
+    return bool(_gemini_key(required=False))
 
 
 def auto_images():
@@ -175,11 +179,12 @@ def auto_images():
     return _setting(AUTO_IMAGES) != "off" and gemini_configured()
 
 
-def _gemini_key():
+def _gemini_key(required=True):
+    """De gewone Gemini-sleutel (ook voor foto's): uit de app, anders uit de omgeving."""
     key = _setting(GEMINI_KEY) or os.environ.get("GEMINI_API_KEY")
-    if not key:
+    if not key and required:
         raise AIUnavailable(
-            "Er is nog geen Gemini API-sleutel ingesteld. Voeg er een toe via Instellingen in het menu."
+            "Er is nog geen Gemini API-sleutel ingesteld. Voeg er een toe via Instellingen in het menu.", source="Gemini"
         )
     return key
 
@@ -202,17 +207,37 @@ def _client():
         import anthropic
     except ImportError:
         raise AIUnavailable(
-            "Het pakket 'anthropic' is niet geïnstalleerd. Kijk bij Instellingen in het menu hoe je dat oplost."
+            "Het pakket 'anthropic' is niet geïnstalleerd. Kijk bij Instellingen in het menu hoe je dat oplost.",
+            source="Claude",
         )
     key = _setting(CLAUDE_KEY)
     try:
         # Een sleutel uit de app gaat voor; anders zoekt de SDK zelf (omgevingsvariabele of `ant auth login`).
         return anthropic, anthropic.Anthropic(api_key=key) if key else anthropic.Anthropic()
-    except anthropic.AnthropicError:
-        raise AIUnavailable(NO_KEY)
+    except anthropic.AnthropicError as e:
+        raise AIUnavailable(NO_KEY, repr(e), "Claude")
 
 
-NO_KEY = "Er is nog geen Anthropic API-sleutel ingesteld. Voeg er een toe via Instellingen in het menu."
+def _from_gemini(error):
+    return AIUnavailable(str(error), error.detail, "Gemini")
+
+
+def _claude_detail(error):
+    """Precies wat de Claude API antwoordde, voor het logboek."""
+    body = json.dumps(error.body, ensure_ascii=False) if getattr(error, "body", None) else error.message
+    return f"HTTP {error.status_code} (request-id {getattr(error, 'request_id', None) or '?'}): {body}"
+
+
+def _claude_error(error):
+    """Een duidelijke melding bij een API-fout van Claude (bijv. tegoed op of te druk)."""
+    text = str(error.message).lower()
+    if "credit balance" in text:
+        message = "Je Claude-tegoed is op. Vul het aan op console.anthropic.com (Plans & Billing) en probeer het opnieuw."
+    elif error.status_code == 529 or "overloaded" in text:
+        message = "Claude heeft het even te druk. Probeer het over een paar minuten opnieuw."
+    else:
+        message = f"Claude API-fout ({error.status_code}): {error.message}"
+    return AIUnavailable(message, _claude_detail(error), "Claude")
 
 
 def check_gemini():
@@ -221,12 +246,12 @@ def check_gemini():
         text_model, image_model = gemini_models()
         if _setting(GEMINI_TEXT_KEY):
             gemini.check_connection(_setting(GEMINI_TEXT_KEY), [text_model])
-            if _setting(GEMINI_KEY) or os.environ.get("GEMINI_API_KEY"):
+            if _gemini_key(required=False):
                 gemini.check_connection(_gemini_key(), [image_model])
         else:
             gemini.check_connection(_gemini_key(), [text_model, image_model])
     except gemini.GeminiError as e:
-        raise AIUnavailable(str(e))
+        raise _from_gemini(e)
 
 
 def check_connection():
@@ -234,16 +259,19 @@ def check_connection():
     anthropic, client = _client()
     try:
         client.models.retrieve(claude_model()["id"])
-    except anthropic.AuthenticationError:
-        raise AIUnavailable("Deze API-sleutel wordt niet geaccepteerd. Controleer of je hem volledig hebt geplakt.")
-    except anthropic.PermissionDeniedError:
-        raise AIUnavailable("Deze API-sleutel heeft geen toegang tot Claude. Controleer je account op console.anthropic.com.")
-    except anthropic.APIConnectionError:
-        raise AIUnavailable("Kon geen verbinding maken met de Claude API. Controleer je internetverbinding.")
+    except anthropic.AuthenticationError as e:
+        raise AIUnavailable("Deze API-sleutel wordt niet geaccepteerd. Controleer of je hem volledig hebt geplakt.",
+                            _claude_detail(e), "Claude")
+    except anthropic.PermissionDeniedError as e:
+        raise AIUnavailable("Deze API-sleutel heeft geen toegang tot Claude. Controleer je account op console.anthropic.com.",
+                            _claude_detail(e), "Claude")
+    except anthropic.APIConnectionError as e:
+        raise AIUnavailable("De server kon Claude niet bereiken. Is de internetverbinding van de server in orde?",
+                            repr(e), "Claude")
     except anthropic.APIStatusError as e:
-        raise AIUnavailable(f"Claude API-fout ({e.status_code}): {e.message}")
-    except anthropic.AnthropicError:
-        raise AIUnavailable(NO_KEY)
+        raise _claude_error(e)
+    except anthropic.AnthropicError as e:
+        raise AIUnavailable(NO_KEY, repr(e), "Claude")
     except TypeError as e:
         _raise_if_no_key(e)
 
@@ -251,7 +279,7 @@ def check_connection():
 def _raise_if_no_key(error):
     """Zonder sleutel geeft de SDK pas bij het versturen een TypeError; maak daar een duidelijke melding van."""
     if "authentication" in str(error).lower():
-        raise AIUnavailable(NO_KEY)
+        raise AIUnavailable(NO_KEY, repr(error), "Claude")
     raise error
 
 
@@ -261,7 +289,7 @@ def _ask(system, user_message, schema, effort="medium"):
         try:
             return gemini.generate_json(_gemini_text_key(), gemini_models()[0], system, user_message, schema)
         except gemini.GeminiError as e:
-            raise AIUnavailable(str(e))
+            raise _from_gemini(e)
     return _ask_claude(system, user_message, schema, effort)
 
 
@@ -285,24 +313,29 @@ def _ask_claude(system, user_message, schema, effort):
             **options,
         ) as stream:
             response = stream.get_final_message()
-    except anthropic.AuthenticationError:
-        raise AIUnavailable("De API-sleutel wordt niet geaccepteerd. Controleer hem bij Instellingen in het menu.")
-    except anthropic.RateLimitError:
-        raise AIUnavailable("Te veel verzoeken aan Claude; probeer het over een minuut opnieuw.")
+    except anthropic.AuthenticationError as e:
+        raise AIUnavailable("De API-sleutel wordt niet geaccepteerd. Controleer hem bij Instellingen in het menu.",
+                            _claude_detail(e), "Claude")
+    except anthropic.RateLimitError as e:
+        raise AIUnavailable("Te veel verzoeken aan Claude; probeer het over een minuut opnieuw.",
+                            _claude_detail(e), "Claude")
     except anthropic.APIStatusError as e:
-        raise AIUnavailable(f"Claude API-fout ({e.status_code}): {e.message}")
-    except anthropic.APIConnectionError:
-        raise AIUnavailable("Kon geen verbinding maken met de Claude API.")
-    except anthropic.AnthropicError:
+        raise _claude_error(e)
+    except anthropic.APIConnectionError as e:
+        raise AIUnavailable("De server kon Claude niet bereiken. Is de internetverbinding van de server in orde?",
+                            repr(e), "Claude")
+    except anthropic.AnthropicError as e:
         # Bijvoorbeeld: geen API-sleutel of profiel gevonden.
-        raise AIUnavailable(NO_KEY)
+        raise AIUnavailable(NO_KEY, repr(e), "Claude")
     except TypeError as e:
         _raise_if_no_key(e)
 
     if response.stop_reason == "refusal":
-        raise AIUnavailable("Claude kon dit verzoek niet uitvoeren. Formuleer het anders en probeer het opnieuw.")
+        raise AIUnavailable("Claude kon dit verzoek niet uitvoeren. Formuleer het anders en probeer het opnieuw.",
+                            "stop_reason: refusal", "Claude")
     if response.stop_reason == "max_tokens":
-        raise AIUnavailable("Het antwoord van Claude was te lang en is afgebroken; vraag om minder tegelijk.")
+        raise AIUnavailable("Het antwoord van Claude was te lang en is afgebroken; vraag om minder tegelijk.",
+                            "stop_reason: max_tokens", "Claude")
 
     text = next(b.text for b in response.content if b.type == "text")
     return json.loads(text)
@@ -430,21 +463,23 @@ def generate_photo(recipe):
     try:
         return gemini.generate_image(_gemini_key(), gemini_models()[1], photo_prompt(recipe))
     except gemini.GeminiError as e:
-        raise AIUnavailable(str(e))
+        raise _from_gemini(e)
 
 
-def icon_prompt(name):
+def icon_prompt(name, hint=""):
     return (
         f"A single grocery item: \"{name}\" (a Dutch supermarket product name). "
-        "Simple, friendly flat illustration icon of just this item, centered, filling most of the frame, "
+        + (f"Show it like this (description in Dutch): {hint}. " if hint else "")
+        + "Simple, friendly flat illustration icon of just this item, centered, filling most of the frame, "
         "on a plain warm cream background (#FBF7F2). Soft colors, subtle shading, rounded shapes, consistent "
         "sticker-like style. No text, no letters, no brand names, no packaging labels, no people."
     )
 
 
-def generate_icon(name):
-    """Laat Gemini een vierkant icoon voor een product tekenen; geeft de afbeeldingsbytes terug."""
+def generate_icon(name, hint=""):
+    """Laat Gemini een vierkant icoon voor een product tekenen, eventueel naar een beschrijving ("een fles");
+    geeft de afbeeldingsbytes terug."""
     try:
-        return gemini.generate_image(_gemini_key(), gemini_models()[1], icon_prompt(name), aspect_ratio="1:1")
+        return gemini.generate_image(_gemini_key(), gemini_models()[1], icon_prompt(name, hint), aspect_ratio="1:1")
     except gemini.GeminiError as e:
-        raise AIUnavailable(str(e))
+        raise _from_gemini(e)

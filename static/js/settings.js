@@ -2,11 +2,12 @@
 import { api } from "./api.js";
 import { initials, logout, showApp } from "./auth.js";
 import { ICONS } from "./icons.js";
+import { registerPage } from "./nav.js";
 import { state } from "./state.js";
 import { aiName, applyAiName, guarded, toast } from "./ui.js";
 import { $, $$, esc } from "./util.js";
 
-export async function loadSettingsPage() {
+async function loadSettingsPage() {
   renderAccount();
   const admin = Boolean(state.user?.is_admin);
   $$(".admin-only:not(.settings-group)").forEach((el) => (el.hidden = !admin));
@@ -19,16 +20,16 @@ export async function loadSettingsPage() {
     $("[name=key]", section).type = "password";
     $("[data-toggle]", section).textContent = "Toon";
   });
-  const [settings] = await Promise.all([api("/api/settings"), loadUsers()]);
+  const [settings] = await Promise.all([api("/api/settings"), loadUsers(), loadErrors()]);
   renderSettings(settings);
 }
 
 // ---------- indeling: een overzicht van onderwerpen, en het gekozen onderwerp ----------
 // Op een breed scherm staan ze naast elkaar; op telefoon en iPad staand open je een onderwerp vanuit het overzicht.
 
-export const wideSettings = window.matchMedia("(min-width: 1024px)");
+const wideSettings = window.matchMedia("(min-width: 1024px)");
 
-export function showSettingsGroup(name) {
+function showSettingsGroup(name) {
   if (name && name !== "account" && !state.user?.is_admin) name = "account";
   state.settingsGroup = name ?? null;
   const current = name ?? (wideSettings.matches ? "account" : null);
@@ -44,7 +45,7 @@ function summary(name, text) {
 
 // ---------- jouw account ----------
 
-export function renderAccount() {
+function renderAccount() {
   const user = state.user;
   if (!user) return;
   $("#account-avatar").textContent = initials(user.display_name);
@@ -74,14 +75,14 @@ async function changePassword(form) {
 
 // ---------- huishouden (beheerder) ----------
 
-export function randomPassword() {
+function randomPassword() {
   const alphabet = "abcdefghjkmnpqrstuvwxyz23456789";
   const bytes = crypto.getRandomValues(new Uint8Array(12));
   const chars = [...bytes].map((b) => alphabet[b % alphabet.length]).join("");
   return `${chars.slice(0, 4)}-${chars.slice(4, 8)}-${chars.slice(8)}`;
 }
 
-export async function loadUsers() {
+async function loadUsers() {
   const users = await api("/api/users");
   $("#user-list").innerHTML = users
     .map(
@@ -151,7 +152,7 @@ async function userAction(id, action, button) {
   });
 }
 
-export function renderSettings(settings) {
+function renderSettings(settings) {
   state.settings = settings;
   applyAiName();
   $$("#provider-choice button").forEach((b) =>
@@ -201,7 +202,6 @@ export function renderSettings(settings) {
   for (const chip of $$("#auto-images-choice .chip")) {
     chip.setAttribute("aria-pressed", String((chip.dataset.value === "on") === settings.auto_images));
   }
-  renderBring(settings.bring);
   $("#swipe-preload-choice").innerHTML = settings.swipe_preload_options
     .map((n) => `<button type="button" class="chip" data-value="${n}" aria-pressed="${n === settings.swipe_preload}">${n} gerechten</button>`)
     .join("");
@@ -236,53 +236,7 @@ export function renderSettings(settings) {
   summary("inspiration", `${settings.swipe_preload} gerechten klaar om te swipen`);
 }
 
-// ---------- Bring! ----------
-
-export function renderBring(status, lists) {
-  summary("shopping", status.connected ? `Bring! gekoppeld${status.list_name ? ` · ${status.list_name}` : ""}` : "Bring! niet gekoppeld");
-  $("#bring-form").hidden = status.connected;
-  $("#bring-connected").hidden = !status.connected;
-  if (!status.connected) return;
-  $("#bring-dot").innerHTML = ICONS.check;
-  $("#bring-email").textContent = `als ${status.email}`;
-  const options = lists ?? [{ uuid: status.list_uuid, name: status.list_name }];
-  $("#bring-list-choice").innerHTML = options
-    .map((l) => `<button type="button" class="chip" data-list="${esc(l.uuid)}" aria-pressed="${l.uuid === status.list_uuid}">${esc(l.name)}</button>`)
-    .join("");
-  if (!lists) {
-    api("/api/bring/lists").then((res) => renderBring(res, res.lists)).catch(() => {});
-  }
-}
-
-export async function bringLogin(form) {
-  await guarded(async () => {
-    const res = await api("/api/bring/login", {
-      method: "POST", body: { email: form.email.value.trim(), password: form.password.value },
-    });
-    form.password.value = "";
-    renderBring(res, res.lists);
-    toast(`Bring! is gekoppeld${res.list_name ? `; boodschappen gaan naar ‘${res.list_name}’` : ""}`);
-  });
-}
-
-export async function bringSync() {
-  const button = $("#bring-sync");
-  button.disabled = true;
-  button.textContent = "Bezig met versturen…";
-  try {
-    const res = await api("/api/bring/sync", { method: "POST", body: {} });
-    const parts = [`${res.sent} ${res.sent === 1 ? "product" : "producten"} naar ‘${res.list_name}’ gestuurd`];
-    if (res.checked_off) parts.push(`${res.checked_off} afgevinkt`);
-    toast(parts.join(", "));
-  } catch (err) {
-    toast(err.message, true);
-  } finally {
-    button.disabled = false;
-    button.textContent = "Naar Bring! sturen";
-  }
-}
-
-export async function saveSettings(section) {
+async function saveSettings(section) {
   const provider = section.dataset.provider;
   const form = $(".key-form", section);
   const body = {};
@@ -297,7 +251,7 @@ export async function saveSettings(section) {
   });
 }
 
-export async function testConnection(section) {
+async function testConnection(section) {
   const el = $("[data-result]", section);
   const button = $("[data-test]", section);
   button.disabled = true;
@@ -316,7 +270,7 @@ export async function testConnection(section) {
   }
 }
 
-export async function deleteKey(section) {
+async function deleteKey(section) {
   const name = { gemini: "Gemini (met betalen)", gemini_text: "Gemini (gratis)", claude: "Claude" }[section.dataset.provider];
   if (!confirm(`De opgeslagen API-sleutel van ${name} verwijderen?`)) return;
   await guarded(async () => {
@@ -326,20 +280,55 @@ export async function deleteKey(section) {
   });
 }
 
-export async function setProvider(provider) {
+// Een instelling opslaan en het scherm bijwerken met wat de server teruggeeft; `message` volgt daarna.
+async function saveSetting(body, message) {
   await guarded(async () => {
-    renderSettings(await api("/api/settings", { method: "PUT", body: { text_provider: provider } }));
-    toast(`Recepten worden nu geschreven door ${aiName()}`);
+    renderSettings(await api("/api/settings", { method: "PUT", body }));
+    toast(message());
   });
 }
 
+// ---------- foutmeldingen ----------
+
+async function loadErrors() {
+  const { errors } = await api("/api/errors");
+  $("#error-list").innerHTML = errors.length
+    ? errors.map(errorHtml).join("")
+    : `<li class="muted">Er ging de laatste tijd niets mis.</li>`;
+  $("#errors-clear").hidden = !errors.length;
+  summary("errors", errors.length ? `Laatste: ${localTime(errors[0].created_at)}` : "Geen meldingen");
+}
+
+// Een tijdstip uit de database (UTC) in de tijd van dit apparaat, bijv. "26 sep 14:02".
+function localTime(utc) {
+  return new Date(`${utc.replace(" ", "T")}Z`).toLocaleString("nl-NL", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+
+function errorHtml(error) {
+  const meta = [localTime(error.created_at), error.source, error.action, error.user, error.count > 1 ? `${error.count}×` : ""];
+  return `<li class="error-item">
+    <div class="error-meta">${meta.filter(Boolean).map((m) => `<span>${esc(m)}</span>`).join("")}</div>
+    <p class="error-message">${esc(error.message)}</p>
+    ${error.detail ? `<details><summary>Precieze fout</summary><pre>${esc(error.detail)}</pre></details>` : ""}
+  </li>`;
+}
+
 // Instellingen
+registerPage("settings", loadSettingsPage);
 $$(".settings-icon").forEach((el) => (el.innerHTML = ICONS[el.dataset.icon]));
 $("#settings-menu").addEventListener("click", (e) => {
   const row = e.target.closest("[data-settings]");
   if (!row) return;
   showSettingsGroup(row.dataset.settings);
+  if (row.dataset.settings === "errors") guarded(loadErrors); // altijd de nieuwste meldingen
   if (!wideSettings.matches) window.scrollTo({ top: 0 });
+});
+$("#errors-clear").addEventListener("click", () => {
+  if (!confirm("Alle foutmeldingen wissen?")) return;
+  guarded(async () => {
+    await api("/api/errors", { method: "DELETE" });
+    await loadErrors();
+  });
 });
 $("#settings-back").addEventListener("click", () => {
   showSettingsGroup(null);
@@ -349,28 +338,8 @@ wideSettings.addEventListener("change", () => showSettingsGroup(state.settingsGr
 
 $("#provider-choice").addEventListener("click", (e) => {
   const provider = e.target.closest("[data-provider]")?.dataset.provider;
-  if (provider) setProvider(provider);
+  if (provider) saveSetting({ text_provider: provider }, () => `Recepten worden nu geschreven door ${aiName()}`);
 });
-$("#bring-form").addEventListener("submit", (e) => {
-  e.preventDefault();
-  bringLogin(e.target);
-});
-$("#bring-list-choice").addEventListener("click", (e) => {
-  const uuid = e.target.closest("[data-list]")?.dataset.list;
-  if (!uuid) return;
-  guarded(async () => {
-    const res = await api("/api/bring/list", { method: "PUT", body: { list_uuid: uuid } });
-    renderBring(res);
-    toast(`Boodschappen gaan voortaan naar ‘${res.list_name}’`);
-  });
-});
-$("#bring-disconnect").addEventListener("click", () =>
-  guarded(async () => {
-    renderBring(await api("/api/bring", { method: "DELETE" }));
-    toast("Bring! is ontkoppeld");
-  })
-);
-$("#bring-sync").addEventListener("click", bringSync);
 for (const [id, field, message] of [
   ["#image-model-choice", "gemini_image_model", "Foto's worden voortaan gemaakt met"],
   ["#text-model-choice", "gemini_text_model", "Recepten worden voortaan geschreven door"],
@@ -379,10 +348,7 @@ for (const [id, field, message] of [
   $(id).addEventListener("click", (e) => {
     const button = e.target.closest("[data-model]");
     if (!button || button.getAttribute("aria-checked") === "true") return;
-    guarded(async () => {
-      renderSettings(await api("/api/settings", { method: "PUT", body: { [field]: button.dataset.model } }));
-      toast(`${message} ${$("strong", button).textContent}`);
-    });
+    saveSetting({ [field]: button.dataset.model }, () => `${message} ${$("strong", button).textContent}`);
   });
 }
 $$(".key-section").forEach((section) => {
@@ -402,19 +368,14 @@ $$(".key-section").forEach((section) => {
 $("#auto-images-choice").addEventListener("click", (e) => {
   const value = e.target.closest(".chip")?.dataset.value;
   if (!value) return;
-  guarded(async () => {
-    renderSettings(await api("/api/settings", { method: "PUT", body: { auto_images: value === "on" } }));
-    toast(value === "on" ? "Foto's en iconen worden weer automatisch gemaakt" : "Er worden geen foto's of iconen meer vanzelf gemaakt");
-  });
+  saveSetting({ auto_images: value === "on" }, () =>
+    value === "on" ? "Foto's en iconen worden weer automatisch gemaakt" : "Er worden geen foto's of iconen meer vanzelf gemaakt");
 });
 
 $("#swipe-preload-choice").addEventListener("click", (e) => {
   const value = Number(e.target.closest(".chip")?.dataset.value);
   if (!value) return;
-  guarded(async () => {
-    renderSettings(await api("/api/settings", { method: "PUT", body: { swipe_preload: value } }));
-    toast(`Er worden ${value} gerechten klaargezet om te swipen`);
-  });
+  saveSetting({ swipe_preload: value }, () => `Er worden ${value} gerechten klaargezet om te swipen`);
 });
 
 // Account en huishouden

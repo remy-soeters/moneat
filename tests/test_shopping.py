@@ -163,6 +163,12 @@ class IconMakerTest(unittest.TestCase):
         self.assertEqual(ai.generate_icon.call_count, 2)
         self.assertFalse(self.maker.pending())
 
+    def test_leaves_products_that_keep_their_emoji(self):
+        self.db.set_product_icon("Zout", "")
+        self.maker.request(["Zout"])
+        self.wait()
+        ai.generate_icon.assert_not_called()
+
     def test_stops_after_failure(self):
         ai.generate_icon.side_effect = ai.AIUnavailable("betalen nodig")
         self.maker.request([f"Product {i}" for i in range(20)])
@@ -185,6 +191,27 @@ class ShoppingApiTest(unittest.TestCase):
 
     def call(self, method, path, body=None, **kwargs):
         return self.api.call(method, path, body, **kwargs)
+
+    def test_change_a_product_icon(self):
+        """Een nieuw icoon laten tekenen (met een beschrijving), een eigen afbeelding kiezen of terug naar de emoji."""
+        self.db.add_shopping_item("Olijfolie")
+        with mock.patch.object(ai, "generate_icon", return_value=tiny_png()) as draw:
+            status, res = self.call("POST", "/api/shopping/icon", {"name": "Olijfolie", "hint": "een fles"})
+        self.assertEqual(status, 200)
+        draw.assert_called_once_with("Olijfolie", "een fles")
+        drawn = res["icon"]
+        self.assertEqual(res["items"][0]["icon"], drawn)
+
+        own = self.images.save(tiny_png())
+        res = self.call("PUT", "/api/shopping/icon", {"name": "olijfolie", "image": own})[1]
+        self.assertEqual(res["items"][0]["icon"], own)
+        self.assertIsNone(self.images.path_for(drawn))  # het vorige icoon is opgeruimd
+
+        res = self.call("PUT", "/api/shopping/icon", {"name": "Olijfolie", "image": ""})[1]
+        self.assertEqual(res["items"][0]["icon"], "")
+        self.assertEqual(self.db.product_icons(["Olijfolie"]), {"Olijfolie": ""})  # de app tekent er geen meer voor
+        self.assertEqual(self.call("PUT", "/api/shopping/icon", {"name": "Olijfolie", "image": "/images/weg.png"})[0], 400)
+        self.assertEqual(self.call("POST", "/api/shopping/icon", {"name": " "})[0], 400)
 
     def test_recipe_ingredients_go_on_the_list(self):
         soup = self.db.create_recipe({"name": "Soep", "ingredients": [{"name": "Ui", "quantity": 2, "unit": ""}]})

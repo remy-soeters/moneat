@@ -19,7 +19,8 @@ from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import urlparse
 
-from . import ai, auth, bring, routes, setting_keys
+from . import ai, auth, routes, setting_keys
+from .actions import describe_action
 from .db import NotFound
 from .icons import IconMaker
 from .importer import ImportFailed
@@ -72,6 +73,15 @@ class App:
         """Verwijder een foto van schijf zodra geen recept of voorstel hem meer gebruikt."""
         if url and not self.db.image_in_use(url):
             self.images.delete(url)
+
+    def log_error(self, source, action, message, detail="", user="", when=None):
+        """Bewaar wat er misging, zodat je het bij Instellingen → Foutmeldingen kunt teruglezen (en in het serverlog)."""
+        if not self.config.quiet:
+            sys.stderr.write(f"FOUT {source} · {action}: {message}{f' | {detail}' if detail else ''}\n")
+        try:
+            self.db.log_error(source, action, message, detail, user, when)
+        except Exception:
+            traceback.print_exc()  # het logboek mag de melding zelf nooit in de weg zitten
 
     def preload_target(self):
         try:
@@ -151,16 +161,21 @@ class App:
         except NotFound as e:
             return Response.error(HTTPStatus.NOT_FOUND, str(e))
         except ai.AIUnavailable as e:
+            self._log_request_error(req, e.source or ai.provider_name(), str(e), e.detail)
             return Response.error(HTTPStatus.SERVICE_UNAVAILABLE, str(e))
-        except bring.BringError as e:
-            return Response.error(HTTPStatus.BAD_GATEWAY, str(e))
         except ImportFailed as e:
+            self._log_request_error(req, "Importeren", str(e))
             return Response.error(HTTPStatus.UNPROCESSABLE_ENTITY, str(e))
         except ValueError as e:
             return Response.error(HTTPStatus.BAD_REQUEST, str(e) or "Ongeldige invoer")
         except Exception:
             traceback.print_exc()
+            self._log_request_error(req, "Server", "Interne serverfout", traceback.format_exc()[-4000:])
             return Response.error(HTTPStatus.INTERNAL_SERVER_ERROR, "Interne serverfout")
+
+    def _log_request_error(self, req, source, message, detail=""):
+        user = (req.user or {}).get("display_name", "")
+        self.log_error(source, describe_action(req.method, req.path), message, detail, user)
 
     def _check_same_origin(self, req):
         """Wijzigingen alleen vanaf de eigen site: een eigen kop (die andere sites niet kunnen meesturen

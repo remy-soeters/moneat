@@ -1,6 +1,6 @@
 import { ICONS } from "./icons.js";
 
-export const DAY_NAMES = ["Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag", "Zondag"];
+const DAY_NAMES = ["Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag", "Zondag"];
 
 export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -63,6 +63,14 @@ export function weekLabel(monday) {
   return `Week ${isoWeek(monday)} · ${range}`;
 }
 
+// "deze week", "volgende week" of "in week 42", om in een zin te gebruiken.
+export function weekName(monday) {
+  const thisWeek = mondayOf(new Date());
+  if (monday === thisWeek) return "deze week";
+  if (monday === addDays(thisWeek, 7)) return "volgende week";
+  return `in week ${isoWeek(monday)}`;
+}
+
 export function dayName(iso) {
   return DAY_NAMES[(parseIso(iso).getDay() + 6) % 7];
 }
@@ -84,10 +92,10 @@ export function tagList(tags) {
 }
 
 // Hoeveelheid omrekenen naar een ander aantal personen, afgerond zoals je het in een kookboek zou schrijven.
-export const FRACTIONS = [[0.25, "¼"], [0.5, "½"], [0.75, "¾"]];
-export const WEIGHT_UNITS = new Set(["g", "gr", "gram", "kg", "ml", "cl", "dl", "l", "liter"]);
+const FRACTIONS = [[0.25, "¼"], [0.5, "½"], [0.75, "¾"]];
+const WEIGHT_UNITS = new Set(["g", "gr", "gram", "kg", "ml", "cl", "dl", "l", "liter"]);
 
-export function scaledQty(quantity, unit, factor) {
+function scaledQty(quantity, unit, factor) {
   if (quantity == null) return "";
   const value = quantity * factor;
   if (WEIGHT_UNITS.has(String(unit).toLowerCase())) {
@@ -104,7 +112,7 @@ export function scaledQty(quantity, unit, factor) {
 // Eenheid zoals je hem leest: "2 uien" in plaats van "2 stuks", "3 tenen" in plaats van "3 teen".
 const UNIT_PLURALS = { teen: "tenen", blik: "blikken", bos: "bossen", zak: "zakken", pak: "pakken", plak: "plakken", takje: "takjes" };
 
-export function unitLabel(unit, quantity) {
+function unitLabel(unit, quantity) {
   const u = String(unit ?? "").trim();
   if (/^(stuks?|st)$/i.test(u)) return "";
   return quantity != null && quantity > 1 && UNIT_PLURALS[u] ? UNIT_PLURALS[u] : u;

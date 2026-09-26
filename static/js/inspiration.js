@@ -1,9 +1,8 @@
 // ---------- inspiratie ----------
 import { api } from "./api.js";
-import { dishFor, plateAttrs } from "./dishes.js";
+import { dishFor, plateAttrs, skeletonHtml } from "./dishes.js";
 import { ICONS } from "./icons.js";
-import { skeletonHtml } from "./menu.js";
-import { refresh } from "./nav.js";
+import { registerPage } from "./nav.js";
 import { makeIdeaPhotos } from "./photos.js";
 import { state } from "./state.js";
 import { renderSwipeTeaser } from "./swipe.js";
@@ -12,7 +11,7 @@ import { $, $$, esc, load, metaHtml, save } from "./util.js";
 import { openPlanSheet, openView } from "./view.js";
 
 // Groente en fruit van het seizoen in Nederland, per maand.
-export const SEASON = [
+const SEASON = [
   ["🥬 boerenkool", "🥦 spruitjes", "🥕 pastinaak", "🧅 prei", "🥗 witlof", "🟣 rode kool", "🌰 knolselderij"],
   ["🥬 boerenkool", "🥦 spruitjes", "🥕 winterpeen", "🧅 prei", "🥗 witlof", "🟣 rode kool", "🌰 knolselderij"],
   ["🧅 prei", "🥗 witlof", "🍃 spinazie", "🌿 postelein", "🥕 winterpeen", "🌰 knolselderij"],
@@ -26,8 +25,8 @@ export const SEASON = [
   ["🥬 boerenkool", "🎃 pompoen", "🥦 spruitjes", "🥕 pastinaak", "🌰 knolselderij", "🥗 witlof"],
   ["🥬 boerenkool", "🥦 spruitjes", "🟣 rode kool", "🥗 witlof", "🥕 pastinaak", "🥬 veldsla"],
 ];
-export const MONTHS = ["januari", "februari", "maart", "april", "mei", "juni", "juli", "augustus", "september", "oktober", "november", "december"];
-export const THEMES = [
+const MONTHS = ["januari", "februari", "maart", "april", "mei", "juni", "juli", "augustus", "september", "oktober", "november", "december"];
+const THEMES = [
   ["⏱️", "Snel doordeweeks", "Binnen 30 minuten op tafel", "Snelle doordeweekse gerechten, binnen 30 minuten klaar"],
   ["🛋️", "Comfort food", "Warm, romig en troostend", "Comfort food: warme, romige, troostende gerechten"],
   ["🥦", "Vegetarisch", "Vol smaak, zonder vlees", "Vegetarische hoofdgerechten vol smaak"],
@@ -38,13 +37,13 @@ export const THEMES = [
   ["🥂", "Feestelijk", "Voor een etentje met vrienden", "Feestelijke gerechten voor een etentje met vrienden"],
 ];
 
-export function seasonTheme() {
+function seasonTheme() {
   const month = new Date().getMonth();
   const produce = SEASON[month].map((p) => p.split(" ").slice(1).join(" "));
   return `Seizoensgerechten voor ${MONTHS[month]} met Nederlandse seizoensproducten zoals ${produce.join(", ")}`;
 }
 
-export function renderInspiration() {
+function renderInspiration() {
   renderSwipeTeaser();
   const month = new Date().getMonth();
   $("#season-kicker").textContent = `In het seizoen · ${MONTHS[month]}`;
@@ -61,12 +60,12 @@ export function renderInspiration() {
   else renderInspirationResults();
 }
 
-export function themeTitle(theme) {
+function themeTitle(theme) {
   if (theme.startsWith("Seizoensgerechten")) return `Seizoensrecepten voor ${MONTHS[new Date().getMonth()]}`;
   return THEMES.find((t) => t[3] === theme)?.[1] ?? theme;
 }
 
-export async function loadInspiration(theme, { refresh = false, scroll = true } = {}) {
+async function loadInspiration(theme, { refresh = false, scroll = true } = {}) {
   state.inspiration = { theme, data: null, loading: true, saved: new Map() };
   save("inspirationTheme", theme);
   $$("#themes .theme").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.theme === theme)));
@@ -150,6 +149,7 @@ export async function saveIdea(index, { quiet = false } = {}) {
 }
 
 // Inspiratie
+registerPage("inspiration", renderInspiration);
 $("#season-go").addEventListener("click", () => loadInspiration(seasonTheme()));
 $("#themes").addEventListener("click", (e) => {
   const theme = e.target.closest(".theme")?.dataset.theme;

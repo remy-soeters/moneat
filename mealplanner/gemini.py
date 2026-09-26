@@ -31,7 +31,11 @@ TIMEOUT = 180
 
 
 class GeminiError(Exception):
-    pass
+    """Een fout van Gemini: een duidelijke melding, en in `detail` precies wat Google antwoordde."""
+
+    def __init__(self, message, detail=""):
+        super().__init__(message)
+        self.detail = detail
 
 
 def _request(api_key, method, path, body=None):
@@ -46,28 +50,69 @@ def _request(api_key, method, path, body=None):
         with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
             return json.load(response)
     except urllib.error.HTTPError as e:
-        raise GeminiError(_explain(e.code, _error_message(e)))
-    except (urllib.error.URLError, TimeoutError, OSError):
-        raise GeminiError("Kon geen verbinding maken met Gemini. Controleer je internetverbinding.")
+        error = _error_body(e)
+        raise GeminiError(_explain(e.code, error), f"HTTP {e.code}: {json.dumps(error, ensure_ascii=False)}")
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        if isinstance(e, TimeoutError) or "timed out" in str(e):
+            raise GeminiError("Gemini gaf binnen drie minuten geen antwoord. Probeer het opnieuw.", repr(e))
+        raise GeminiError("De server kon Gemini niet bereiken. Is de internetverbinding van de server in orde?", repr(e))
 
 
-def _error_message(error):
+def _error_body(error):
+    """Het foutobject van Google ({code, message, status, details}); lukt dat niet, dan de ruwe tekst."""
+    raw = error.read().decode("utf-8", "replace")
     try:
-        return json.load(error).get("error", {}).get("message", "")
+        body = json.loads(raw).get("error")
     except (ValueError, AttributeError):
-        return ""
+        body = None
+    return body if isinstance(body, dict) else {"message": raw[:500]}
 
 
-def _explain(status, message):
-    if status in (401, 403) and "billing" not in message.lower():
-        return "Deze Gemini API-sleutel wordt niet geaccepteerd. Controleer hem bij Instellingen in het menu."
-    if status == 429 or "billing" in message.lower() or "free tier" in message.lower():
+def _retry_seconds(error):
+    """Na hoeveel seconden het weer mag, als Google dat meegeeft (RetryInfo, bijv. "34s")."""
+    for item in error.get("details") or []:
+        delay = str(item.get("retryDelay") or "") if isinstance(item, dict) else ""
+        if delay.endswith("s") and delay[:-1].replace(".", "", 1).isdigit():
+            return round(float(delay[:-1]))
+    return None
+
+
+PAYMENT_NEEDED = (
+    "Gemini vraagt om betalen voor dit verzoek (betalen nodig): de gratis variant kan het niet. Gebruik een sleutel "
+    "uit een Google-project met betaalgegevens, of zet betalen aan in Google AI Studio."
+)
+
+
+def _explain(status, error):
+    """Een duidelijke melding bij een fout van Google: wat er aan de hand is en wat je kunt doen."""
+    message = str(error.get("message") or "")
+    text = f"{message} {json.dumps(error.get('details') or '')}".lower()
+    if any(word in text for word in ("credit", "prepay", "balance")):
+        return "Je Gemini-tegoed is op. Vul het aan in Google AI Studio (Billing) en probeer het opnieuw."
+    if "limit: 0" in text:
         return (
-            "Gemini weigert dit verzoek vanwege een limiet of omdat betalen nodig is "
-            f"(foto's maken kan niet met de gratis variant). Melding van Google: {message or status}"
+            "Voor dit Gemini-model is betalen nodig: met de gratis variant mag het niet (foto's en iconen maken "
+            "bijvoorbeeld). Gebruik bij Instellingen → Foto's en iconen een sleutel uit een project met betaalgegevens."
         )
+    if "free tier" in text and "not available" in text:
+        return PAYMENT_NEEDED
+    # Een gewone limiet noemt ook "billing details"; daarom eerst de limieten, en pas daarna "billing".
+    if status == 429 or error.get("status") == "RESOURCE_EXHAUSTED":
+        if "perday" in text or "per day" in text:
+            return "Je Gemini-limiet voor vandaag is bereikt. Morgen kan het weer (of gebruik een sleutel met betalen)."
+        wait = _retry_seconds(error)
+        later = f"over {wait} seconden" if wait else "over een minuut"
+        if "perminute" in text or "per minute" in text:
+            return f"Je Gemini-limiet per minuut is bereikt. Probeer het {later} opnieuw."
+        return f"Gemini weigert dit verzoek omdat een limiet is bereikt. Probeer het {later} opnieuw."
+    if "billing" in text:
+        return PAYMENT_NEEDED
+    if status in (400, 401, 403) and ("api key" in text or "api_key" in text or status != 400):
+        return "Deze Gemini API-sleutel wordt niet geaccepteerd. Controleer hem bij Instellingen in het menu."
     if status == 404:
         return f"Dit Gemini-model bestaat niet (meer). Kies een ander model bij Instellingen. ({message})"
+    if status >= 500:
+        return f"Gemini heeft het even te druk of er ging bij Google iets mis ({status}). Probeer het zo opnieuw."
     return f"Gemini-fout ({status}): {message or 'onbekende fout'}"
 
 

@@ -5,9 +5,9 @@ import { dishFor, plateAttrs } from "./dishes.js";
 import { openEdit } from "./edit.js";
 import { ICONS } from "./icons.js";
 import { renderInspirationResults, saveIdea } from "./inspiration.js";
-import { badgesHtml, findOption, isChosen, toggleChoice } from "./menu.js";
 import { refresh } from "./nav.js";
 import { photoForIdea, photoForRecipe } from "./photos.js";
+import { badgesHtml, findOption, isChosen, toggleChoice } from "./plan.js";
 import { openRating, toggleFavorite } from "./rating.js";
 import { renderRecipes } from "./recipes.js";
 import { applyShopping } from "./shopping.js";
@@ -192,7 +192,7 @@ function renderFoot() {
   $("#view-foot-bar").hidden = !foot.length;
 }
 
-export function renderViewServings() {
+function renderViewServings() {
   const { source, servings, done } = state.view;
   const base = Number(source.servings) || 1;
   $("#view-servings").textContent = personen(servings);
@@ -265,7 +265,7 @@ async function openOwnRecipe(id) {
 
 // ---------- acties ----------
 
-export async function addViewToShopping() {
+async function addViewToShopping() {
   const { source, servings, recipe, option } = state.view;
   const factor = servings / (Number(source.servings) || 1);
   const ingredients = source.ingredients.map((ing) => ({
@@ -289,7 +289,7 @@ export async function addViewToShopping() {
   if (!button.dataset.done) button.disabled = false;
 }
 
-export async function viewAction(action) {
+async function viewAction(action) {
   const { option, idea, recipe } = state.view;
   if (action === "servings-up" || action === "servings-down") {
     state.view.servings = Math.min(20, Math.max(1, state.view.servings + (action === "servings-up" ? 1 : -1)));
@@ -364,7 +364,7 @@ export function openPlanSheet(target) {
   openSheet("#plan-sheet");
 }
 
-export async function planOn(date) {
+async function planOn(date) {
   const target = state.planTarget;
   await guarded(async () => {
     const recipeId = target.idea != null ? await saveIdea(target.idea, { quiet: true }) : target.recipeId;

@@ -236,7 +236,7 @@ class ShoppingMixin:
         return names[:limit]
 
     def product_icons(self, names):
-        """{naam: afbeelding} voor de producten die al een icoon hebben."""
+        """{naam: afbeelding} voor de producten die al een icoon hebben ("" = bewust de emoji)."""
         keys = {icon_key(n): n for n in names if icon_key(n)}
         if not keys:
             return {}

@@ -242,6 +242,16 @@ class DatabaseTest(unittest.TestCase):
             db.choose_dinner("2026-09-21", soup["id"], servings=4)  # verandert de avond, dan de lijst ook
             self.assertEqual([(i["key"], i["quantity"]) for i in db.shopping_list()], [("buy:ui", 2)])
 
+    def test_forgets_the_old_bring_login(self):
+        """Bring! is uit de app gehaald: een bewaarde inlog (tokens) blijft niet in de database staan."""
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "old.db"
+            Database(path).set_setting("bring_auth", '{"access_token": "geheim"}')
+            self.assertIsNone(Database(path).get_setting("bring_auth"))
+
     def test_migrates_first_menu_options_table(self):
         import sqlite3
         import tempfile

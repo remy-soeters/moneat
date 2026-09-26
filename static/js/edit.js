@@ -7,7 +7,7 @@ import { state } from "./state.js";
 import { closeSheet, guarded, openSheet, toast } from "./ui.js";
 import { $, $$, esc, formatQty } from "./util.js";
 
-export function ingredientRow(ing = {}) {
+function ingredientRow(ing = {}) {
   const row = document.createElement("div");
   row.className = "ingredient-edit";
   row.innerHTML = `<input name="qty" placeholder="200" inputmode="decimal" aria-label="Hoeveelheid" value="${esc(formatQty(ing.quantity))}">
@@ -47,14 +47,14 @@ export function setEditPhoto(image, name = "") {
   $("#photo-remove").hidden = !image;
 }
 
-export async function uploadPhoto(file) {
+async function uploadPhoto(file) {
   await guarded(async () => {
     const data = await api("/api/images", { method: "POST", body: file });
     setEditPhoto(data.image);
   });
 }
 
-export async function saveRecipe(event) {
+async function saveRecipe(event) {
   event.preventDefault();
   const form = event.target;
   const body = {
@@ -84,7 +84,7 @@ export async function saveRecipe(event) {
   });
 }
 
-export async function deleteRecipe() {
+async function deleteRecipe() {
   const id = $("#edit-form").dataset.id;
   if (!confirm("Dit recept verwijderen? Het verdwijnt ook van het weekmenu.")) return;
   await guarded(async () => {
@@ -97,12 +97,12 @@ export async function deleteRecipe() {
 
 // ---------- recepten toevoegen: importeren en laten bedenken ----------
 
-export function setBusy(form, busy) {
+function setBusy(form, busy) {
   $(".busy", form).hidden = !busy;
   $$("button, input, textarea", form).forEach((el) => (el.disabled = busy && !el.matches("[data-close]")));
 }
 
-export async function importRecipe(event) {
+async function importRecipe(event) {
   event.preventDefault();
   const form = event.target;
   setBusy(form, true);
@@ -117,7 +117,7 @@ export async function importRecipe(event) {
   }
 }
 
-export async function generateRecipe(event) {
+async function generateRecipe(event) {
   event.preventDefault();
   const form = event.target;
   setBusy(form, true);

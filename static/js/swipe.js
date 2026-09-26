@@ -6,16 +6,16 @@ import { aiName, guarded, openSheet, toast } from "./ui.js";
 import { $, $$, esc, metaHtml } from "./util.js";
 import { openView } from "./view.js";
 
-export const CUISINES = ["Hollands", "Italiaans", "Frans", "Spaans", "Grieks", "Midden-Oosters", "Indiaas", "Thais",
+const CUISINES = ["Hollands", "Italiaans", "Frans", "Spaans", "Grieks", "Midden-Oosters", "Indiaas", "Thais",
   "Chinees", "Japans", "Koreaans", "Mexicaans"];
-export const POLL_MS = 2000; // zo vaak kijken of er nieuwe kaarten of foto's klaarstaan
+const POLL_MS = 2000; // zo vaak kijken of er nieuwe kaarten of foto's klaarstaan
 
 // Vraag de server de voorraad aan te vullen; die doet het werk op de achtergrond.
 export function kickPreload({ retry = false } = {}) {
   api("/api/swipe/preload", { method: "POST", body: { servings: state.household, retry } }).catch(() => {});
 }
 
-export function applySwipeData(data) {
+function applySwipeData(data) {
   const sw = state.swipe;
   sw.cards = data.cards;
   sw.stats = data.stats;
@@ -28,12 +28,12 @@ export function applySwipeData(data) {
 }
 
 // Met foto's aan laten we alleen kaarten zien waarvan de foto al klaar is.
-export function visibleCards() {
+function visibleCards() {
   const { cards, preload } = state.swipe;
   return preload?.photos_enabled ? cards.filter((c) => c.image) : cards;
 }
 
-export async function openSwipe({ prefsFirst = false } = {}) {
+async function openSwipe({ prefsFirst = false } = {}) {
   await guarded(async () => {
     applySwipeData(await api("/api/swipe"));
     openSheet("#swipe-sheet");
@@ -42,7 +42,7 @@ export async function openSwipe({ prefsFirst = false } = {}) {
   });
 }
 
-export function startPolling() {
+function startPolling() {
   stopPolling();
   state.swipe.poll = setInterval(async () => {
     if (!$("#swipe-sheet").open || $("#swipe-deck-view").hidden) return stopPolling();
@@ -55,13 +55,13 @@ export function startPolling() {
   }, POLL_MS);
 }
 
-export function stopPolling() {
+function stopPolling() {
   clearInterval(state.swipe.poll);
   state.swipe.poll = null;
 }
 
 // Verandert er iets zichtbaars? Dan pas opnieuw tekenen (anders zou een sleepbeweging onderbroken worden).
-export function deckSignature() {
+function deckSignature() {
   const { preload } = state.swipe;
   return JSON.stringify([
     visibleCards().slice(0, 3).map((c) => [c.id, c.image]),
@@ -73,7 +73,7 @@ export function deckSignature() {
   ]);
 }
 
-export function showSwipePrefs() {
+function showSwipePrefs() {
   const prefs = state.swipe.prefs || {};
   $("#swipe-deck-view").hidden = true;
   $("#swipe-prefs").hidden = false;
@@ -86,7 +86,7 @@ export function showSwipePrefs() {
   $("#swipe-prefs").avoid.value = prefs.avoid || "";
 }
 
-export async function saveSwipePrefs(event) {
+async function saveSwipePrefs(event) {
   event.preventDefault();
   const picked = (group) => $$(`${group} .chip[aria-pressed="true"]`).map((chip) => chip.dataset.value);
   const body = {
@@ -108,7 +108,7 @@ export async function saveSwipePrefs(event) {
   });
 }
 
-export function showSwipeDeck() {
+function showSwipeDeck() {
   $("#swipe-prefs").hidden = true;
   $("#swipe-deck-view").hidden = false;
   renderDeck();
@@ -116,14 +116,14 @@ export function showSwipeDeck() {
   startPolling();
 }
 
-export function renderSwipeCount(bump = false) {
+function renderSwipeCount(bump = false) {
   const liked = state.swipe.stats?.liked_today ?? 0;
   $("#swipe-count").innerHTML = liked
     ? `<span class="${bump ? "bump" : ""}">♥ ${liked}</span> vandaag bewaard in je receptenboek`
     : "Swipe naar rechts om te bewaren";
 }
 
-export function cardHtml(card, index) {
+function cardHtml(card, index) {
   const recipe = { ...card.recipe, image: card.image };
   return `<article class="swipe-card ${index === 0 ? "top" : ""}" data-card="${card.id}" style="--i: ${index}">
     <div ${plateAttrs(recipe)}>
@@ -139,7 +139,7 @@ export function cardHtml(card, index) {
   </article>`;
 }
 
-export function renderDeck() {
+function renderDeck() {
   renderSwipeCount();
   const { cards, preload } = state.swipe;
   const visible = visibleCards();
@@ -168,7 +168,7 @@ export function renderDeck() {
   enableDrag($(".swipe-card.top", deck));
 }
 
-export function enableDrag(el) {
+function enableDrag(el) {
   if (!el) return;
   let startX = 0, startY = 0, dx = 0, dy = 0, dragging = false;
   const like = $(".stamp.like", el);
@@ -202,7 +202,7 @@ export function enableDrag(el) {
   el.addEventListener("pointercancel", end);
 }
 
-export let swiping = false;
+let swiping = false;
 export async function swipeTop(liked) {
   const card = visibleCards()[0];
   const el = $(".swipe-card.top");
@@ -226,7 +226,7 @@ export async function swipeTop(liked) {
   }, 280);
 }
 
-export async function undoSwipe() {
+async function undoSwipe() {
   await guarded(async () => {
     const { card, stats } = await api("/api/swipe/undo", { method: "POST" });
     if (!card) return toast("Er is niets om ongedaan te maken");
@@ -236,7 +236,7 @@ export async function undoSwipe() {
   });
 }
 
-export function openSwipeCard() {
+function openSwipeCard() {
   const card = visibleCards()[0];
   if (card) openView({ card });
 }

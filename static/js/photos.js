@@ -3,7 +3,7 @@ import { api } from "./api.js";
 import { setEditPhoto } from "./edit.js";
 import { renderInspirationResults } from "./inspiration.js";
 import { renderRecipes } from "./recipes.js";
-import { state } from "./state.js";
+import { replaceRecipe, state } from "./state.js";
 import { toast } from "./ui.js";
 import { $, $$ } from "./util.js";
 
@@ -12,8 +12,7 @@ export async function photoForRecipe(recipe) {
   markPhotoBusy();
   try {
     const updated = await api(`/api/recipes/${recipe.id}/photo`, { method: "POST" });
-    const index = state.recipes.findIndex((r) => r.id === updated.id);
-    if (index >= 0) state.recipes[index] = updated;
+    replaceRecipe(updated);
     return updated;
   } finally {
     state.photoBusy.delete(recipe.id);
@@ -37,13 +36,13 @@ export async function photoForIdea(index) {
 }
 
 // Zet de "Foto maken…"-laag op kaarten waarvoor nu een foto gemaakt wordt.
-export function markPhotoBusy() {
+function markPhotoBusy() {
   $$(".recipe-card").forEach((card) =>
-    $(".plate", card).classList.toggle("busy", state.photoBusy.has(Number(card.dataset.recipe)))
+    $(".plate", card).classList.toggle("busy", state.photoBusy.has(Number($("[data-recipe]", card).dataset.recipe)))
   );
 }
 
-export async function makeMissingPhotos() {
+async function makeMissingPhotos() {
   const todo = state.recipes.filter((r) => !r.image);
   const button = $("#photos-missing");
   button.disabled = true;
@@ -81,7 +80,7 @@ export async function makeIdeaPhotos() {
   }
 }
 
-export async function photoForDraft() {
+async function photoForDraft() {
   const form = $("#edit-form");
   const button = $("#photo-generate");
   const recipe = {

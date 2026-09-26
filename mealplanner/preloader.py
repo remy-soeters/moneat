@@ -1,6 +1,7 @@
 """Houdt op de achtergrond een voorraad swipekaarten mét foto klaar."""
 
 import threading
+import traceback
 from concurrent.futures import ThreadPoolExecutor
 
 from . import ai
@@ -66,8 +67,10 @@ class SwipePreloader:
             self._fill_photos()
         except ai.AIUnavailable as e:
             self.error = str(e)
+            self.db.log_error(e.source or ai.provider_name(), "Swipekaarten klaarzetten", str(e), e.detail)
         except Exception as e:  # een achtergrondtaak mag de server nooit laten crashen
             self.error = f"Onverwachte fout bij het klaarzetten: {e}"
+            self.db.log_error("Server", "Swipekaarten klaarzetten", self.error, traceback.format_exc()[-4000:])
 
     def _fill_cards(self):
         # Soms stelt de AI gerechten voor die je al gezien hebt; die vallen af, dus vraag zo nodig nog eens.
@@ -94,6 +97,8 @@ class SwipePreloader:
         try:
             image = self.images.save(ai.generate_photo(card["recipe"]))
         except ai.AIUnavailable as e:
+            if self.photos_failed is None:
+                self.db.log_error(e.source or "Gemini", "Foto's voor swipekaarten", str(e), e.detail)
             self.photos_failed = str(e)
             return
         with self.db_lock:

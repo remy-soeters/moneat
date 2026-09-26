@@ -62,6 +62,8 @@ class IconMaker:
         try:
             image = self.images.save(ai.generate_icon(name))
         except ai.AIUnavailable as e:
+            if self.failed is None:
+                self.db.log_error(e.source or "Gemini", "Iconen tekenen", str(e), e.detail)
             self.failed = str(e)
             return
         self.db.set_product_icon(name, image)

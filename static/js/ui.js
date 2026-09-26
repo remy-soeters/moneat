@@ -9,7 +9,7 @@ export function applyAiName() {
   $$(".ai-name").forEach((el) => (el.textContent = aiName()));
 }
 
-export let toastTimer;
+let toastTimer;
 export function toast(message, isError = false) {
   const el = $("#toast");
   el.hidden = true;
