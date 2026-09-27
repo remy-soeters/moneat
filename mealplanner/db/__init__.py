@@ -9,11 +9,13 @@ from .ratings import RatingsMixin
 from .recipes import RecipesMixin
 from .shopping import ShoppingMixin
 from .swipe import SwipeMixin
+from .usage import UsageMixin
 from .users import UsersMixin
 
 
 class Database(
-    RecipesMixin, MenuMixin, ShoppingMixin, SwipeMixin, SettingsMixin, RatingsMixin, UsersMixin, ErrorLogMixin, BaseDatabase
+    RecipesMixin, MenuMixin, ShoppingMixin, SwipeMixin, SettingsMixin, RatingsMixin, UsersMixin, ErrorLogMixin, UsageMixin,
+    BaseDatabase,
 ):
     """Alle opslag in één object; de methodes komen uit de mixins hierboven."""
 

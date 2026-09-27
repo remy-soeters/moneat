@@ -54,6 +54,7 @@ class App:
         self.images = images
         self.config = config or Config()
         ai.set_settings(db.get_setting)
+        ai.set_usage_recorder(db.log_ai_usage)
         self.preloader = SwipePreloader(db, images, self.release_image, self.load_preferences, self.preload_target)
         self.icon_maker = IconMaker(db, images)
         self.writer = RecipeWriter(db, self.log_error)

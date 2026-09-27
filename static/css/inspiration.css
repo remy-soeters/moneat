@@ -105,6 +105,53 @@ dialog.swipe > .close { position: absolute; top: 16px; right: 16px; z-index: 5; 
 .deck-message .dish { font-size: 56px; }
 .deck-message h3 { margin: 0; color: var(--ink); font-size: 24px; }
 
+/* wachten op je stapel: drie kaarten, een pan met stoom, en wat er straks aankomt */
+.deck-cooking {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  padding: 24px; text-align: center; color: var(--ink-2);
+}
+.deck-cooking h3 { margin: 6px 0 0; color: var(--ink); font-size: 24px; }
+.cook-stack { position: relative; width: 150px; height: 170px; margin-bottom: 8px; }
+.cook-card {
+  position: absolute; inset: 0; border-radius: 18px; background: var(--paper);
+  box-shadow: 0 10px 24px color-mix(in srgb, oklch(35% 0.06 150) 16%, transparent);
+}
+.cook-card.c1 { transform: rotate(-10deg) translateX(-18px); background: var(--color-accent-50); animation: cook-fan-1 2.4s ease-in-out infinite; }
+.cook-card.c2 { transform: rotate(6deg) translateX(14px); background: var(--color-accent-100); animation: cook-fan-2 2.4s ease-in-out infinite; }
+.cook-card.c3 { display: grid; place-items: center; overflow: hidden; }
+.cook-card.c3::after {
+  content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(100deg, transparent 30%, color-mix(in srgb, var(--color-accent-100) 70%, transparent) 50%, transparent 70%);
+  animation: cook-shine 1.8s ease-in-out infinite;
+}
+.cook-card .pan { position: relative; z-index: 1; font-size: 58px; line-height: 1; animation: cook-toss 1.2s ease-in-out infinite; }
+.steam { position: absolute; top: 30px; left: 50%; display: flex; gap: 8px; transform: translateX(-30%); }
+.steam i {
+  display: block; width: 6px; height: 20px; border-radius: 6px; background: var(--color-accent-300); opacity: 0;
+  animation: cook-steam 1.8s ease-out infinite;
+}
+.steam i:nth-child(2) { animation-delay: 0.4s; }
+.steam i:nth-child(3) { animation-delay: 0.8s; }
+.cook-line { min-height: 1.5em; margin: 0; font-weight: 600; color: var(--main-ink); }
+.cook-steps { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 18px; margin: 4px 0 0; padding: 0; list-style: none; font-size: 14px; }
+.cook-steps li { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-3); }
+.cook-steps li::before { content: ""; width: 9px; height: 9px; border-radius: 50%; border: 2px solid currentColor; }
+.cook-steps li.now { color: var(--main-ink); font-weight: 600; }
+.cook-steps li.now::before { background: currentColor; animation: pulse 1.2s ease-in-out infinite; }
+.cook-steps li.done { color: var(--ink-2); }
+.cook-steps li.done::before { background: var(--main); border-color: var(--main); }
+.cook-steps small { font-weight: 500; color: var(--ink-2); }
+.cook-coming { max-width: 34ch; margin: 6px 0 0; font-size: 14px; line-height: 1.45; }
+.cook-coming strong { color: var(--ink); font-weight: 600; }
+@keyframes cook-fan-1 { 50% { transform: rotate(-14deg) translateX(-26px); } }
+@keyframes cook-fan-2 { 50% { transform: rotate(10deg) translateX(22px); } }
+@keyframes cook-shine { 60%, 100% { transform: translateX(100%); } }
+@keyframes cook-toss { 50% { transform: translateY(-8px) rotate(-8deg); } }
+@keyframes cook-steam { 0% { opacity: 0; transform: translateY(10px) scaleY(0.6); } 40% { opacity: 0.8; } 100% { opacity: 0; transform: translateY(-18px) scaleY(1.2); } }
+@media (prefers-reduced-motion: reduce) {
+  .cook-card, .cook-card::after, .cook-card .pan, .steam i, .cook-steps li.now::before { animation: none !important; }
+}
+
 .swipe-actions { display: flex; justify-content: center; align-items: center; gap: 18px; padding: 22px 0 6px; }
 .round {
   display: grid; place-items: center; border-radius: 50%; cursor: pointer; background: var(--paper);

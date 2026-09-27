@@ -137,6 +137,12 @@ def register(r, app):
 
     # ---------- foutmeldingen ----------
 
+    @r.get("/api/usage", admin=True)
+    def usage(req):
+        """Verbruik van de AI per dag en per doel (Instellingen → Foto's en iconen)."""
+        days = max(1, min(int(req.query.get("days") or 30), 120))
+        return db.ai_usage_report(days)
+
     @r.get("/api/errors", admin=True)
     def get_errors(req):
         return {"errors": db.recent_errors()}

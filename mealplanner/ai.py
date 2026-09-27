@@ -4,6 +4,8 @@
 import importlib.util
 import json
 import os
+import threading
+from contextlib import contextmanager
 
 from . import gemini
 from .setting_keys import (
@@ -175,6 +177,43 @@ def set_settings(getter):
     _setting = getter
 
 
+# ---------- verbruik: elk verzoek dat iets maakt, voor het overzicht bij Instellingen → Foto's en iconen ----------
+
+_record = lambda entry: None  # ingesteld door de server (Database.log_ai_usage)
+_usage_context = threading.local()
+
+
+def set_usage_recorder(record):
+    global _record
+    _record = record
+
+
+@contextmanager
+def usage(purpose, auto=False):
+    """Waarvoor de AI-verzoeken in dit blok zijn, en of de app ze vanzelf doet (op de achtergrond) in plaats van
+    omdat iemand erom vroeg. Zonder dit blok geldt het doel dat de functie zelf noemt."""
+    previous = getattr(_usage_context, "value", None)
+    _usage_context.value = (purpose, auto)
+    try:
+        yield
+    finally:
+        _usage_context.value = previous
+
+
+def _log_usage(kind, provider, model, purpose, free=False, cost=None):
+    purpose, auto = getattr(_usage_context, "value", None) or (purpose, False)
+    try:
+        _record({"kind": kind, "purpose": purpose, "auto": auto, "provider": provider, "model": model,
+                 "free": free, "cost": cost})
+    except Exception:
+        pass  # het overzicht mag de AI zelf nooit in de weg zitten
+
+
+def image_cost(model):
+    """Geschatte prijs van één foto of icoon met dit model (in dollars), of None als we die niet kennen."""
+    return next((m["cost"] for m in gemini.IMAGE_MODELS if m["id"] == model), None)
+
+
 def text_provider():
     return _setting(TEXT_PROVIDER, "claude")
 
@@ -308,14 +347,19 @@ def _raise_if_no_key(error):
     raise error
 
 
-def _ask(system, user_message, schema, effort="medium"):
+def _ask(system, user_message, schema, effort="medium", purpose="Tekst"):
     """Stel de gekozen AI een vraag en krijg JSON terug volgens `schema`."""
     if text_provider() == "gemini":
+        model = gemini_models()[0]
         try:
-            return gemini.generate_json(_gemini_text_key(), gemini_models()[0], system, user_message, schema)
+            result = gemini.generate_json(_gemini_text_key(), model, system, user_message, schema)
         except gemini.GeminiError as e:
             raise _from_gemini(e)
-    return _ask_claude(system, user_message, schema, effort)
+        _log_usage("tekst", "Gemini", model, purpose, free=bool(_setting(GEMINI_TEXT_KEY)))
+        return result
+    result = _ask_claude(system, user_message, schema, effort)
+    _log_usage("tekst", "Claude", claude_model()["id"], purpose)
+    return result
 
 
 def _ask_claude(system, user_message, schema, effort):
@@ -395,6 +439,7 @@ def suggest_menu_options(recipes, needs, current_menu, wishes="", servings=2, av
         + (f"Recent gegeten: {json.dumps(list(recent), ensure_ascii=False)}\n\n" if recent else "")
         + f"Bestaande recepten:\n{json.dumps(catalog, ensure_ascii=False)}",
         SUGGESTIONS_SCHEMA,
+        purpose="Menu-opties",
     )["suggestions"]
 
     # Alleen suggesties voor gevraagde datums, met geldige verwijzingen en maximaal het gevraagde aantal per dag.
@@ -425,7 +470,8 @@ def generate_recipe(request, servings=2, dinner=False):
     """Laat de AI één volledig uitgeschreven recept schrijven op basis van een omschrijving."""
     what = "het avondeten" if dinner else "een recept"
     return _ask(
-        GENERATE_SYSTEM, f"Schrijf {what} voor {servings} personen. Wat er gezocht wordt: {request.strip()}", NEW_RECIPE_SCHEMA
+        GENERATE_SYSTEM, f"Schrijf {what} voor {servings} personen. Wat er gezocht wordt: {request.strip()}", NEW_RECIPE_SCHEMA,
+        purpose="Zelf omschreven recept" if dinner else "Recept bedenken",
     )
 
 
@@ -436,6 +482,7 @@ def write_out_recipe(recipe):
         WRITE_OUT_SYSTEM,
         f"Schrijf dit recept volledig uit, voor {recipe['servings']} personen:\n{json.dumps(sketch, ensure_ascii=False)}",
         NEW_RECIPE_SCHEMA,
+        purpose="Recept uitschrijven",
     )
     if not full.get("ingredients") or not str(full.get("instructions") or "").strip():
         raise AIUnavailable(f"{provider_name()} gaf een leeg recept terug. Probeer het opnieuw.", json.dumps(full)[:1000],
@@ -445,7 +492,7 @@ def write_out_recipe(recipe):
 
 def extract_recipe(page_text, url):
     """Haal een recept uit de tekst van een webpagina (als de pagina geen gestructureerd recept heeft)."""
-    recipe = _ask(EXTRACT_SYSTEM, f"Pagina: {url}\n\n{page_text}", NEW_RECIPE_SCHEMA, effort="low")
+    recipe = _ask(EXTRACT_SYSTEM, f"Pagina: {url}\n\n{page_text}", NEW_RECIPE_SCHEMA, effort="low", purpose="Recept importeren")
     if recipe["name"].strip().upper() == "GEEN RECEPT" or not recipe["ingredients"]:
         from .importer import ImportFailed
 
@@ -459,6 +506,7 @@ def inspiration(theme, servings=2, count=6):
         INSPIRATION_SYSTEM,
         f"Stel een collectie van {count} avondgerechten samen voor {servings} personen.\nThema: {theme.strip()}",
         INSPIRATION_SCHEMA,
+        purpose="Inspiratie",
     )
     mark_drafts([idea["recipe"] for idea in collection["ideas"]])
     return collection
@@ -498,6 +546,7 @@ def swipe_recipes(prefs, count=8, exclude=(), servings=2):
         SWIPE_SYSTEM,
         f"Stel {count} avondgerechten voor {servings} personen voor.\n{describe_preferences(prefs)}\n\nAl gezien: {seen}",
         SWIPE_SCHEMA,
+        purpose="Swipekaarten",
     )["ideas"][:count]
     mark_drafts([idea["recipe"] for idea in ideas])
     return ideas
@@ -515,10 +564,13 @@ def photo_prompt(recipe):
 
 def generate_photo(recipe):
     """Laat Gemini een foto van het gerecht maken; geeft de afbeeldingsbytes terug."""
+    model = gemini_models()[1]
     try:
-        return gemini.generate_image(_gemini_key(), gemini_models()[1], photo_prompt(recipe))
+        image = gemini.generate_image(_gemini_key(), model, photo_prompt(recipe))
     except gemini.GeminiError as e:
         raise _from_gemini(e)
+    _log_usage("foto", "Gemini", model, "Foto bij recept", cost=image_cost(model))
+    return image
 
 
 def icon_prompt(name, hint=""):
@@ -534,7 +586,10 @@ def icon_prompt(name, hint=""):
 def generate_icon(name, hint=""):
     """Laat Gemini een vierkant icoon voor een product tekenen, eventueel naar een beschrijving ("een fles");
     geeft de afbeeldingsbytes terug."""
+    model = gemini_models()[1]
     try:
-        return gemini.generate_image(_gemini_key(), gemini_models()[1], icon_prompt(name, hint), aspect_ratio="1:1")
+        image = gemini.generate_image(_gemini_key(), model, icon_prompt(name, hint), aspect_ratio="1:1")
     except gemini.GeminiError as e:
         raise _from_gemini(e)
+    _log_usage("icoon", "Gemini", model, "Icoon (zelf gevraagd)", cost=image_cost(model))
+    return image

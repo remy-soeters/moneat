@@ -22,10 +22,10 @@ TEXT_MODELS = [
 ]
 # Keuzes voor foto's en iconen in Instellingen; prijzen per foto (1K) volgens ai.google.dev/gemini-api/docs/pricing.
 IMAGE_MODELS = [
-    {"id": "gemini-3.1-flash-lite-image", "name": "Nano Banana 2 Lite", "price": "± $0,03 per foto", "note": "Goedkoopst, prima voor eten en iconen"},
-    {"id": "gemini-2.5-flash-image", "name": "Nano Banana", "price": "± $0,04 per foto", "note": "Eerste versie"},
-    {"id": "gemini-3.1-flash-image", "name": "Nano Banana 2", "price": "± $0,07 per foto", "note": "Mooiere details"},
-    {"id": "gemini-3-pro-image", "name": "Nano Banana Pro", "price": "± $0,13 per foto", "note": "Beste kwaliteit, duurst"},
+    {"id": "gemini-3.1-flash-lite-image", "name": "Nano Banana 2 Lite", "price": "± $0,03 per foto", "cost": 0.03, "note": "Goedkoopst, prima voor eten en iconen"},
+    {"id": "gemini-2.5-flash-image", "name": "Nano Banana", "price": "± $0,04 per foto", "cost": 0.04, "note": "Eerste versie"},
+    {"id": "gemini-3.1-flash-image", "name": "Nano Banana 2", "price": "± $0,07 per foto", "cost": 0.07, "note": "Mooiere details"},
+    {"id": "gemini-3-pro-image", "name": "Nano Banana Pro", "price": "± $0,13 per foto", "cost": 0.13, "note": "Beste kwaliteit, duurst"},
 ]
 TIMEOUT = 180
 

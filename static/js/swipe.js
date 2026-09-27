@@ -10,8 +10,9 @@ const CUISINES = ["Hollands", "Italiaans", "Frans", "Spaans", "Grieks", "Midden-
   "Chinees", "Japans", "Koreaans", "Mexicaans"];
 const POLL_MS = 2000; // zo vaak kijken of er nieuwe kaarten of foto's klaarstaan
 
-// Vraag de server de voorraad aan te vullen; die doet het werk op de achtergrond.
-export function kickPreload({ retry = false } = {}) {
+// Vraag de server de voorraad aan te vullen; die doet het werk op de achtergrond. Dat gebeurt pas als je Swipen
+// opent (niet al bij het opstarten), zodat er geen foto's gemaakt worden die je misschien nooit ziet.
+function kickPreload({ retry = false } = {}) {
   api("/api/swipe/preload", { method: "POST", body: { servings: state.household, retry } }).catch(() => {});
 }
 
@@ -154,18 +155,66 @@ function renderDeck() {
     if (preload?.error) {
       deck.innerHTML = `<div class="deck-message"><span class="dish">🍽️</span><h3>Dat lukte niet</h3>
         <p>${esc(preload.error)}</p><button class="btn primary" data-action="retry">Opnieuw proberen</button></div>`;
-    } else if (!cards.length) {
-      deck.innerHTML = `<div class="deck-message"><span class="spinner"></span><h3>${aiName()} zoekt gerechten voor je…</h3>
-        <p>Dit duurt meestal een halve minuut.</p></div>`;
     } else {
-      deck.innerHTML = `<div class="deck-message"><span class="spinner"></span><h3>Foto's klaarzetten…</h3>
-        <p>${ready} van ${Math.min(target, cards.length)} klaar. De eerste kaart verschijnt zodra zijn foto er is.</p></div>`;
+      renderCooking(cards, ready, Math.min(target, cards.length || target));
+      return;
     }
+    stopCookLines();
     return;
   }
+  stopCookLines();
   // De bovenste kaart als laatste in de DOM, zodat hij bovenop ligt.
   deck.innerHTML = visible.slice(0, 3).map((card, i) => cardHtml(card, i)).reverse().join("");
   enableDrag($(".swipe-card.top", deck));
+}
+
+// ---------- wachten op je stapel: een pan op het vuur, met wat er straks aankomt ----------
+
+const COOK_LINES = [
+  "Groenten wassen…", "Pannetje op het vuur…", "Kruiden fijnhakken…", "Even proeven…", "Snufje zout erbij…",
+  "Borden opwarmen…", "Nog één keer roeren…", "Foto's schieten…",
+];
+let cookTimer = null;
+let cookLine = 0;
+
+// Eerst bedenkt de AI de gerechten, daarna komen de foto's; zodra de eerste foto klaar is, verschijnt de eerste kaart.
+function renderCooking(cards, ready, total) {
+  const deck = $("#deck");
+  const photos = cards.length > 0;
+  const coming = cards.slice(0, 4).map((c) => esc(c.recipe.name));
+  const html = `<div class="deck-cooking">
+      <div class="cook-stack" aria-hidden="true">
+        <span class="cook-card c1"></span><span class="cook-card c2"></span>
+        <span class="cook-card c3"><span class="steam"><i></i><i></i><i></i></span><span class="pan">🍳</span></span>
+      </div>
+      <h3>${aiName()} kookt je stapel…</h3>
+      <p class="cook-line" aria-live="polite"></p>
+      <ol class="cook-steps">
+        <li class="${photos ? "done" : "now"}">Gerechten bedenken</li>
+        <li class="${photos ? "now" : ""}">Foto's maken${photos ? ` <small>${ready} van ${total}</small>` : ""}</li>
+      </ol>
+      ${coming.length ? `<p class="cook-coming">Straks op je stapel: <strong>${coming.join(", ")}</strong>${cards.length > coming.length ? " en meer" : ""}</p>` : ""}
+    </div>`;
+  // Alleen opnieuw tekenen als er iets veranderde, anders springt de animatie steeds terug.
+  if (deck.dataset.cooking !== html) {
+    deck.dataset.cooking = html;
+    deck.innerHTML = html;
+    $(".cook-line", deck).textContent = COOK_LINES[cookLine % COOK_LINES.length];
+  }
+  if (!cookTimer) {
+    cookTimer = setInterval(() => {
+      const line = $("#deck .cook-line");
+      if (!line) return stopCookLines();
+      cookLine += 1;
+      line.textContent = COOK_LINES[cookLine % COOK_LINES.length];
+    }, 2200);
+  }
+}
+
+function stopCookLines() {
+  clearInterval(cookTimer);
+  cookTimer = null;
+  delete $("#deck").dataset.cooking;
 }
 
 function enableDrag(el) {
@@ -286,5 +335,6 @@ document.addEventListener("keydown", (e) => {
 });
 $("#swipe-sheet").addEventListener("close", () => {
   stopPolling();
+  stopCookLines();
   if (state.tab === "inspiration") renderSwipeTeaser();
 });

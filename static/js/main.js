@@ -10,7 +10,7 @@ import { api } from "./api.js";
 import { initAuth, showApp, showAuthScreen } from "./auth.js";
 import { refresh, setWeek, showTab } from "./nav.js";
 import { state } from "./state.js";
-import { kickPreload } from "./swipe.js";
+import "./swipe.js";
 import { applyAiName, toast } from "./ui.js";
 import { $, $$, addDays, mondayOf } from "./util.js";
 
@@ -19,7 +19,6 @@ async function loadSettings() {
     state.settings = await api("/api/settings");
     applyAiName();
   } catch {}
-  kickPreload(); // zet alvast swipekaarten klaar, zodat ze er zijn als je gaat swipen
 }
 
 let started = false;

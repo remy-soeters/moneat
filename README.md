@@ -35,8 +35,10 @@ Web-app voor het avondeten van je huishouden.
   bestaand recept te summier, tik dan onder de bereiding op **Te kort? Laat … het uitgebreider uitschrijven**.
 - **Recepten swipen** (op de inspiratiepagina): geef je voedselvoorkeuren op (dieet, keukens, tijd,
   liever niet) en swipe door gerechten met foto en korte omschrijving. Naar rechts bewaart het recept
-  in je receptenboek, naar links slaat het over; gezien gerechten komen niet terug. De server zet op de
-  achtergrond een voorraad gerechten mét foto klaar (instelbaar: 5, 10, 15 of 20), zodat je niet hoeft te wachten.
+  in je receptenboek, naar links slaat het over; gezien gerechten komen niet terug. Pas als je Swipen opent, zet
+  de server een voorraad gerechten mét foto klaar (instelbaar: 5, 10, 15 of 20; niet al bij het opstarten van de
+  app, zodat er geen foto's gemaakt worden die je nooit ziet). Terwijl je wacht, zie je een pan op het vuur, hoe ver
+  het is (gerechten bedenken, foto's maken) en welke gerechten er straks aankomen.
 - **Boodschappen:** één doorlopende lijst met tegels, in de secties *Kopen* en *Gekocht*.
   Met **Zet op boodschappenlijst** bij Plannen komen de ingrediënten van je gekozen avondeten erop (voor het
   gekozen aantal personen). Kies je daarna iets anders voor zo'n avond, dan verandert de lijst mee; wat je al
@@ -50,7 +52,9 @@ Web-app voor het avondeten van je huishouden.
   ("tomaat" vindt ook "tomaten"); ingrediënten uit je recepten alleen als dat weinig oplevert. Tik de producten
   aan die je nodig hebt; je zoekwoord blijft staan, zodat je er meer kunt aantikken. Enter zet precies wat je
   typte op de lijst (of het bekende product, als je dat typte).
-  Gemini tekent voor elk product één keer een icoon. Houd een tegel ingedrukt om hem te wijzigen; daar kun je
+  Gemini tekent voor elk product één keer een icoon, en hergebruikt dat daarna: "tomaat", "tomaten" en "verse
+  tomaten" delen er een (uit blik krijgt een eigen icoon). Wat nog nooit op je lijst stond, zoals gangbare
+  boodschappen in de suggesties, krijgt pas een icoon als het erop komt. Houd een tegel ingedrukt om hem te wijzigen; daar kun je
   ook een **nieuw icoon** laten tekenen (eventueel met een beschrijving, zoals "een fles"), een eigen afbeelding
   kiezen of teruggaan naar de emoji.
 - **Inspiratie:** wat er deze maand in het seizoen is, en collecties van 6 recepten per thema
@@ -116,7 +120,10 @@ In **Instellingen** (rondje rechtsboven) staat per onderwerp wat je kunt instell
 - **Claude** (Anthropic): betaald, beste kwaliteit. Kies bij **Slimme hulp (AI)** Opus 5, Sonnet 5 of Haiku 4.5.
   Sleutel via https://console.anthropic.com.
 
-Het beeldmodel kies je bij **Foto's en iconen**; foto's automatisch laten maken kun je daar ook uitzetten.
+Het beeldmodel kies je bij **Foto's en iconen**; foto's automatisch laten maken kun je daar ook uitzetten. Daar
+staat ook het **verbruik** (beheerder) van de afgelopen 7 of 30 dagen: hoeveel foto's, iconen en tekstverzoeken er
+gemaakt zijn, waarvoor (bijvoorbeeld "Iconen voor boodschappen" of "Menu-opties"), wat de app vanzelf deed zonder
+dat iemand erom vroeg, hoeveel tekst via de gratis sleutel ging, en een geschat bedrag voor foto's en iconen.
 
 ### Foutmeldingen
 
@@ -280,6 +287,7 @@ login (sessie-cookie). Verzoeken die iets wijzigen moeten de kop `X-Requested-Wi
 | GET | `/api/shopping/suggestions` | Wat je waarschijnlijk nodig hebt (op koopritme), gangbare boodschappen, en alle bekende producten om in te zoeken (`bought`: eerder gekocht) |
 | POST | `/api/shopping/icon` | `{name, hint}` Gemini tekent een nieuw icoon voor een product (eventueel naar een beschrijving) |
 | PUT | `/api/shopping/icon` | `{name, image}` eigen afbeelding als icoon (eerst uploaden via `/api/images`), of `""` voor de emoji |
+| GET | `/api/usage?days=7` | Verbruik van de AI per dag en per doel, met geschat bedrag (beheerder) |
 | GET/DELETE | `/api/errors` | Foutmeldingen bekijken / wissen (beheerder) |
 | POST | `/api/errors` | `{errors: [{method, path, message, detail, at}]}` fouten die de browser zag maar de server niet (geen verbinding, time-out) |
 | GET | `/api/health` | Controle of de server draait (voor Docker) |

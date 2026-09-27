@@ -379,6 +379,15 @@
       <section class="settings-group admin-only" id="set-photos" data-group="photos" hidden>
         <h2 class="group-title">Foto's en iconen</h2>
                 <p class="intro">Foto's bij recepten en swipekaarten, en iconen voor je boodschappen, worden gemaakt door Gemini. Dat is <strong>niet gratis</strong>: je betaalt per foto.</p>
+        <div class="usage-head">
+          <h4 class="settings-subtitle">Verbruik</h4>
+          <div class="choice-group" role="radiogroup" id="usage-range" aria-label="Periode">
+            <button type="button" role="radio" data-days="7" aria-checked="true">7 dagen</button>
+            <button type="button" role="radio" data-days="30" aria-checked="false">30 dagen</button>
+          </div>
+        </div>
+        <div class="usage" id="usage"></div>
+        <p class="help">Het bedrag is een schatting op basis van de prijs per foto van het gekozen model; het echte bedrag zie je in Google AI Studio. Tekst kost ook iets als hij via Claude of via de Gemini-sleutel met betalen gaat, maar veel minder per keer.</p>
         <h4 class="settings-subtitle">Automatisch laten maken</h4>
         <div class="chips pick" id="auto-images-choice" data-single>
           <button type="button" class="chip" data-value="on">Automatisch aan</button>

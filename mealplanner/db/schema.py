@@ -122,6 +122,21 @@ CREATE TABLE IF NOT EXISTS error_log (
     count       INTEGER NOT NULL DEFAULT 1
 );
 
+-- Elk AI-verzoek dat iets maakt (tekst, foto, icoon): waarvoor, of de app het vanzelf deed, en een geschatte prijs.
+-- Voor het overzicht bij Instellingen → Foto's en iconen (zie db/usage.py).
+CREATE TABLE IF NOT EXISTS ai_usage (
+    id          INTEGER PRIMARY KEY,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    kind        TEXT NOT NULL CHECK (kind IN ('tekst', 'foto', 'icoon')),
+    purpose     TEXT NOT NULL,
+    auto        INTEGER NOT NULL DEFAULT 0,
+    provider    TEXT NOT NULL DEFAULT '',
+    model       TEXT NOT NULL DEFAULT '',
+    free        INTEGER NOT NULL DEFAULT 0,
+    cost        REAL
+);
+CREATE INDEX IF NOT EXISTS ai_usage_created ON ai_usage(created_at);
+
 -- Iconen per product (door Gemini getekend), één keer gemaakt en daarna hergebruikt.
 CREATE TABLE IF NOT EXISTS product_icons (
     key    TEXT PRIMARY KEY,
@@ -198,6 +213,7 @@ def migrate(conn):
     _migrate_plan_entries(conn)
     if not had_listed_days:
         _mark_chosen_dinners_listed(conn)
+    _rekey_product_icons(conn)
     # De koppeling met Bring! is uit de app gehaald: gooi de bewaarde inlog (tokens) en sync-gegevens weg.
     conn.execute("DELETE FROM settings WHERE key IN ('bring_auth', 'bring_synced')")
     return _migrate_week_shopping(conn) or not had_list
@@ -205,6 +221,23 @@ def migrate(conn):
 
 def _has_table(conn, name):
     return conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (name,)).fetchone() is not None
+
+
+def _rekey_product_icons(conn):
+    """Iconen hoorden eerst bij de precieze naam ("tomaat" en "tomaten" elk een eigen icoon); nu bij het product.
+    Zet de bestaande iconen één keer om, zodat er niets opnieuw getekend hoeft te worden. Van dubbele houden we er
+    één met een plaatje (een bewuste keuze voor de emoji telt alleen als er geen plaatje is)."""
+    from .cleaning import icon_key
+
+    if conn.execute("SELECT 1 FROM settings WHERE key = 'icon_keys_v2'").fetchone():
+        return
+    rows = conn.execute("SELECT key, image FROM product_icons ORDER BY image = '', rowid").fetchall()
+    conn.execute("DELETE FROM product_icons")
+    conn.executemany(
+        "INSERT INTO product_icons (key, image) VALUES (?, ?) ON CONFLICT (key) DO NOTHING",
+        [(icon_key(key) or key, image) for key, image in rows],
+    )
+    conn.execute("INSERT INTO settings (key, value) VALUES ('icon_keys_v2', '1')")
 
 
 def _add_missing_recipe_columns(conn):

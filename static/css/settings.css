@@ -137,3 +137,38 @@
   margin: 6px 0 0; padding: 10px 12px; border-radius: 8px; background: var(--paper-2); max-height: 260px; overflow: auto;
   white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px;
 }
+
+/* verbruik van de AI (Foto's en iconen) */
+.usage-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+.usage-head .settings-subtitle { margin-bottom: 0; }
+.usage-head .choice-group button { width: auto; height: 36px; padding: 0 14px; font-size: 14px; white-space: nowrap; }
+.usage { margin: 14px 0 8px; }
+.usage-empty { margin: 0; padding: 14px 16px; border: 1px dashed var(--line); border-radius: 14px; color: var(--ink-2); }
+.usage-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.usage-tile { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: 14px; background: var(--paper); border: 1px solid var(--line); }
+.usage-tile strong { font-family: var(--serif); font-size: 24px; line-height: 1.1; }
+.usage-tile span { font-size: 13.5px; color: var(--ink-2); }
+.usage-tile small { font-size: 12px; color: var(--ink-3); }
+.usage-auto { margin: 10px 0 0; padding: 10px 14px; border-radius: 12px; background: #fff6df; color: #5a3d06; font-size: 14px; }
+.usage-title { margin: 18px 0 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--main-ink); }
+.usage-list, .usage-days { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
+.usage-list li, .usage-days li { display: flex; align-items: center; gap: 12px; padding: 10px 14px; }
+.usage-list li + li, .usage-days li + li { border-top: 1px solid var(--line); }
+.usage-kind { flex: none; min-width: 58px; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; text-align: center; }
+.usage-kind.foto, .usage-bar .foto { background: var(--color-accent-600); color: #fff; }
+.usage-kind.icoon, .usage-bar .icoon { background: var(--color-accent-300); color: var(--color-accent-800); }
+.usage-kind.tekst, .usage-bar .tekst { background: #f3dfa8; color: #5a3d06; }
+.usage-main { flex: 1; min-width: 0; }
+.usage-main strong { display: block; font-weight: 600; }
+.usage-main small { display: block; color: var(--ink-2); font-size: 13px; }
+.usage-cost { flex: none; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.usage-day { flex: none; width: 64px; font-size: 14px; font-weight: 600; }
+.usage-bar { flex: none; width: 90px; height: 10px; border-radius: 5px; background: var(--paper-2); overflow: hidden; }
+.usage-bar > span { display: flex; height: 100%; }
+.usage-bar i { display: block; height: 100%; }
+.usage-parts { flex: 1; min-width: 0; font-size: 13.5px; color: var(--ink-2); }
+.usage-parts em { font-style: normal; color: #8a5a00; }
+@media (max-width: 767px) {
+  .usage-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .usage-bar { width: 56px; }
+}

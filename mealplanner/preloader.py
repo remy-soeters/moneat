@@ -78,9 +78,11 @@ class SwipePreloader:
             missing = self.target() - len(self.db.pending_swipe_cards())
             if missing <= 0:
                 return
-            ideas = ai.swipe_recipes(
-                self.load_preferences(), min(missing + 2, MAX_BATCH), exclude=self.db.known_dish_names(), servings=self.servings
-            )
+            with ai.usage("Swipekaarten klaarzetten", auto=True):
+                ideas = ai.swipe_recipes(
+                    self.load_preferences(), min(missing + 2, MAX_BATCH), exclude=self.db.known_dish_names(),
+                    servings=self.servings,
+                )
             self.db.add_swipe_cards(ideas)
 
     def _fill_photos(self):
@@ -95,7 +97,8 @@ class SwipePreloader:
         if self.photos_failed:
             return
         try:
-            image = self.images.save(ai.generate_photo(card["recipe"]))
+            with ai.usage("Foto's voor swipekaarten", auto=True):
+                image = self.images.save(ai.generate_photo(card["recipe"]))
         except ai.AIUnavailable as e:
             if self.photos_failed is None:
                 self.db.log_error(e.source or "Gemini", "Foto's voor swipekaarten", str(e), e.detail)

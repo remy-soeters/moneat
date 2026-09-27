@@ -3,6 +3,8 @@
 import re
 from datetime import date, timedelta
 
+from ..groceries import shopping_product
+
 
 def week_dates(any_day):
     """De zeven datums (ma t/m zo) van de week waarin `any_day` valt."""
@@ -21,8 +23,9 @@ SPECIAL_DINNERS = {
 
 
 def icon_key(name):
-    """Eén icoon per product, ongeacht hoofdletters of spaties: 'Rode ui ' en 'rode ui' delen er een."""
-    return " ".join(str(name or "").lower().split())[:60]
+    """Eén icoon per product, zoals op de boodschappenlijst: 'Tomaat', 'tomaten' en 'Verse tomaten' delen er een.
+    Uit blik is een ander product (en een ander plaatje) dan vers."""
+    return shopping_product(name)[0][:60] if str(name or "").strip() else ""
 
 
 def clean_image(value):

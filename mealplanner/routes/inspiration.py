@@ -40,7 +40,8 @@ def register(r, app):
             raise ApiError(HTTPStatus.NOT_FOUND, "Dit idee bestaat niet (meer); laad de inspiratie opnieuw")
         recipe = collection["ideas"][index]["recipe"]
         old_image = recipe.get("image")
-        recipe["image"] = images.save(ai.generate_photo(recipe))
+        with ai.usage("Foto bij inspiratie"):
+            recipe["image"] = images.save(ai.generate_photo(recipe))
         collection.pop("created_at", None)
         db.save_inspiration(key, collection)
         app.release_image(old_image)

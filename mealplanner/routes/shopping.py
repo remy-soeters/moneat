@@ -134,7 +134,9 @@ def register(r, app):
             item["product"] = product_key(item["name"])
         catalog = [{**p, "product": product_key(p["name"])} for p in db.product_catalog()]
         return {
-            "suggestions": with_icons(top[:30]),
+            # Alleen bestaande iconen: wat nooit op je lijst stond (gangbare boodschappen) krijgt pas een eigen
+            # icoon als het erop komt.
+            "suggestions": with_icons(top[:30], draw=False),
             "catalog": with_icons(catalog, draw=False),  # geen iconen laten tekenen voor alles wat je ooit kookte
             "has_history": bool(frequent),
         }

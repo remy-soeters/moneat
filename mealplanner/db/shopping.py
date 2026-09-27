@@ -237,15 +237,19 @@ class ShoppingMixin:
         return products[:limit]
 
     def product_icons(self, names):
-        """{naam: afbeelding} voor de producten die al een icoon hebben ("" = bewust de emoji)."""
-        keys = {icon_key(n): n for n in names if icon_key(n)}
+        """{naam: afbeelding} voor de producten die al een icoon hebben ("" = bewust de emoji). Anders geschreven
+        namen van hetzelfde product ("Tomaat", "Tomaten") krijgen hetzelfde icoon."""
+        keys = {}
+        for name in names:
+            if icon_key(name):
+                keys.setdefault(icon_key(name), []).append(name)
         if not keys:
             return {}
         with self.connect() as conn:
             rows = conn.execute(
                 f"SELECT key, image FROM product_icons WHERE key IN ({','.join('?' * len(keys))})", list(keys)
             ).fetchall()
-        return {keys[r["key"]]: r["image"] for r in rows}
+        return {name: r["image"] for r in rows for name in keys[r["key"]]}
 
     def set_product_icon(self, name, image):
         with self.connect() as conn:

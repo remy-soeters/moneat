@@ -54,7 +54,8 @@ class RecipeWriter:
                 return
             done.add(todo[0])
             try:
-                self.write(todo[0])
+                with ai.usage("Recepten uitschrijven na bewaren", auto=True):
+                    self.write(todo[0])
             except NotFound:
                 continue  # intussen verwijderd
             except ai.AIUnavailable as e:

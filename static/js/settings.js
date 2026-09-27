@@ -5,7 +5,7 @@ import { ICONS } from "./icons.js";
 import { registerPage } from "./nav.js";
 import { state } from "./state.js";
 import { aiName, applyAiName, guarded, toast } from "./ui.js";
-import { $, $$, esc } from "./util.js";
+import { $, $$, dayName, esc, formatShort } from "./util.js";
 
 async function loadSettingsPage() {
   renderAccount();
@@ -20,7 +20,7 @@ async function loadSettingsPage() {
     $("[name=key]", section).type = "password";
     $("[data-toggle]", section).textContent = "Toon";
   });
-  const [settings] = await Promise.all([api("/api/settings"), loadUsers(), loadErrors()]);
+  const [settings] = await Promise.all([api("/api/settings"), loadUsers(), loadErrors(), loadUsage()]);
   renderSettings(settings);
 }
 
@@ -288,6 +288,53 @@ async function saveSetting(body, message) {
   });
 }
 
+// ---------- verbruik: hoeveel foto's, iconen en tekst er gemaakt zijn, waarvoor, en wat het ongeveer kostte ----------
+
+const KINDS = { foto: ["foto", "foto's"], icoon: ["icoon", "iconen"], tekst: ["tekstverzoek", "tekstverzoeken"] };
+const counted = (kind, n) => `${n} ${KINDS[kind][n === 1 ? 0 : 1]}`;
+const dollars = (n) => `± $${n.toFixed(2).replace(".", ",")}`;
+
+async function loadUsage(days = state.usageDays ?? 7) {
+  state.usageDays = days;
+  $$("#usage-range [data-days]").forEach((b) => b.setAttribute("aria-checked", String(Number(b.dataset.days) === days)));
+  renderUsage(await api(`/api/usage?days=${days}`));
+}
+
+function renderUsage({ days, per_day, purposes, totals }) {
+  const made = totals.foto + totals.icoon + totals.tekst;
+  if (!made) {
+    $("#usage").innerHTML = `<p class="usage-empty">De afgelopen ${days} dagen is er niets gemaakt.</p>`;
+    return;
+  }
+  const tile = (value, label, note = "") =>
+    `<div class="usage-tile"><strong>${value}</strong><span>${label}</span>${note ? `<small>${note}</small>` : ""}</div>`;
+  const highest = Math.max(...per_day.map((d) => d.foto + d.icoon + d.tekst));
+  $("#usage").innerHTML = `
+    <div class="usage-tiles">
+      ${tile(totals.foto, KINDS.foto[totals.foto === 1 ? 0 : 1])}
+      ${tile(totals.icoon, KINDS.icoon[totals.icoon === 1 ? 0 : 1])}
+      ${tile(totals.tekst, KINDS.tekst[totals.tekst === 1 ? 0 : 1], totals.free_text ? `${totals.free_text} via de gratis sleutel` : "")}
+      ${tile(dollars(totals.cost), "foto's en iconen", "geschat")}
+    </div>
+    ${totals.auto ? `<p class="usage-auto">${totals.auto} van de ${made} deed de app vanzelf, zonder dat iemand erom vroeg.</p>` : ""}
+    <h5 class="usage-title">Waarvoor</h5>
+    <ul class="usage-list">${purposes.map((p) => `<li>
+      <span class="usage-kind ${p.kind}">${p.kind}</span>
+      <span class="usage-main"><strong>${esc(p.purpose)}</strong>
+        <small>${counted(p.kind, p.count)}${p.auto ? " · vanzelf" : ""}${p.free ? ` · ${p.free} gratis` : ""}</small></span>
+      <span class="usage-cost">${p.cost ? dollars(p.cost) : ""}</span></li>`).join("")}</ul>
+    <h5 class="usage-title">Per dag</h5>
+    <ul class="usage-days">${per_day.map((d) => {
+      const bar = (kind) => (d[kind] ? `<i class="${kind}" style="flex: ${d[kind]}"></i>` : "");
+      const parts = ["foto", "icoon", "tekst"].filter((k) => d[k]).map((k) => counted(k, d[k]));
+      return `<li>
+        <span class="usage-day">${dayName(d.date).slice(0, 2).toLowerCase()} ${formatShort(d.date)}</span>
+        <span class="usage-bar"><span style="width: ${((d.foto + d.icoon + d.tekst) / highest) * 100}%">${bar("foto")}${bar("icoon")}${bar("tekst")}</span></span>
+        <span class="usage-parts">${parts.join(" · ")}${d.auto ? ` <em>(${d.auto} vanzelf)</em>` : ""}</span>
+        <span class="usage-cost">${d.cost ? dollars(d.cost) : ""}</span></li>`;
+    }).join("")}</ul>`;
+}
+
 // ---------- foutmeldingen ----------
 
 async function loadErrors() {
@@ -321,6 +368,7 @@ $("#settings-menu").addEventListener("click", (e) => {
   if (!row) return;
   showSettingsGroup(row.dataset.settings);
   if (row.dataset.settings === "errors") guarded(loadErrors); // altijd de nieuwste meldingen
+  if (row.dataset.settings === "photos") guarded(() => loadUsage()); // en het nieuwste verbruik
   if (!wideSettings.matches) window.scrollTo({ top: 0 });
 });
 $("#errors-clear").addEventListener("click", () => {
@@ -329,6 +377,10 @@ $("#errors-clear").addEventListener("click", () => {
     await api("/api/errors", { method: "DELETE" });
     await loadErrors();
   });
+});
+$("#usage-range").addEventListener("click", (e) => {
+  const days = Number(e.target.closest("[data-days]")?.dataset.days);
+  if (days) guarded(() => loadUsage(days));
 });
 $("#settings-back").addEventListener("click", () => {
   showSettingsGroup(null);

@@ -69,7 +69,8 @@ def register(r, app):
     @r.post(r"/api/swipe/cards/(\d+)/photo")
     def card_photo(req, card_id):
         card = db.get_swipe_card(int(card_id))
-        image = images.save(ai.generate_photo(card["recipe"]))
+        with ai.usage("Foto voor swipekaart"):
+            image = images.save(ai.generate_photo(card["recipe"]))
         db.set_swipe_card_image(card["id"], image)
         app.release_image(card["image"])
         return {"image": image}
