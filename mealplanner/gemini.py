@@ -92,7 +92,7 @@ def _explain(status, error):
     if "limit: 0" in text:
         return (
             "Voor dit Gemini-model is betalen nodig: met de gratis variant mag het niet (foto's en iconen maken "
-            "bijvoorbeeld). Gebruik bij Instellingen → Foto's en iconen een sleutel uit een project met betaalgegevens."
+            "bijvoorbeeld). Gebruik bij Instellingen → Slimme hulp → Foto's en icoontjes een sleutel uit een project met betaalgegevens."
         )
     if "free tier" in text and "not available" in text:
         return PAYMENT_NEEDED

@@ -110,17 +110,29 @@ functies met Claude.
 
 ### AI: Claude en Gemini
 
-In **Instellingen** (rondje rechtsboven) staat per onderwerp wat je kunt instellen, met de sleutel die erbij hoort:
+In **Instellingen** (rondje rechtsboven) staat onder **Slimme hulp** alles over de AI, in twee onderdelen.
 
-- **Gemini** (Google): tekst (recepten, menu, inspiratie) is gratis met limieten, maar **alleen met een
-  sleutel uit een Google-project zonder betaalgegevens**. Gemini maakt ook de **foto's en iconen**; die zijn
-  niet gratis (Nano Banana 2 Lite kost ongeveer $0,03 per foto) en vragen een sleutel uit een project mét
-  betalen. Vul daarom allebei in: de gratis bij **Slimme hulp (AI)**, de betaalde bij **Foto's en iconen**.
-  Sleutels via https://aistudio.google.com/apikey.
-- **Claude** (Anthropic): betaald, beste kwaliteit. Kies bij **Slimme hulp (AI)** Opus 5, Sonnet 5 of Haiku 4.5.
-  Sleutel via https://console.anthropic.com.
+**Recepten** stel je stap voor stap in:
 
-Het beeldmodel kies je bij **Foto's en iconen**; foto's automatisch laten maken kun je daar ook uitzetten. Daar
+1. **Wie is je kok?** **Chef Gemini** (Google) of **Chef Claude** (Anthropic). Zo heet de AI ook in de rest van de app
+   ("Chef Claude kookt je stapel…").
+2. **Gratis of betaald?** (alleen bij Chef Gemini)
+   - **Gratis:** recepten kosten niets, maar alleen met een **sleutel uit een Google-project zonder betaalgegevens**,
+     en Google zet een limiet per minuut en per dag (de app zegt het als die op is). De app gebruikt dan nooit je
+     betaalde sleutel voor recepten. Je ziet hoe vaak Chef Gemini vandaag al gratis kookte.
+   - **Betaald:** met de sleutel die ook de foto's maakt; kleine kosten per recept en veel ruimere limieten.
+3. **Met welk model kookt je kok?** Bij Chef Gemini bijvoorbeeld Gemini 3.8 Flash. Bij Claude kies je
+   **Chef Claude Sonnet** (ervaren chef, uitgebreide recepten) of **Chef Claude Haiku** (junior chef, eenvoudige
+   recepten, sneller en goedkoper); de server neemt daarvan vanzelf het nieuwste model (via de Models API van
+   Anthropic, een dag onthouden), dus een nieuwe Sonnet of Haiku kookt meteen mee. Nu zijn dat Claude Sonnet 5 en
+   Claude Haiku 4.5.
+4. **Je sleutel:** precies de sleutel die bij je keuze hoort. Sleutels via https://aistudio.google.com/apikey
+   (Gemini) of https://console.anthropic.com (Claude, altijd betaald).
+
+**Foto's en icoontjes** maakt Gemini; die zijn nooit gratis (Nano Banana 2 Lite kost ongeveer $0,03 per foto) en
+vragen een sleutel uit een Google-project mét betalen.
+
+Het beeldmodel kies je bij **Slimme hulp → Foto's en icoontjes**; foto's automatisch laten maken kun je daar ook uitzetten. Daar
 staat ook het **verbruik** (beheerder) van de afgelopen 7 of 30 dagen: hoeveel foto's, iconen en tekstverzoeken er
 gemaakt zijn, waarvoor (bijvoorbeeld "Iconen voor boodschappen" of "Menu-opties"), wat de app vanzelf deed zonder
 dat iemand erom vroeg, hoeveel tekst via de gratis sleutel ging, en een geschat bedrag voor foto's en iconen.

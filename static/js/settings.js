@@ -20,7 +20,7 @@ async function loadSettingsPage() {
     $("[name=key]", section).type = "password";
     $("[data-toggle]", section).textContent = "Toon";
   });
-  const [settings] = await Promise.all([api("/api/settings"), loadUsers(), loadErrors(), loadUsage()]);
+  const [settings] = await Promise.all([api("/api/settings"), loadUsers(), loadErrors(), loadUsage(), loadPlanToday()]);
   renderSettings(settings);
 }
 
@@ -158,6 +158,7 @@ function renderSettings(settings) {
   $$("#provider-choice button").forEach((b) =>
     b.setAttribute("aria-checked", String(b.dataset.provider === settings.text_provider))
   );
+  renderChefSteps(settings);
   const item = (ok, title, detail) => `<li class="${ok ? "ok" : "missing"}">
     <span class="dot">${ok ? ICONS.check : "!"}</span>
     <div><strong>${title}</strong><small>${detail}</small></div>
@@ -188,8 +189,8 @@ function renderSettings(settings) {
   const textKey = gemini.text_key;
   statuses.gemini_text = [
     textKey.set
-      ? item(true, "Gratis sleutel ingesteld", `Tekst gaat via <code>${esc(textKey.hint)}</code>; foto's via de sleutel met betalen.`)
-      : item(false, "Geen gratis sleutel", "Tekst gaat nu via de sleutel met betalen (als die er is)."),
+      ? item(true, "Gratis sleutel ingesteld", `Opgeslagen in de app: <code>${esc(textKey.hint)}</code>`)
+      : item(false, "Nog geen gratis sleutel", "Zonder deze sleutel kan Chef Gemini niet gratis koken."),
   ];
   for (const section of $$(".key-section")) {
     const provider = section.dataset.provider;
@@ -205,8 +206,6 @@ function renderSettings(settings) {
   $("#swipe-preload-choice").innerHTML = settings.swipe_preload_options
     .map((n) => `<button type="button" class="chip" data-value="${n}" aria-pressed="${n === settings.swipe_preload}">${n} gerechten</button>`)
     .join("");
-  $("#gemini-text-models").hidden = settings.text_provider !== "gemini";
-  $("#claude-models").hidden = settings.text_provider !== "claude";
   const choiceCards = (models, current, extraNote = () => "") => {
     const list = models.some((m) => m.id === current)
       ? models
@@ -217,19 +216,18 @@ function renderSettings(settings) {
       .join("");
   };
   $("#text-model-choice").innerHTML = choiceCards(gemini.text_models, gemini.text_model);
-  $("#text-cost-note").innerHTML = textKey.set
-    ? "Deze modellen zijn gratis via je gratis sleutel (met een limiet per minuut en per dag)."
-    : "Gratis met een gratis sleutel (hieronder). Zonder die sleutel betaal je een klein beetje per recept.";
-  $("#claude-model-choice").innerHTML = choiceCards(claude.models, claude.model);
+  // Bij Chef Claude kies je alleen Sonnet of Haiku; de server neemt daarvan vanzelf het nieuwste model.
+  $("#claude-model-choice").innerHTML = choiceCards(claude.models, claude.model, (m) =>
+    m.id === claude.model ? `<small class="model-now">Nu: ${esc(claude.current)}</small>` : "");
   $("#image-model-choice").innerHTML = choiceCards(gemini.image_models, gemini.image_model);
 
   // korte samenvatting per onderwerp in het overzicht
   const nameOf = (models, id) => models.find((m) => m.id === id)?.name ?? id;
   const geminiKey = gemini.set || gemini.env;
   summary("ai", settings.text_provider === "claude"
-    ? (claude.set || claude.env ? `Claude · ${nameOf(claude.models, claude.model)}` : "Claude · nog geen sleutel")
-    : textKey.set ? `Gemini · ${nameOf(gemini.text_models, gemini.text_model)} · gratis`
-      : geminiKey ? `Gemini · ${nameOf(gemini.text_models, gemini.text_model)}` : "Gemini · nog geen sleutel");
+    ? `${nameOf(claude.models, claude.model)}${claude.set || claude.env ? "" : " · nog geen sleutel"}`
+    : textKey.set ? `Chef Gemini · ${nameOf(gemini.text_models, gemini.text_model)} · gratis`
+      : geminiKey ? `Chef Gemini · ${nameOf(gemini.text_models, gemini.text_model)}` : "Chef Gemini · nog geen sleutel");
   summary("photos", geminiKey
     ? `${settings.auto_images ? "Automatisch" : "Alleen als je erom vraagt"} · ${nameOf(gemini.image_models, gemini.image_model)}`
     : "Nog geen Gemini-sleutel");
@@ -286,6 +284,50 @@ async function saveSetting(body, message) {
     renderSettings(await api("/api/settings", { method: "PUT", body }));
     toast(message());
   });
+}
+
+// ---------- slimme hulp → recepten: stap voor stap je kok instellen ----------
+// 1. wie is je kok, 2. gratis of betaald (alleen Chef Gemini), 3. welk model, 4. de sleutel die daarbij hoort.
+
+function renderChefSteps(settings) {
+  const gemini = settings.text_provider === "gemini";
+  const plan = settings.gemini_plan;
+  const keyProvider = gemini ? (plan === "free" ? "gemini_text" : "gemini") : "claude";
+  const keyInfo = keyProvider === "gemini_text" ? settings.gemini.text_key : settings[keyProvider];
+  const hasKey = Boolean(keyInfo.set || keyInfo.env);
+
+  $("#step-plan").hidden = !gemini;
+  $$("#plan-choice button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.plan === plan)));
+  $("#plan-note").innerHTML = plan === "free"
+    ? "Je betaalt niets voor recepten. Is de limiet van Google voor vandaag op, dan zegt de app dat en kan het morgen weer. Foto's en icoontjes zijn nooit gratis; die stel je in bij <em>Foto's en icoontjes</em>."
+    : "Chef Gemini gebruikt dezelfde sleutel als de foto's en icoontjes. Je betaalt per recept, meestal heel weinig; bij <em>Foto's en icoontjes</em> zie je hoe vaak er gekookt is.";
+
+  $("#model-question").textContent = gemini ? "Met welk model kookt Chef Gemini?" : "Welke Chef Claude kookt er?";
+  $("#text-model-choice").hidden = !gemini;
+  $("#claude-model-choice").hidden = gemini;
+  $("#model-note").textContent = !gemini
+    ? "Je betaalt per gebruik bij Anthropic; Haiku kost ongeveer de helft van Sonnet. Komt er een nieuwere Sonnet of Haiku, dan kookt die vanzelf voor je."
+    : plan === "free"
+      ? "Elk model heeft een gratis variant; Google bepaalt per model hoeveel je per dag mag."
+      : "Je betaalt per recept; Flash-Lite is het goedkoopst.";
+
+  $("#key-question").textContent = hasKey ? "Je sleutel" : `Voeg je ${{ gemini_text: "gratis Gemini-sleutel", gemini: "Gemini-sleutel met betalen", claude: "Claude-sleutel" }[keyProvider]} toe`;
+  $$("#step-key .key-section").forEach((section) => (section.hidden = section.dataset.provider !== keyProvider));
+
+  // Genummerde stappen (stap 2 alleen bij Chef Gemini); de laatste is klaar als de sleutel er is.
+  const steps = ["#step-chef", "#step-plan", "#step-model", "#step-key"].map((id) => $(id)).filter((el) => !el.hidden);
+  steps.forEach((step, i) => {
+    const done = step.id !== "step-key" || hasKey;
+    step.classList.toggle("done", done);
+    step.classList.toggle("todo", !done);
+    $(".step-badge", step).innerHTML = done ? ICONS.check : String(i + 1);
+  });
+}
+
+// Bij Gratis: hoe vaak Chef Gemini vandaag al kookte met de gratis sleutel.
+async function loadPlanToday() {
+  const { totals } = await api("/api/usage?days=1");
+  $("#plan-today").textContent = totals.free_text ? `Vandaag al ${totals.free_text} keer gebruikt` : "";
 }
 
 // ---------- verbruik: hoeveel foto's, iconen en tekst er gemaakt zijn, waarvoor, en wat het ongeveer kostte ----------
@@ -388,19 +430,26 @@ $("#settings-back").addEventListener("click", () => {
 });
 wideSettings.addEventListener("change", () => showSettingsGroup(state.settingsGroup));
 
+$("#plan-choice").addEventListener("click", (e) => {
+  const plan = e.target.closest("[data-plan]")?.dataset.plan;
+  if (plan && plan !== state.settings?.gemini_plan) {
+    saveSetting({ gemini_plan: plan }, () => (plan === "free" ? "Chef Gemini kookt nu gratis" : "Chef Gemini kookt nu met je betaalde sleutel"));
+  }
+});
 $("#provider-choice").addEventListener("click", (e) => {
   const provider = e.target.closest("[data-provider]")?.dataset.provider;
-  if (provider) saveSetting({ text_provider: provider }, () => `Recepten worden nu geschreven door ${aiName()}`);
+  if (provider) saveSetting({ text_provider: provider }, () => `${aiName()} staat nu in de keuken`);
 });
 for (const [id, field, message] of [
   ["#image-model-choice", "gemini_image_model", "Foto's worden voortaan gemaakt met"],
-  ["#text-model-choice", "gemini_text_model", "Recepten worden voortaan geschreven door"],
-  ["#claude-model-choice", "claude_model", "Recepten worden voortaan geschreven door Claude"],
+  ["#text-model-choice", "gemini_text_model", "Chef Gemini kookt voortaan met"],
+  ["#claude-model-choice", "claude_model", ""],
 ]) {
   $(id).addEventListener("click", (e) => {
     const button = e.target.closest("[data-model]");
     if (!button || button.getAttribute("aria-checked") === "true") return;
-    saveSetting({ [field]: button.dataset.model }, () => `${message} ${$("strong", button).textContent}`);
+    const name = $("strong", button).textContent;
+    saveSetting({ [field]: button.dataset.model }, () => (message ? `${message} ${name}` : `${name} staat nu in de keuken`));
   });
 }
 $$(".key-section").forEach((section) => {
@@ -421,7 +470,7 @@ $("#auto-images-choice").addEventListener("click", (e) => {
   const value = e.target.closest(".chip")?.dataset.value;
   if (!value) return;
   saveSetting({ auto_images: value === "on" }, () =>
-    value === "on" ? "Foto's en iconen worden weer automatisch gemaakt" : "Er worden geen foto's of iconen meer vanzelf gemaakt");
+    value === "on" ? "Foto's en icoontjes worden weer automatisch gemaakt" : "Er worden geen foto's of icoontjes meer vanzelf gemaakt");
 });
 
 $("#swipe-preload-choice").addEventListener("click", (e) => {

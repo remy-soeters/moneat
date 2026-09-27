@@ -1,4 +1,4 @@
-"""Verbruik van de AI (Instellingen → Foto's en iconen) en iconen die per product hergebruikt worden."""
+"""Verbruik van de AI (Instellingen → Slimme hulp → Foto's en icoontjes) en iconen die per product hergebruikt worden."""
 
 import tempfile
 import unittest

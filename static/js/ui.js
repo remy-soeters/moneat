@@ -1,8 +1,9 @@
 import { state } from "./state.js";
 import { $, $$ } from "./util.js";
 
+// De AI die de recepten schrijft is je kok: "Chef Gemini" of "Chef Claude" (Instellingen → Slimme hulp → Recepten).
 export function aiName() {
-  return state.settings?.text_provider === "gemini" ? "Gemini" : "Claude";
+  return state.settings?.text_provider === "gemini" ? "Chef Gemini" : "Chef Claude";
 }
 
 export function applyAiName() {

@@ -5,22 +5,27 @@ import importlib.util
 import json
 import os
 import threading
+import time
 from contextlib import contextmanager
 
 from . import gemini
 from .setting_keys import (
-    AUTO_IMAGES, CLAUDE_KEY, CLAUDE_MODEL, GEMINI_IMAGE_MODEL, GEMINI_KEY, GEMINI_TEXT_KEY, GEMINI_TEXT_MODEL,
-    TEXT_PROVIDER,
+    AUTO_IMAGES, CLAUDE_KEY, CLAUDE_MODEL, GEMINI_IMAGE_MODEL, GEMINI_KEY, GEMINI_PLAN, GEMINI_TEXT_KEY,
+    GEMINI_TEXT_MODEL, TEXT_PROVIDER,
 )
 
-MODEL = "claude-opus-5"  # standaard Claude-model
-# Keuzes in Instellingen. Haiku kan niet 'nadenken' (adaptive thinking) en kent geen effort-niveau;
-# de server-side fallback bij een weigering is er alleen voor Opus 5.
+# Keuzes in Instellingen: alleen de familie. De app gebruikt vanzelf het nieuwste model daarvan (zie
+# latest_claude_model), zodat een nieuwe Sonnet of Haiku er meteen is. Lukt het opzoeken niet, dan het standaardmodel
+# hieronder, met wat dat model kan: Haiku 4.5 kent geen adaptive thinking en geen effort-niveau.
 CLAUDE_MODELS = [
-    {"id": "claude-opus-5", "name": "Opus 5", "note": "Beste kwaliteit, duurst", "thinking": True, "fallback": True},
-    {"id": "claude-sonnet-5", "name": "Sonnet 5", "note": "Bijna even goed, sneller en goedkoper", "thinking": True, "fallback": False},
-    {"id": "claude-haiku-4-5", "name": "Haiku 4.5", "note": "Snelst en goedkoopst, eenvoudiger recepten", "thinking": False, "fallback": False},
+    {"id": "sonnet", "name": "Chef Claude Sonnet", "note": "Ervaren chef · uitgebreide recepten", "default": "claude-sonnet-5",
+     "default_name": "Claude Sonnet 5", "thinking": True},
+    {"id": "haiku", "name": "Chef Claude Haiku", "note": "Junior chef · eenvoudige recepten, sneller en goedkoper",
+     "default": "claude-haiku-4-5", "default_name": "Claude Haiku 4.5", "thinking": False},
 ]
+LATEST_TTL = 24 * 3600  # zo lang onthouden we welk model het nieuwste is
+MAX_OUTPUT = 64000
+_latest = {}  # familie -> (tijdstip, {id, name, adaptive, effort, max_tokens})
 
 
 class AIUnavailable(Exception):
@@ -177,7 +182,7 @@ def set_settings(getter):
     _setting = getter
 
 
-# ---------- verbruik: elk verzoek dat iets maakt, voor het overzicht bij Instellingen → Foto's en iconen ----------
+# ---------- verbruik: elk verzoek dat iets maakt, voor het overzicht bij Instellingen → Slimme hulp → Foto's en icoontjes ----------
 
 _record = lambda entry: None  # ingesteld door de server (Database.log_ai_usage)
 _usage_context = threading.local()
@@ -223,8 +228,53 @@ def provider_name():
 
 
 def claude_model():
-    chosen = _setting(CLAUDE_MODEL)
-    return next((m for m in CLAUDE_MODELS if m["id"] == chosen), CLAUDE_MODELS[0])
+    """De gekozen familie: Sonnet (standaard) of Haiku. Eerder bewaarde de app een model-ID ("claude-opus-5",
+    "claude-haiku-4-5"); daarmee kiezen we de familie die erbij past, en Sonnet voor Opus."""
+    family = "haiku" if "haiku" in str(_setting(CLAUDE_MODEL) or "") else "sonnet"
+    return next(m for m in CLAUDE_MODELS if m["id"] == family)
+
+
+def _supported(capabilities, *path):
+    """Kan het model dit volgens de Models API? None als de API er niets over zegt."""
+    node = capabilities
+    for key in path:
+        if not isinstance(node, dict) or key not in node:
+            return None
+        node = node[key]
+    return bool(node.get("supported")) if isinstance(node, dict) else None
+
+
+def latest_claude_model(client=None):
+    """Het nieuwste model van de gekozen familie, volgens de Models API van Anthropic (een dag onthouden):
+    {id, name, adaptive, effort, max_tokens}. Zonder `client`, of als het opzoeken niet lukt, wat we nog weten of
+    anders het standaardmodel van de familie."""
+    family = claude_model()
+    cached = _latest.get(family["id"])
+    if cached and (client is None or time.monotonic() - cached[0] < LATEST_TTL):
+        return cached[1]
+    default = {"id": family["default"], "name": family["default_name"], "adaptive": family["thinking"],
+               "effort": family["thinking"], "max_tokens": MAX_OUTPUT}
+    if client is None:
+        return default
+    try:
+        found = [m for m in client.models.list() if str(m.id).startswith(f"claude-{family['id']}-")]
+    except Exception:
+        return cached[1] if cached else default  # geen verbinding of sleutel: de gewone foutmelding volgt bij het vragen
+    if not found:
+        return default
+    newest = max(found, key=lambda m: m.created_at)
+    capabilities = getattr(newest, "capabilities", None)
+    adaptive = _supported(capabilities, "thinking", "types", "adaptive")
+    effort = _supported(capabilities, "effort", "medium")
+    info = {
+        "id": newest.id,
+        "name": getattr(newest, "display_name", None) or newest.id,
+        "adaptive": family["thinking"] if adaptive is None else adaptive,
+        "effort": family["thinking"] if effort is None else effort,
+        "max_tokens": min(MAX_OUTPUT, getattr(newest, "max_tokens", None) or MAX_OUTPUT),
+    }
+    _latest[family["id"]] = (time.monotonic(), info)
+    return info
 
 
 def gemini_models():
@@ -253,9 +303,27 @@ def _gemini_key(required=True):
     return key
 
 
+def gemini_plan():
+    """Kookt Chef Gemini gratis (met de gratis sleutel, en de limieten van Google) of betaald (met de sleutel die
+    ook de foto's maakt)? Nog niet gekozen: gratis als er een gratis sleutel is, anders betaald."""
+    plan = _setting(GEMINI_PLAN)
+    if plan in ("free", "paid"):
+        return plan
+    return "free" if _setting(GEMINI_TEXT_KEY) else "paid"
+
+
 def _gemini_text_key():
-    """Voor tekst gaat de gratis sleutel voor (als die er is); anders de gewone."""
-    return _setting(GEMINI_TEXT_KEY) or _gemini_key()
+    """De sleutel voor tekst. Gratis gebruikt nooit de sleutel met betalen, zodat recepten echt niets kosten."""
+    if gemini_plan() == "paid":
+        return _gemini_key()
+    key = _setting(GEMINI_TEXT_KEY)
+    if not key:
+        raise AIUnavailable(
+            "Chef Gemini kookt gratis, maar er is nog geen gratis sleutel. Voeg er een toe bij Instellingen → Slimme hulp "
+            "→ Recepten, of kies daar voor Betaald.",
+            source="Gemini",
+        )
+    return key
 
 
 def sdk_installed():
@@ -322,7 +390,7 @@ def check_connection():
     """Controleer of Claude bereikbaar is met de huidige sleutel, zonder tokens te verbruiken."""
     anthropic, client = _client()
     try:
-        client.models.retrieve(claude_model()["id"])
+        client.models.retrieve(latest_claude_model(client)["id"])
     except anthropic.AuthenticationError as e:
         raise AIUnavailable("Deze API-sleutel wordt niet geaccepteerd. Controleer of je hem volledig hebt geplakt.",
                             _claude_detail(e), "Claude")
@@ -355,10 +423,10 @@ def _ask(system, user_message, schema, effort="medium", purpose="Tekst"):
             result = gemini.generate_json(_gemini_text_key(), model, system, user_message, schema)
         except gemini.GeminiError as e:
             raise _from_gemini(e)
-        _log_usage("tekst", "Gemini", model, purpose, free=bool(_setting(GEMINI_TEXT_KEY)))
+        _log_usage("tekst", "Gemini", model, purpose, free=gemini_plan() == "free")
         return result
     result = _ask_claude(system, user_message, schema, effort)
-    _log_usage("tekst", "Claude", claude_model()["id"], purpose)
+    _log_usage("tekst", "Claude", latest_claude_model()["id"], purpose)
     return result
 
 
@@ -367,16 +435,15 @@ def _ask_claude(system, user_message, schema, effort):
     anthropic, client = _client()
     try:
         # Streaming, omdat een volle week of een collectie recepten een lang antwoord kan opleveren.
-        model = claude_model()
+        model = latest_claude_model(client)
         options = {"output_config": {"format": {"type": "json_schema", "schema": schema}}}
-        if model["thinking"]:
+        if model["adaptive"]:
             options["thinking"] = {"type": "adaptive"}
+        if model["effort"]:
             options["output_config"]["effort"] = effort
-        if model["fallback"]:
-            options.update(betas=["server-side-fallback-2026-07-01"], fallbacks="default")
         with client.beta.messages.stream(
             model=model["id"],
-            max_tokens=64000,
+            max_tokens=model["max_tokens"],
             system=system,
             messages=[{"role": "user", "content": user_message}],
             **options,

@@ -157,7 +157,7 @@
         </button>
         <button class="add-option" data-add="generate">
           <span class="add-icon claude"><svg viewBox="0 0 24 24" aria-hidden="true" class="sparkle"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/></svg></span>
-          <span><strong>Laat <span class="ai-name">Claude</span> bedenken</strong><small>Beschrijf waar je zin in hebt</small></span>
+          <span><strong>Laat <span class="ai-name">Chef Claude</span> bedenken</strong><small>Beschrijf waar je zin in hebt</small></span>
         </button>
       </div>
       <label class="search">
@@ -249,14 +249,17 @@
           <span class="settings-icon" data-icon="people" aria-hidden="true"></span>
           <span class="settings-row-text"><strong>Huishouden</strong><small id="sum-household"></small></span><svg class="menu-go" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
         </button>
-        <button type="button" class="settings-row admin-only" data-settings="ai">
-          <span class="settings-icon" data-icon="sparkle" aria-hidden="true"></span>
-          <span class="settings-row-text"><strong>Slimme hulp (AI)</strong><small id="sum-ai"></small></span><svg class="menu-go" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
-        </button>
-        <button type="button" class="settings-row admin-only" data-settings="photos">
-          <span class="settings-icon" data-icon="image" aria-hidden="true"></span>
-          <span class="settings-row-text"><strong>Foto's en iconen</strong><small id="sum-photos"></small></span><svg class="menu-go" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
-        </button>
+        <div class="settings-section admin-only" role="group" aria-labelledby="settings-ai-head">
+          <p class="settings-section-head" id="settings-ai-head"><span class="settings-icon" data-icon="sparkle" aria-hidden="true"></span>Slimme hulp</p>
+          <button type="button" class="settings-row" data-settings="ai">
+            <span class="settings-icon" data-icon="chef" aria-hidden="true"></span>
+            <span class="settings-row-text"><strong>Recepten</strong><small id="sum-ai"></small></span><svg class="menu-go" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+          <button type="button" class="settings-row" data-settings="photos">
+            <span class="settings-icon" data-icon="image" aria-hidden="true"></span>
+            <span class="settings-row-text"><strong>Foto's en icoontjes</strong><small id="sum-photos"></small></span><svg class="menu-go" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+        </div>
         <button type="button" class="settings-row admin-only" data-settings="inspiration">
           <span class="settings-icon" data-icon="book" aria-hidden="true"></span>
           <span class="settings-row-text"><strong>Inspiratie en swipen</strong><small id="sum-inspiration"></small></span><svg class="menu-go" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
@@ -312,73 +315,127 @@
         </form>
       </section>
       <section class="settings-group admin-only" id="set-ai" data-group="ai" hidden>
-        <h2 class="group-title">Slimme hulp (AI)</h2>
-                <p class="intro">Welke AI vult je weekmenu aan, bedenkt recepten en zoekt inspiratie?</p>
-        <div class="provider-choice" id="provider-choice" role="radiogroup">
-          <button type="button" role="radio" data-provider="gemini" aria-checked="false">
-            <strong>Gemini</strong><small>Gratis met een gratis sleutel</small>
-          </button>
-          <button type="button" role="radio" data-provider="claude" aria-checked="false">
-            <strong>Claude</strong><small>Betaald, beste kwaliteit</small>
-          </button>
-        </div>
-        <div id="gemini-text-models" hidden>
-          <h4 class="settings-subtitle">Welk Gemini-model?</h4>
-          <div class="provider-choice model-choice" id="text-model-choice" role="radiogroup"></div>
-          <p class="help" id="text-cost-note"></p>
-  <section class="key-section" data-provider="gemini_text">
-            <h3 class="settings-title">Gratis Gemini-sleutel voor tekst <small class="optional">aanrader</small></h3>
-            <p class="intro">Tekst (recepten, menu, inspiratie) is bij Gemini <strong>gratis</strong>, maar alleen met een sleutel uit een Google-project <em>zonder</em> betaalgegevens. Maak in AI Studio een tweede project aan, zet daar géén betalen aan, en plak die sleutel hier. Let op: bij gratis gebruik mag Google je invoer gebruiken om hun diensten te verbeteren.</p>
-            <ul class="status-list" data-status></ul>
-            <form class="key-form">
-              <label class="field">
-                <span data-key-label>API-sleutel</span>
-                <span class="key-input">
-                  <input name="key" type="password" autocomplete="off" spellcheck="false" placeholder="AQ.… of AIza…">
-                  <button type="button" class="btn link" data-toggle>Toon</button>
-                </span>
-              </label>
-              <div class="key-actions">
-                <button type="submit" class="btn primary">Opslaan</button>
-                <button type="button" class="btn outline" data-test>Test verbinding</button>
-                <span class="spacer"></span>
-                <button type="button" class="btn link danger" data-delete>Sleutel verwijderen</button>
+        <p class="kicker">Slimme hulp</p>
+        <h2 class="group-title">Recepten</h2>
+        <p class="intro">Je kok vult je weekmenu aan, bedenkt en schrijft recepten, en zoekt inspiratie voor je. Stel hem hieronder stap voor stap in.</p>
+        <ol class="setup-steps">
+          <li class="setup-step" id="step-chef">
+            <span class="step-badge" aria-hidden="true"></span>
+            <div class="step-body">
+              <h3 class="step-title" id="chef-question">Wie is je kok?</h3>
+              <div class="provider-choice" id="provider-choice" role="radiogroup" aria-labelledby="chef-question">
+                <button type="button" role="radio" data-provider="gemini" aria-checked="false">
+                  <strong>Chef Gemini</strong><small>Van Google · gratis of betaald</small>
+                </button>
+                <button type="button" role="radio" data-provider="claude" aria-checked="false">
+                  <strong>Chef Claude</strong><small>Van Anthropic · betaald, beste kwaliteit</small>
+                </button>
               </div>
-            </form>
-            <p class="test-result" data-result hidden></p>
-          </section>
-        </div>
-        <div id="claude-models" hidden>
-          <h4 class="settings-subtitle">Welk Claude-model?</h4>
-          <div class="provider-choice model-choice three" id="claude-model-choice" role="radiogroup"></div>
-          <p class="help">Je betaalt per gebruik bij Anthropic; Haiku kost een fractie van Opus.</p>
-  <section class="key-section" data-provider="claude">
-            <h3 class="settings-title">Claude-sleutel</h3>
-            <p class="intro">Betaald per gebruik via Anthropic.</p>
-            <ul class="status-list" data-status></ul>
-            <form class="key-form">
-              <label class="field">
-                <span data-key-label>API-sleutel</span>
-                <span class="key-input">
-                  <input name="key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…">
-                  <button type="button" class="btn link" data-toggle>Toon</button>
-                </span>
-              </label>
-              <p class="help">Maak een sleutel aan op <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">console.anthropic.com</a> onder <em>API Keys</em>.</p>
-              <div class="key-actions">
-                <button type="submit" class="btn primary">Opslaan</button>
-                <button type="button" class="btn outline" data-test>Test verbinding</button>
-                <span class="spacer"></span>
-                <button type="button" class="btn link danger" data-delete>Sleutel verwijderen</button>
+            </div>
+          </li>
+          <li class="setup-step" id="step-plan" hidden>
+            <span class="step-badge" aria-hidden="true"></span>
+            <div class="step-body">
+              <h3 class="step-title" id="plan-question">Gratis of betaald?</h3>
+              <div class="provider-choice plan-choice" id="plan-choice" role="radiogroup" aria-labelledby="plan-question">
+                <button type="button" role="radio" data-plan="free" aria-checked="false">
+                  <strong>Gratis</strong><small>Kost niets · Google zet een limiet per minuut en per dag</small>
+                  <small class="plan-today" id="plan-today"></small>
+                </button>
+                <button type="button" role="radio" data-plan="paid" aria-checked="false">
+                  <strong>Betaald</strong><small>Kleine kosten per recept · veel ruimere limieten</small>
+                </button>
               </div>
-            </form>
-            <p class="test-result" data-result hidden></p>
-          </section>
-        </div>
+              <p class="help" id="plan-note"></p>
+            </div>
+          </li>
+          <li class="setup-step" id="step-model">
+            <span class="step-badge" aria-hidden="true"></span>
+            <div class="step-body">
+              <h3 class="step-title" id="model-question">Met welk model kookt je kok?</h3>
+              <div class="provider-choice model-choice" id="text-model-choice" role="radiogroup" aria-labelledby="model-question" hidden></div>
+              <div class="provider-choice model-choice" id="claude-model-choice" role="radiogroup" aria-labelledby="model-question" hidden></div>
+              <p class="help" id="model-note"></p>
+            </div>
+          </li>
+          <li class="setup-step" id="step-key">
+            <span class="step-badge" aria-hidden="true"></span>
+            <div class="step-body">
+              <h3 class="step-title" id="key-question">Je sleutel</h3>
+            <section class="key-section" data-provider="gemini_text">
+              <h3 class="settings-title">Gratis Gemini-sleutel</h3>
+              <p class="intro">Gratis werkt alleen met een sleutel uit een Google-project <em>zonder</em> betaalgegevens. Maak in AI Studio een apart project aan, zet daar géén betalen aan, en plak die sleutel hier. Let op: bij gratis gebruik mag Google je invoer gebruiken om hun diensten te verbeteren.</p>
+              <ul class="status-list" data-status></ul>
+              <form class="key-form">
+                <label class="field">
+                  <span data-key-label>API-sleutel</span>
+                  <span class="key-input">
+                    <input name="key" type="password" autocomplete="off" spellcheck="false" placeholder="AQ.… of AIza…">
+                    <button type="button" class="btn link" data-toggle>Toon</button>
+                  </span>
+                </label>
+                <p class="help">Maak een sleutel aan op <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">aistudio.google.com</a>.</p>
+                <div class="key-actions">
+                  <button type="submit" class="btn primary">Opslaan</button>
+                  <button type="button" class="btn outline" data-test>Test verbinding</button>
+                  <span class="spacer"></span>
+                  <button type="button" class="btn link danger" data-delete>Sleutel verwijderen</button>
+                </div>
+              </form>
+              <p class="test-result" data-result hidden></p>
+            </section>
+            <section class="key-section" data-provider="gemini">
+              <h3 class="settings-title">Gemini-sleutel met betalen</h3>
+              <p class="intro">Dezelfde sleutel als bij <em>Foto's en icoontjes</em>: uit een Google-project waar betalen aan staat. Chef Gemini gebruikt hem voor recepten, en de app voor foto's en icoontjes.</p>
+              <ul class="status-list" data-status></ul>
+              <form class="key-form">
+                <label class="field">
+                  <span data-key-label>API-sleutel</span>
+                  <span class="key-input">
+                    <input name="key" type="password" autocomplete="off" spellcheck="false" placeholder="AQ.… of AIza…">
+                    <button type="button" class="btn link" data-toggle>Toon</button>
+                  </span>
+                </label>
+                <p class="help">Maak een sleutel aan op <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">aistudio.google.com</a>.</p>
+                <div class="key-actions">
+                  <button type="submit" class="btn primary">Opslaan</button>
+                  <button type="button" class="btn outline" data-test>Test verbinding</button>
+                  <span class="spacer"></span>
+                  <button type="button" class="btn link danger" data-delete>Sleutel verwijderen</button>
+                </div>
+              </form>
+              <p class="test-result" data-result hidden></p>
+            </section>
+            <section class="key-section" data-provider="claude">
+              <h3 class="settings-title">Claude-sleutel</h3>
+              <p class="intro">Chef Claude is altijd betaald: je betaalt per gebruik bij Anthropic.</p>
+              <ul class="status-list" data-status></ul>
+              <form class="key-form">
+                <label class="field">
+                  <span data-key-label>API-sleutel</span>
+                  <span class="key-input">
+                    <input name="key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…">
+                    <button type="button" class="btn link" data-toggle>Toon</button>
+                  </span>
+                </label>
+                <p class="help">Maak een sleutel aan op <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">console.anthropic.com</a> onder <em>API Keys</em>.</p>
+                <div class="key-actions">
+                  <button type="submit" class="btn primary">Opslaan</button>
+                  <button type="button" class="btn outline" data-test>Test verbinding</button>
+                  <span class="spacer"></span>
+                  <button type="button" class="btn link danger" data-delete>Sleutel verwijderen</button>
+                </div>
+              </form>
+              <p class="test-result" data-result hidden></p>
+            </section>
+            </div>
+          </li>
+        </ol>
       </section>
       <section class="settings-group admin-only" id="set-photos" data-group="photos" hidden>
-        <h2 class="group-title">Foto's en iconen</h2>
-                <p class="intro">Foto's bij recepten en swipekaarten, en iconen voor je boodschappen, worden gemaakt door Gemini. Dat is <strong>niet gratis</strong>: je betaalt per foto.</p>
+        <p class="kicker">Slimme hulp</p>
+        <h2 class="group-title">Foto's en icoontjes</h2>
+        <p class="intro">Foto's bij recepten en swipekaarten, en icoontjes voor je boodschappen, worden gemaakt door Gemini. Dat is <strong>niet gratis</strong>: je betaalt per foto.</p>
         <div class="usage-head">
           <h4 class="settings-subtitle">Verbruik</h4>
           <div class="choice-group" role="radiogroup" id="usage-range" aria-label="Periode">
@@ -398,7 +455,7 @@
         <div class="provider-choice model-choice" id="image-model-choice" role="radiogroup"></div>
 <section class="key-section" data-provider="gemini">
           <h3 class="settings-title">Gemini-sleutel met betalen</h3>
-          <p class="intro">Nodig voor <strong>foto's en iconen</strong>. Zet in Google AI Studio betalen aan voor het project van deze sleutel. Heb je bij <em>Slimme hulp</em> geen gratis sleutel ingevuld, dan gebruikt de app deze ook voor tekst, en dan betaal je daar ook voor.</p>
+          <p class="intro">Nodig voor <strong>foto's en icoontjes</strong>. Zet in Google AI Studio betalen aan voor het project van deze sleutel. Kies je bij <em>Recepten</em> voor Betaald, dan gebruikt Chef Gemini deze sleutel ook voor recepten.</p>
           <ul class="status-list" data-status></ul>
           <form class="key-form">
             <label class="field">
@@ -662,7 +719,7 @@
     <form id="generate-form">
       <div class="modal-head">
         <div>
-          <p class="kicker">Hulp van <span class="ai-name">Claude</span></p>
+          <p class="kicker">Hulp van <span class="ai-name">Chef Claude</span></p>
           <h2>Laat een recept bedenken</h2>
         </div>
         <button type="button" class="close" data-close aria-label="Sluiten"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
@@ -678,7 +735,7 @@
           <button type="button" class="chip">Vegetarische ovenschotel</button>
           <button type="button" class="chip">Iets met zalm en citroen</button>
         </div>
-        <div class="busy" hidden><span class="spinner" aria-hidden="true"></span><span><span class="ai-name">Claude</span> schrijft je recept…</span></div>
+        <div class="busy" hidden><span class="spinner" aria-hidden="true"></span><span><span class="ai-name">Chef Claude</span> schrijft je recept…</span></div>
       </div>
       <div class="modal-foot">
         <span class="spacer"></span>

@@ -52,6 +52,7 @@ def register(r, app):
             "is_admin": True,
             "sdk_installed": ai.sdk_installed(),
             "text_provider": ai.text_provider(),
+            "gemini_plan": ai.gemini_plan(),
             "swipe_preload": app.preload_target(),
             "swipe_preload_options": list(PRELOAD_OPTIONS),
             "auto_images": db.get_setting(setting_keys.AUTO_IMAGES) != "off",
@@ -60,6 +61,8 @@ def register(r, app):
                 "hint": mask_key(claude_key) if claude_key else None,
                 "env": ai.env_key_present(),
                 "model": ai.claude_model()["id"],
+                # Welk model er nu achter zit (het nieuwste van de familie; bijgewerkt als Claude iets doet)
+                "current": ai.latest_claude_model()["name"],
                 "models": [{k: m[k] for k in ("id", "name", "note")} for m in ai.CLAUDE_MODELS],
             },
             "gemini": {
@@ -104,12 +107,16 @@ def register(r, app):
             preloader.kick()
         if "claude_model" in body:
             if body["claude_model"] not in {m["id"] for m in ai.CLAUDE_MODELS}:
-                raise ApiError(HTTPStatus.BAD_REQUEST, "Kies Opus, Sonnet of Haiku")
+                raise ApiError(HTTPStatus.BAD_REQUEST, "Kies Sonnet of Haiku")
             db.set_setting(setting_keys.CLAUDE_MODEL, body["claude_model"])
         if "text_provider" in body:
             if body["text_provider"] not in ("claude", "gemini"):
                 raise ApiError(HTTPStatus.BAD_REQUEST, "Kies Claude of Gemini")
             db.set_setting(setting_keys.TEXT_PROVIDER, body["text_provider"])
+        if "gemini_plan" in body:
+            if body["gemini_plan"] not in ("free", "paid"):
+                raise ApiError(HTTPStatus.BAD_REQUEST, "Kies gratis of betaald")
+            db.set_setting(setting_keys.GEMINI_PLAN, body["gemini_plan"])
         for field, setting in (
             ("gemini_text_model", setting_keys.GEMINI_TEXT_MODEL),
             ("gemini_image_model", setting_keys.GEMINI_IMAGE_MODEL),
@@ -133,13 +140,13 @@ def register(r, app):
             text_model, image_model = ai.gemini_models()
             return {"ok": True, "message": f"Verbinding met Gemini werkt ({text_model}, {image_model})."}
         ai.check_connection()
-        return {"ok": True, "message": f"Verbinding met Claude werkt ({ai.claude_model()['name']})."}
+        return {"ok": True, "message": f"Verbinding met Claude werkt ({ai.latest_claude_model()['name']})."}
 
     # ---------- foutmeldingen ----------
 
     @r.get("/api/usage", admin=True)
     def usage(req):
-        """Verbruik van de AI per dag en per doel (Instellingen → Foto's en iconen)."""
+        """Verbruik van de AI per dag en per doel (Instellingen → Slimme hulp → Foto's en icoontjes)."""
         days = max(1, min(int(req.query.get("days") or 30), 120))
         return db.ai_usage_report(days)
 

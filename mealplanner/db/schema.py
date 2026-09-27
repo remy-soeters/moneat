@@ -123,7 +123,7 @@ CREATE TABLE IF NOT EXISTS error_log (
 );
 
 -- Elk AI-verzoek dat iets maakt (tekst, foto, icoon): waarvoor, of de app het vanzelf deed, en een geschatte prijs.
--- Voor het overzicht bij Instellingen → Foto's en iconen (zie db/usage.py).
+-- Voor het overzicht bij Instellingen → Slimme hulp → Foto's en icoontjes (zie db/usage.py).
 CREATE TABLE IF NOT EXISTS ai_usage (
     id          INTEGER PRIMARY KEY,
     created_at  TEXT NOT NULL DEFAULT (datetime('now')),
