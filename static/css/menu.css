@@ -36,13 +36,37 @@
 /* plannen: de week, één rij per avond */
 .week-list { display: grid; gap: 10px; margin-top: 24px; }
 .week-row {
-  display: flex; align-items: center; gap: 14px; width: 100%; min-height: 78px; padding: 10px 16px 10px 12px;
-  border: 0; border-radius: var(--radius); background: var(--paper); box-shadow: var(--shadow);
-  font: inherit; color: var(--ink); text-align: left; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s;
+  position: relative; display: flex; align-items: stretch; border-radius: var(--radius); background: var(--paper);
+  box-shadow: var(--shadow); transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
 }
-.week-row:not(:disabled):hover { transform: translateY(-1px); box-shadow: var(--shadow-hover); }
+.row-open {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 14px; min-height: 78px; padding: 10px 16px 10px 12px;
+  border: 0; border-radius: inherit; background: none; font: inherit; color: var(--ink); text-align: left; cursor: pointer;
+}
+.week-row:not(.idle):hover { transform: translateY(-1px); box-shadow: var(--shadow-hover); }
 .week-row.past { opacity: 0.55; }
-.week-row:disabled { cursor: default; box-shadow: none; }
+.week-row.idle { box-shadow: none; }
+.row-open:disabled { cursor: default; }
+/* greep om een avond naar een andere dag te slepen */
+.row-grip {
+  flex: none; display: grid; place-items: center; width: 44px; margin-left: -8px; border: 0; border-radius: 0 var(--radius) var(--radius) 0;
+  background: none; color: var(--ink-3); cursor: grab; touch-action: none;
+}
+.row-grip svg { width: 20px; height: 20px; fill: currentColor; stroke: none; }
+.row-grip:hover { color: var(--main-ink); }
+.row-grip:focus-visible { outline: 3px solid var(--main-strong); outline-offset: -3px; }
+.week-list.sorting { cursor: grabbing; }
+.week-list.sorting .week-row:not(.dragging) { transform: none; }
+.week-row.dragging {
+  z-index: 5; opacity: 0.92; transition: box-shadow 0.15s; cursor: grabbing; pointer-events: none;
+  box-shadow: 0 16px 36px color-mix(in srgb, oklch(35% 0.06 150) 28%, transparent), 0 0 0 2px var(--main-strong);
+}
+/* het doel blijft zichtbaar rond (en door) de rij die je sleept */
+.week-row.drop-target { background: var(--main-soft); outline: 2px dashed var(--main-strong); outline-offset: 3px; }
+.week-row.moved { animation: row-moved 0.6s ease; }
+@keyframes row-moved { 30% { background: var(--main-soft); } }
+.week-hint { margin: 12px 4px 0; font-size: 13px; color: var(--ink-3); }
 /* ronde dagbadge: groen = gepland, roze = vriezer/uit eten/…, gestippeld = nog open */
 .day-badge {
   flex: none; display: grid; place-content: center; width: 50px; height: 50px; border-radius: 50%; line-height: 1.05; text-align: center;
@@ -166,7 +190,8 @@
   .plan-hero { padding: 20px; }
   .plan-hero h2 { font-size: 24px; }
   .plan-hero-actions, .plan-hero-actions .btn { width: 100%; }
-  .week-row { gap: 10px; padding: 8px 12px 8px 8px; min-height: 72px; }
+  .row-open { gap: 10px; padding: 8px 12px 8px 8px; min-height: 72px; }
+  .row-grip { width: 40px; }
   .row-thumb { width: 52px; height: 52px; }
   .week-row .today-pill { display: none; }
 }

@@ -221,19 +221,20 @@ class ShoppingMixin:
         return unique[:limit]
 
     def product_catalog(self, limit=400):
-        """Namen om uit te kiezen bij het toevoegen: wat je ooit kocht en de ingrediënten van je recepten."""
+        """Producten om in te zoeken bij het toevoegen: eerst wat je eerder kocht (het vaakst gekochte eerst,
+        met `bought`), daarna de ingrediënten van je recepten. [{name, bought}]"""
         with self.connect() as conn:
-            bought = [r["name"] for r in conn.execute("SELECT name FROM purchase_counts ORDER BY count DESC")]
+            bought = [r["name"] for r in conn.execute("SELECT name FROM purchase_counts WHERE count > 0 ORDER BY count DESC")]
             used = [r["name"] for r in conn.execute(
                 "SELECT name, COUNT(*) AS n FROM ingredients GROUP BY lower(name) ORDER BY n DESC"
             )]
-        seen, names = set(), []
-        for name in [*bought, *used]:
+        seen, products = set(), []
+        for name, was_bought in [*((n, True) for n in bought), *((n, False) for n in used)]:
             key = product_key(name)
             if key and key not in seen:
                 seen.add(key)
-                names.append(display_name(name))
-        return names[:limit]
+                products.append({"name": display_name(name), "bought": was_bought})
+        return products[:limit]
 
     def product_icons(self, names):
         """{naam: afbeelding} voor de producten die al een icoon hebben ("" = bewust de emoji)."""

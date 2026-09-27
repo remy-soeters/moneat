@@ -1,5 +1,6 @@
 // ---------- plannen als stappenplan: per avond een paar opties, andere opties, of iets anders ----------
 // Eerst "Wat wil je deze week eten?", daarna avond voor avond kiezen (swipen of knoppen), en tot slot een overzicht.
+// Per avond kun je ook zelf omschrijven wat je zoekt; dan schrijft de AI er een recept bij.
 import { api } from "./api.js";
 import { SPECIALS, dishFor, plateAttrs, skeletonHtml, specialFor } from "./dishes.js";
 import { ICONS } from "./icons.js";
@@ -22,6 +23,10 @@ const journey = {
   loading: new Set(), // avonden waarvoor de AI nog opties bedenkt
   failed: new Set(),
   others: false, // paneel "Anders…" open
+  describe: false, // paneel "Zelf omschrijven" open
+  wish: "", // wat je daar typte (blijft staan als het scherm opnieuw getekend wordt)
+  describing: new Set(), // avonden waarvoor de AI nu een omschreven recept schrijft
+  fresh: null, // optie die net op jouw omschrijving gemaakt is
   direction: 0, // -1 of 1: animatie naar links of rechts
 };
 
@@ -30,8 +35,10 @@ const today = () => isoDate(new Date());
 export async function openJourney({ week = state.week, day = null } = {}) {
   journey.week = week;
   journey.others = false;
+  journey.describe = false;
   journey.loading = new Set();
   journey.failed = new Set();
+  journey.describing = new Set();
   journey.direction = 0;
   state.week = week;
   $("#journey-body").innerHTML = `<div class="journey-wait"><span class="spinner"></span></div>`;
@@ -188,6 +195,7 @@ function dayHtml(day) {
   const dinner = dinnerOf(day);
   const options = optionsFor(day);
   const loading = journey.loading.has(day);
+  const describing = journey.describing.has(day);
   const skeletons = loading ? Math.max(1, state.perDay - options.length) : 0;
   let picked = "";
   if (dinner?.special) {
@@ -200,7 +208,7 @@ function dayHtml(day) {
       <span><strong>${esc(dinner.recipe_name)}</strong><small>Gekozen voor ${personen(dinner.servings)}</small></span>
       <button type="button" class="btn link" data-j="undo">Iets anders</button></div>`;
   }
-  const empty = !options.length && !loading
+  const empty = !options.length && !loading && !describing
     ? `<div class="journey-empty">${
         journey.failed.has(day)
           ? `<p>Er kwamen geen opties. Probeer het opnieuw of kies zelf iets.</p>`
@@ -213,8 +221,10 @@ function dayHtml(day) {
     ${picked}
     <div class="journey-actions">
       ${dinner ? "" : `<button type="button" class="btn pink" data-j="refresh" ${loading ? "disabled" : ""}>${ICONS.refresh}Andere opties</button>`}
+      <button type="button" class="btn outline" data-j="describe" aria-expanded="${journey.describe}">${ICONS.pencil}Zelf omschrijven</button>
       <button type="button" class="btn outline" data-j="others" aria-expanded="${journey.others}">${ICONS.dots}Anders…</button>
     </div>
+    ${journey.describe ? describeHtml(describing) : ""}
     ${journey.others ? `<div class="journey-others">
       ${Object.entries(SPECIALS)
         .map(([kind, s]) => `<button type="button" class="other-choice ${dinner?.special?.kind === kind ? "active" : ""}" data-j-special="${kind}">
@@ -224,6 +234,7 @@ function dayHtml(day) {
     </div>` : ""}
     ${empty}
     <div class="journey-options">
+      ${describing ? skeletonHtml() : ""}
       ${options.map((o) => cardHtml(o)).join("")}
       ${Array.from({ length: skeletons }, skeletonHtml).join("")}
     </div>
@@ -231,10 +242,26 @@ function dayHtml(day) {
   </div>`;
 }
 
+// Zelf omschrijven wat je zoekt; de AI schrijft er een volledig recept bij, dat vooraan bij de opties komt.
+function describeHtml(busy) {
+  return `<form class="journey-describe" id="journey-describe">
+    <label class="field"><span>Waar heb je zin in?</span>
+      <textarea name="wish" rows="3" maxlength="1000" ${busy ? "disabled" : ""}
+        placeholder="Bijv. iets met de kip en spinazie die nog in de koelkast liggen, romig, binnen 30 minuten klaar">${esc(journey.wish)}</textarea>
+    </label>
+    <div class="describe-foot">
+      ${busy
+        ? `<p class="journey-busy"><span class="spinner"></span>${aiName()} schrijft je recept…</p>`
+        : `<small>${aiName()} maakt er een volledig recept van, voor ${personen(state.household)}.</small>
+           <button type="submit" class="btn primary">${ICONS.sparkle}Maak recept</button>`}
+    </div>
+  </form>`;
+}
+
 // Tik op de kaart om het gerecht te kiezen; de knop in de titel beslaat de hele kaart (zie journey.css).
 function cardHtml(option) {
   const chosen = isChosen(option);
-  return `<article class="tile j-card ${chosen ? "chosen" : ""}" data-option="${option.id}">
+  return `<article class="tile j-card ${chosen ? "chosen" : ""} ${option.id === journey.fresh ? "fresh" : ""}" data-option="${option.id}">
     <div ${plateAttrs(option)}>
       <span class="dish" aria-hidden="true">${dishFor(option)}</span>
       <span class="plate-badges">${badgesHtml(option)}</span>
@@ -284,6 +311,8 @@ function doneHtml() {
 function go(index) {
   if (index < 0) return;
   journey.others = false;
+  journey.describe = false;
+  journey.fresh = null;
   if (index >= journey.days.length) {
     journey.step = "done";
     render();
@@ -358,6 +387,30 @@ async function refreshDay(day) {
   }
 }
 
+async function describeDinner(day) {
+  const wish = journey.wish.trim();
+  if (!wish) return toast("Beschrijf eerst waar je zin in hebt", true);
+  journey.describing.add(day);
+  render();
+  try {
+    const { id } = await api("/api/menu/describe", {
+      method: "POST", body: { date: day, prompt: wish, servings: state.household },
+    });
+    journey.fresh = id;
+    journey.wish = "";
+    if (journey.days[journey.index] === day) journey.describe = false;
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    journey.describing.delete(day);
+    if ($("#journey").open) {
+      await guarded(loadMenu);
+      render();
+      $("#journey-body .j-card.fresh")?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }
+}
+
 async function switchWeek(week) {
   journey.week = week;
   state.week = week;
@@ -406,6 +459,11 @@ $("#journey").addEventListener("click", (e) => {
     case "others":
       journey.others = !journey.others;
       return render();
+    case "describe":
+      journey.describe = !journey.describe;
+      render();
+      if (journey.describe) $("#journey-describe textarea")?.focus();
+      return;
     case "pick": return openPicker(day);
     case "undo": return undo(day);
     case "to-list": return putWeekOnList(journey.week);
@@ -416,10 +474,26 @@ $("#journey").addEventListener("click", (e) => {
   }
 });
 
+$("#journey").addEventListener("input", (e) => {
+  if (e.target.name === "wish") journey.wish = e.target.value;
+});
+$("#journey").addEventListener("submit", (e) => {
+  if (e.target.id !== "journey-describe") return;
+  e.preventDefault();
+  describeDinner(journey.days[journey.index]);
+});
+$("#journey").addEventListener("keydown", (e) => {
+  // Enter verstuurt de omschrijving (Shift+Enter voor een nieuwe regel)
+  if (e.target.name === "wish" && e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    e.target.form.requestSubmit();
+  }
+});
+
 // Swipen tussen de avonden (met de vinger; met de muis gebruik je de knoppen of de pijltjestoetsen).
 let swipeStart = null;
 $("#journey-body").addEventListener("pointerdown", (e) => {
-  if (e.pointerType !== "mouse" && journey.step === "day") swipeStart = { x: e.clientX, y: e.clientY };
+  if (e.pointerType !== "mouse" && journey.step === "day" && !e.target.closest("textarea")) swipeStart = { x: e.clientX, y: e.clientY };
 });
 $("#journey-body").addEventListener("pointerup", (e) => {
   if (!swipeStart) return;

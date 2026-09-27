@@ -78,6 +78,8 @@ def register(r, app):
     def swipe(req, card_id):
         recipe = db.swipe(int(card_id), bool(req.json().get("liked")))
         preloader.kick()  # voorraad weer aanvullen
+        if recipe and recipe["draft"]:
+            app.writer.kick()  # het bewaarde gerecht volledig laten uitschrijven
         return {"recipe": recipe, "stats": db.swipe_stats()}
 
     @r.delete("/api/swipe/pending")

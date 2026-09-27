@@ -4,7 +4,7 @@ import json
 from datetime import date, timedelta
 
 from .base import NotFound
-from .cleaning import SPECIAL_DINNERS, check_date, clean_recipe, positive_int, week_dates
+from .cleaning import SPECIAL_DINNERS, as_sketch, check_date, clean_recipe, positive_int, week_dates
 
 
 class MenuMixin:
@@ -61,8 +61,9 @@ class MenuMixin:
                 "SELECT id FROM menu_options WHERE date = ? AND recipe_id = ?", (day, recipe_id)
             ).fetchone()["id"]
 
-    def add_suggested_option(self, day, recipe_data, reason=""):
-        """Zet een voorstel van Claude op het menu, zonder het al in het receptenboek te bewaren.
+    def add_suggested_option(self, day, recipe_data, reason="", first=False):
+        """Zet een voorstel van Claude op het menu, zonder het al in het receptenboek te bewaren; met `first`
+        vooraan (bijv. een recept dat je zelf omschreef).
 
         Geeft None terug als er die avond al een gerecht met dezelfde naam op het menu staat.
         """
@@ -71,10 +72,11 @@ class MenuMixin:
         existing = {o["name"].strip().lower() for o in self.get_week_menu(day)["options"] if o["date"] == day}
         if recipe["name"].lower() in existing:
             return None
+        position = "COALESCE(MIN(position), 1) - 1" if first else "COALESCE(MAX(position), -1) + 1"
         with self.connect() as conn:
             cur = conn.execute(
-                """INSERT INTO menu_options (date, suggestion, source, reason, position)
-                   VALUES (?, ?, 'claude', ?, (SELECT COALESCE(MAX(position), -1) + 1 FROM menu_options WHERE date = ?))""",
+                f"""INSERT INTO menu_options (date, suggestion, source, reason, position)
+                    VALUES (?, ?, 'claude', ?, (SELECT {position} FROM menu_options WHERE date = ?))""",
                 (day, json.dumps(recipe, ensure_ascii=False), str(reason or "").strip(), day),
             )
             return cur.lastrowid
@@ -227,6 +229,21 @@ class MenuMixin:
                     added.append(day)
         return added
 
+    def swap_days(self, day, other):
+        """Wissel twee avonden om (slepen bij Plannen): het gekozen eten of de bijzondere avond, de opties en de
+        boodschappen gaan mee naar de andere avond. Is die avond leeg, dan is dit gewoon verplaatsen."""
+        check_date(day)
+        check_date(other)
+        if day == other:
+            return
+        tables = [("dinner_choices", "date"), ("special_dinners", "date"), ("menu_options", "date"),
+                  ("listed_days", "date"), ("shopping_items", "source_date")]
+        with self.connect() as conn:
+            for table, column in tables:
+                # Via een tijdelijke waarde, want een datum mag in deze tabellen maar één keer voorkomen.
+                for old, new in ((day, "wissel"), (other, day), ("wissel", other)):
+                    conn.execute(f"UPDATE {table} SET {column} = ? WHERE {column} = ?", (new, old))
+
     def reset_dinners(self, days):
         """Knop "Opnieuw beginnen": haal van deze avonden de keuzes, bijzondere avonden en opties weg, en de
         boodschappen daarvan die nog niet gekocht zijn. Bewaarde recepten blijven in het receptenboek."""
@@ -298,7 +315,7 @@ def _option(row):
             name=row["recipe_name"], tags=row["tags"], prep_minutes=row["prep_minutes"], image=row["recipe_image"]
         )
     else:
-        suggestion = json.loads(row["suggestion"])
+        suggestion = as_sketch(json.loads(row["suggestion"]))
         option.update(
             name=suggestion["name"],
             tags=suggestion["tags"],

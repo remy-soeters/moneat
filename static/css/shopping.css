@@ -45,14 +45,22 @@ dialog.modal > form.shop-add-field {
   background: #fff; color: var(--main-ink);
 }
 .tile-on svg { width: 12px; height: 12px; stroke-width: 3.2; }
+/* iets nieuws toevoegen dat nog niet bij je producten staat: bescheiden, onder de gevonden producten */
 .shop-add-typed {
-  display: flex; align-items: center; gap: 12px; width: 100%; margin: 8px 0 4px; padding: 10px 16px 10px 10px;
-  border: 1.5px dashed var(--color-accent-300); border-radius: var(--radius); background: var(--color-accent-50);
-  font: inherit; font-weight: 700; color: var(--main-ink); text-align: left; cursor: pointer;
+  display: flex; align-items: center; gap: 10px; width: 100%; margin: 12px 0 2px; padding: 8px 12px;
+  border: 1.5px dashed var(--color-accent-200); border-radius: 14px; background: none;
+  font: inherit; font-size: 14.5px; color: var(--ink-2); text-align: left; cursor: pointer;
 }
-.shop-add-typed span:nth-child(2) { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.shop-add-typed .tile-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: #fff; font-size: 24px; }
-.shop-add-typed svg { width: 20px; height: 20px; }
+.shop-add-typed:hover { border-color: var(--color-accent-400); background: var(--color-accent-50); }
+.shop-add-typed span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.shop-add-typed strong { color: var(--ink); }
+.shop-add-typed svg { flex: none; width: 18px; height: 18px; color: var(--main-ink); stroke-width: 2.4; }
+.shop-add-typed kbd {
+  flex: none; padding: 2px 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper);
+  font: inherit; font-size: 11.5px; font-weight: 700; color: var(--ink-3);
+}
+@media (hover: none) { .shop-add-typed kbd { display: none; } }
+.shop-none { margin: 8px 2px 0; }
 
 /* Smaller venster alleen op grotere schermen; op de telefoon een volle breedte onderin (zie base.css). */
 @media (min-width: 721px) {

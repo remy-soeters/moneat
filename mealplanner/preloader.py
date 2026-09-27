@@ -111,6 +111,5 @@ class SwipePreloader:
             self.release_image(current["image"])
             if current["status"] == "liked" and current["recipe_id"]:
                 # Intussen al bewaard: geef het recept in het receptenboek alsnog deze foto.
-                recipe = self.db.get_recipe(current["recipe_id"])
-                if not recipe["image"]:
-                    self.db.update_recipe(recipe["id"], {**recipe, "image": image})
+                if not self.db.get_recipe(current["recipe_id"])["image"]:
+                    self.db.set_recipe_image(current["recipe_id"], image)

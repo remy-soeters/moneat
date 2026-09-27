@@ -1,4 +1,5 @@
-"""Alle AI in de app: menu-opties, recepten bedenken en uitlezen, inspiratie (Claude of Gemini) en foto's (Gemini)."""
+"""Alle AI in de app: menu-opties, recepten bedenken, uitschrijven en uitlezen, inspiratie (Claude of Gemini) en foto's
+(Gemini)."""
 
 import importlib.util
 import json
@@ -108,7 +109,23 @@ SWIPE_SCHEMA = {
 RECIPE_RULES = """Recepten: Nederlandse namen, ingrediënten in metrische eenheden (g, ml, el, tl, teen, blik)
 met hoeveelheden voor het opgegeven aantal personen; laat de eenheid leeg bij hele stuks (2 uien, 1 citroen)
 en schrijf producten uit blik als "tomatenblokjes" met eenheid "blik". Tags als korte kommagescheiden woorden
-(bijv. "vegetarisch, pasta, snel"), en een bereiding met één genummerde stap per regel."""
+(bijv. "vegetarisch, pasta, snel"), en een bereiding met één genummerde stap per regel.
+De ingrediënten en de bereiding horen bij elkaar: elk ingrediënt uit de lijst wordt in een stap gebruikt, en alles
+wat de bereiding gebruikt staat in de lijst (ook olie, boter, zout en peper)."""
+
+# Voor één recept tegelijk (laten bedenken, zelf omschrijven, uitschrijven): volledig, zodat je er echt mee kunt koken.
+DETAIL_RULES = """Schrijf het recept volledig uit, zodat iemand die het gerecht nog nooit gemaakt heeft het zonder vragen
+kan koken:
+- Begin met de voorbereiding: oven voorverwarmen, water aan de kook brengen, groenten wassen en snijden (en hoe:
+  in blokjes van 1 cm, in dunne ringen, fijngehakt).
+- Noem in elke stap welke ingrediënten erbij gaan en hoeveel, de vuurstand of oventemperatuur, hoe lang, en waaraan
+  je ziet dat het goed is (glazig, goudbruin, gaar, ingedikt).
+- Sla niets over: ook op smaak brengen, laten rusten, afgieten en opdienen met eventuele garnering.
+- Meestal 7 tot 12 stappen van één tot drie zinnen.
+- Het recept is af: alles wat op het bord komt, dus ook een bijgerecht als rijst, aardappelen, brood of salade als
+  het gerecht dat nodig heeft (met ingrediënten en stappen).
+Loop het recept aan het eind na: wordt elk ingrediënt gebruikt, staat alles wat je gebruikt in de lijst, kloppen
+de hoeveelheden bij het aantal personen, en klopt prep_minutes (de totale tijd, inclusief oven- en wachttijd)?"""
 
 MENU_SYSTEM = f"""Je bent een praktische maaltijdplanner voor een Nederlands huishouden.
 Je stelt keuze-opties voor het avondeten samen: per gevraagde datum een paar verschillende gerechten,
@@ -127,7 +144,15 @@ Geef per optie in één zin waarom hij op het menu staat."""
 
 GENERATE_SYSTEM = f"""Je bent een ervaren thuiskok die betrouwbare recepten schrijft voor een Nederlands huishouden.
 Schrijf precies het gevraagde gerecht, met ingrediënten die in een gewone Nederlandse supermarkt te krijgen zijn.
-{RECIPE_RULES}"""
+{RECIPE_RULES}
+{DETAIL_RULES}"""
+
+WRITE_OUT_SYSTEM = f"""Je bent een ervaren thuiskok en receptenredacteur voor een Nederlands huishouden. Je krijgt een
+kort recept (een schets) en schrijft het volledig uit. Houd het hetzelfde gerecht: dezelfde naam, hetzelfde aantal
+personen en dezelfde hoofdingrediënten. Vul aan wat ontbreekt en verbeter wat niet klopt, zoals ingrediënten die
+nergens gebruikt worden, stappen met ingrediënten die niet in de lijst staan, of een recept dat halverwege ophoudt.
+{RECIPE_RULES}
+{DETAIL_RULES}"""
 
 EXTRACT_SYSTEM = f"""Je haalt een recept uit de tekst van een webpagina. Neem het recept zo getrouw mogelijk over;
 verzin geen ingrediënten of stappen die er niet staan. Vertaal naar het Nederlands als de pagina in een andere
@@ -384,12 +409,38 @@ def suggest_menu_options(recipes, needs, current_menu, wishes="", servings=2, av
             continue
         remaining[s["date"]] -= 1
         valid.append(s)
+    mark_drafts([s["new_recipe"] for s in valid if s["new_recipe"]])
     return valid
 
 
-def generate_recipe(request, servings=2):
-    """Laat Claude één recept schrijven op basis van een omschrijving."""
-    return _ask(GENERATE_SYSTEM, f"Schrijf een recept voor {servings} personen: {request.strip()}", NEW_RECIPE_SCHEMA)
+def mark_drafts(recipes):
+    """Recepten die met vele tegelijk bedacht zijn, zijn een schets: zodra er een in het receptenboek komt, schrijft
+    de AI hem volledig uit (zie writer.py). Geeft de recepten terug."""
+    for recipe in recipes:
+        recipe["draft"] = True
+    return recipes
+
+
+def generate_recipe(request, servings=2, dinner=False):
+    """Laat de AI één volledig uitgeschreven recept schrijven op basis van een omschrijving."""
+    what = "het avondeten" if dinner else "een recept"
+    return _ask(
+        GENERATE_SYSTEM, f"Schrijf {what} voor {servings} personen. Wat er gezocht wordt: {request.strip()}", NEW_RECIPE_SCHEMA
+    )
+
+
+def write_out_recipe(recipe):
+    """Schrijf een kort recept (schets) volledig uit: zelfde gerecht, naam en aantal personen."""
+    sketch = {key: recipe.get(key) for key in ("name", "servings", "prep_minutes", "tags", "ingredients", "instructions")}
+    full = _ask(
+        WRITE_OUT_SYSTEM,
+        f"Schrijf dit recept volledig uit, voor {recipe['servings']} personen:\n{json.dumps(sketch, ensure_ascii=False)}",
+        NEW_RECIPE_SCHEMA,
+    )
+    if not full.get("ingredients") or not str(full.get("instructions") or "").strip():
+        raise AIUnavailable(f"{provider_name()} gaf een leeg recept terug. Probeer het opnieuw.", json.dumps(full)[:1000],
+                            provider_name())
+    return full
 
 
 def extract_recipe(page_text, url):
@@ -404,11 +455,13 @@ def extract_recipe(page_text, url):
 
 def inspiration(theme, servings=2, count=6):
     """Een collectie van `count` recepten rond een thema."""
-    return _ask(
+    collection = _ask(
         INSPIRATION_SYSTEM,
         f"Stel een collectie van {count} avondgerechten samen voor {servings} personen.\nThema: {theme.strip()}",
         INSPIRATION_SCHEMA,
     )
+    mark_drafts([idea["recipe"] for idea in collection["ideas"]])
+    return collection
 
 
 SWIPE_SYSTEM = f"""Je stelt avondgerechten voor in een swipe-app: de gebruiker ziet per kaart één gerecht met een foto
@@ -441,11 +494,13 @@ def describe_preferences(prefs):
 def swipe_recipes(prefs, count=8, exclude=(), servings=2):
     """Een stapel gerechten om te swipen, passend bij de voorkeuren."""
     seen = ", ".join(list(exclude)[:300]) or "nog niets"
-    return _ask(
+    ideas = _ask(
         SWIPE_SYSTEM,
         f"Stel {count} avondgerechten voor {servings} personen voor.\n{describe_preferences(prefs)}\n\nAl gezien: {seen}",
         SWIPE_SCHEMA,
     )["ideas"][:count]
+    mark_drafts([idea["recipe"] for idea in ideas])
+    return ideas
 
 
 def photo_prompt(recipe):

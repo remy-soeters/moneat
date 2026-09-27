@@ -124,14 +124,15 @@ def register(r, app):
     @r.get("/api/shopping/suggestions")
     def suggestions(req):
         """Voor het toevoegen: wat je waarschijnlijk nodig hebt (op volgorde van kans), aangevuld met gangbare
-        boodschappen zolang er weinig geschiedenis is, plus alle bekende producten om in te zoeken."""
+        boodschappen zolang er weinig geschiedenis is, plus alle bekende producten om in te zoeken (met `bought`:
+        eerder gekocht, anders een ingrediënt uit je recepten)."""
         frequent = db.frequent_purchases(24)
         seen = {product_key(f["name"]) for f in frequent}
-        staples = [{"name": n, "due": False} for n in STAPLES if product_key(n) not in seen]
-        top = [{"name": f["name"], "due": f["due"]} for f in frequent] + staples
+        staples = [{"name": n, "due": False, "bought": False} for n in STAPLES if product_key(n) not in seen]
+        top = [{"name": f["name"], "due": f["due"], "bought": True} for f in frequent] + staples
         for item in top:
             item["product"] = product_key(item["name"])
-        catalog = [{"name": n, "product": product_key(n)} for n in db.product_catalog()]
+        catalog = [{**p, "product": product_key(p["name"])} for p in db.product_catalog()]
         return {
             "suggestions": with_icons(top[:30]),
             "catalog": with_icons(catalog, draw=False),  # geen iconen laten tekenen voor alles wat je ooit kookte

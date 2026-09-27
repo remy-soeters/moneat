@@ -3,7 +3,7 @@
 import json
 
 from .base import NotFound
-from .cleaning import clean_recipe
+from .cleaning import as_sketch, clean_recipe
 
 
 class SwipeMixin:
@@ -100,7 +100,7 @@ class SwipeMixin:
 def _card(row):
     return {
         "id": row["id"],
-        "recipe": json.loads(row["recipe"]),
+        "recipe": as_sketch(json.loads(row["recipe"])),
         "description": row["description"],
         "image": row["image"],
         "status": row["status"],

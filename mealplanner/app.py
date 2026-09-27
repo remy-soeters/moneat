@@ -26,6 +26,7 @@ from .icons import IconMaker
 from .importer import ImportFailed
 from .preloader import DEFAULT_PRELOAD, PRELOAD_OPTIONS, SwipePreloader
 from .web import SECURITY_HEADERS, ApiError, Request, Response, Router, cookie_header
+from .writer import RecipeWriter
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 CSRF_HEADER = "X-Requested-With"
@@ -55,6 +56,8 @@ class App:
         ai.set_settings(db.get_setting)
         self.preloader = SwipePreloader(db, images, self.release_image, self.load_preferences, self.preload_target)
         self.icon_maker = IconMaker(db, images)
+        self.writer = RecipeWriter(db, self.log_error)
+        self.writer.kick()  # schetsen die de vorige keer nog niet uitgeschreven waren
         self.throttle = auth.Throttle()
         # Nog niemand? Dan kan het eerste account alleen met deze code uit het serverlog worden gemaakt.
         self.setup_code = auth.new_setup_code() if db.count_users() == 0 else None

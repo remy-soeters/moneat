@@ -65,6 +65,13 @@ MAX_TEXT = 20_000
 MAX_TAGS = 300
 
 
+def as_sketch(recipe):
+    """Een bewaard voorstel van de AI (swipekaart, inspiratie, menu-optie). Van vóór het uitschrijven hebben die nog
+    geen `draft`; ook dat waren korte impressies, dus die worden uitgeschreven zodra je ze bewaart."""
+    recipe.setdefault("draft", True)
+    return recipe
+
+
 def clean_recipe(data):
     if not isinstance(data, dict):
         raise ValueError("Recept moet een object zijn")
@@ -108,4 +115,5 @@ def clean_recipe(data):
         "image": clean_image(data.get("image")),
         "source_url": clean_url(data.get("source_url")),
         "ingredients": ingredients,
+        "draft": bool(data.get("draft")),  # schets van de AI, wordt nog uitgeschreven (zie writer.py)
     }

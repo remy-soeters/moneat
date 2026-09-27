@@ -2,12 +2,15 @@
 
 import re
 from datetime import date, timedelta
+from http import HTTPStatus
 
 from .. import ai
 from ..db import check_date, week_dates
+from ..web import ApiError
 from .recipes import annotate, servings
 
 MAX_WISHES = 500
+MAX_DESCRIPTION = 1000
 
 
 def dish_key(name):
@@ -102,11 +105,41 @@ def register(r, app):
     @r.post(r"/api/menu/options/(\d+)/choose")
     def choose_option(req, option_id):
         db.choose_option(int(option_id), req.json().get("servings"))
+        app.writer.kick()  # was het een schets van de AI, dan wordt hij nu volledig uitgeschreven
         return {"ok": True}
 
     @r.post(r"/api/menu/options/(\d+)/save")
     def save_option(req, option_id):
-        return {"recipe_id": db.save_option_recipe(int(option_id))}
+        recipe_id = db.save_option_recipe(int(option_id))
+        app.writer.kick()
+        return {"recipe_id": recipe_id}
+
+    @r.post("/api/menu/describe")
+    def describe(req):
+        """Zelf omschrijven wat je zoekt: de AI schrijft er een volledig recept bij, dat vooraan bij de opties van
+        die avond komt (en pas in het receptenboek als je het kiest of bewaart)."""
+        body = req.json()
+        day = check_date(body.get("date")).isoformat()
+        wish = str(body.get("prompt") or "").strip()[:MAX_DESCRIPTION]
+        if not wish:
+            raise ApiError(HTTPStatus.BAD_REQUEST, "Beschrijf eerst wat je zoekt")
+        recipe = ai.generate_recipe(wish, servings(body), dinner=True)
+        option_id = db.add_suggested_option(day, recipe, f"Op jouw verzoek: {wish}"[:300], first=True)
+        if option_id is None:  # stond er die avond al
+            name = dish_key(recipe["name"])
+            option_id = next(o["id"] for o in db.get_week_menu(day)["options"] if o["date"] == day and dish_key(o["name"]) == name)
+        return {"id": option_id}
+
+    @r.post("/api/menu/move")
+    def move(req):
+        """Slepen bij Plannen: wissel twee avonden om (vanaf vandaag; wat geweest is, blijft zoals het was)."""
+        body = req.json()
+        today = check_date(body.get("today") or date.today().isoformat())
+        days = [check_date(body.get("from")), check_date(body.get("to"))]
+        if min(days) < today:
+            raise ApiError(HTTPStatus.BAD_REQUEST, "Een avond die al geweest is, kun je niet meer verplaatsen")
+        db.swap_days(*(d.isoformat() for d in days))
+        return {"ok": True}
 
     @r.delete("/api/menu/choice")
     def clear_choice(req):

@@ -37,14 +37,25 @@ def register(r, app):
 
     @r.post("/api/recipes")
     def create_recipe(req):
-        return one(req, db.create_recipe(req.json()))
+        recipe = db.create_recipe(req.json())
+        if recipe["draft"]:  # bijv. bewaarde inspiratie: die schrijft de AI nu volledig uit
+            app.writer.kick()
+        return one(req, recipe)
 
     @r.get(r"/api/recipes/(\d+)")
     def get_recipe(req, recipe_id):
         recipe = one(req, db.get_recipe(int(recipe_id)))
         recipe["ratings"] = db.recipe_ratings(recipe["id"])
         recipe["homemade"] = db.homemade_parts(recipe)  # bijv. naan waarvan je een eigen recept hebt
+        if recipe["draft"]:
+            app.writer.kick()
+            recipe["writing"] = app.writer.running()
         return recipe
+
+    @r.post(r"/api/recipes/(\d+)/write")
+    def write_out(req, recipe_id):
+        """Laat de AI het recept (opnieuw) volledig uitschrijven: dezelfde naam, personen en foto."""
+        return one(req, app.writer.write(int(recipe_id), force=True))
 
     @r.put(r"/api/recipes/(\d+)")
     def update_recipe(req, recipe_id):
@@ -112,8 +123,7 @@ def register(r, app):
     def photo_for_recipe(req, recipe_id):
         recipe = db.get_recipe(int(recipe_id))
         old_image = recipe["image"]
-        recipe["image"] = images.save(ai.generate_photo(recipe))
-        recipe = db.update_recipe(recipe["id"], recipe)
+        recipe = db.set_recipe_image(recipe["id"], images.save(ai.generate_photo(recipe)))
         app.release_image(old_image)
         return one(req, recipe)
 

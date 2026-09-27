@@ -13,7 +13,7 @@ import { renderRecipes } from "./recipes.js";
 import { applyShopping } from "./shopping.js";
 import { state } from "./state.js";
 import { swipeTop } from "./swipe.js";
-import { closeSheet, guarded, openSheet, toast } from "./ui.js";
+import { aiName, closeSheet, guarded, openSheet, toast } from "./ui.js";
 import { $, $$, addDays, dayName, effort, esc, formatShort, ingredientItems, isoDate, personen, save, starsHtml, steps, tagList } from "./util.js";
 
 // Toont een recept. Precies één van: `option` (menu-optie), `recipe` (uit het receptenboek),
@@ -105,7 +105,7 @@ function renderView() {
       </div>
       <section class="recipe-method">
         <div class="col-head"><h2>Bereiding</h2>${cooking && methodSteps.length ? `<small>Tik een stap aan als hij klaar is</small>` : ""}</div>
-        ${cooking ? timerHtml() : ""}
+        ${cooking ? timerHtml() : sketchHtml()}
         ${methodSteps.length
           ? `<ol class="method-list">${methodSteps
               .map((step, i) => `<li><button type="button" class="step${state.view.done.steps.has(i) ? " done" : ""}" data-step="${i}" aria-pressed="${state.view.done.steps.has(i)}">
@@ -115,16 +115,36 @@ function renderView() {
         ${cooking
           ? `<button type="button" class="btn primary block cook-done" data-view-action="done-cooking">${ICONS.check}Klaar met koken</button>`
           : cookButton("in-method")}
+        ${recipe && !recipe.draft && !cooking
+          ? `<button type="button" class="btn link write-more" data-view-action="write" ${state.view.writing ? "disabled" : ""}>
+              ${state.view.writing ? `<span class="spinner"></span>${aiName()} schrijft het recept uit…` : `${ICONS.sparkle}Te kort? Laat ${aiName()} het uitgebreider uitschrijven`}</button>`
+          : ""}
       </section>
     </div>`;
 
   renderViewServings();
+  if (state.view.ratings) renderReviews(state.view.ratings);
   $("#view-sheet").classList.toggle("cooking", cooking);
   $("#cook-stop").hidden = !cooking;
   $("#view-edit").hidden = !recipe || cooking;
   $("#view-fav").hidden = !recipe;
   paintFavorite();
   renderFoot();
+}
+
+// Swipekaarten, inspiratie en menu-opties zijn een impressie: genoeg om zin te krijgen (met vele tegelijk bedacht).
+// Komt er een in je receptenboek, dan schrijft de AI het volledige recept uit.
+function sketchHtml() {
+  const { source, recipe, option, idea, card, writing } = state.view;
+  if (!source.draft) return "";
+  if (!recipe) {
+    const when = option ? "Kies of bewaar je dit gerecht" : card || idea ? "Bewaar je dit gerecht" : "";
+    return when ? `<p class="sketch-note">${ICONS.sparkle}<span>Dit is een impressie. ${when}, dan schrijft ${aiName()} het volledige recept uit, met alle stappen en tijden.</span></p>` : "";
+  }
+  return writing
+    ? `<p class="sketch-note"><span class="spinner"></span><span>${aiName()} schrijft het volledige recept nu uit, met alle stappen en tijden…</span></p>`
+    : `<div class="sketch-note">${ICONS.sparkle}<span>Dit is nog de impressie van ${aiName()}.
+        <button type="button" class="btn link" data-view-action="write">Nu volledig uitschrijven</button></span></div>`;
 }
 
 function ratingHtml(recipe) {
@@ -136,15 +156,52 @@ function ratingHtml(recipe) {
 }
 
 // Notities van eerdere keren ("volgende keer meer knoflook") en ingrediënten waarvan je een eigen recept hebt
-// (zoals naan) komen los binnen.
+// (zoals naan) komen los binnen. Wordt een schets op de achtergrond uitgeschreven, dan kijken we af en toe of hij
+// klaar is en tonen we meteen de volledige versie.
 async function loadDetails(recipeId) {
   try {
-    const { ratings, homemade } = await api(`/api/recipes/${recipeId}`);
-    if (state.view?.recipe?.id !== recipeId) return;
-    state.view.homemade = homemade;
-    renderReviews(ratings);
-    renderViewServings();
+    const data = await api(`/api/recipes/${recipeId}`);
+    if (state.view?.recipe?.id !== recipeId || !$("#view-sheet").open) return;
+    const before = [state.view.recipe.draft, state.view.writing];
+    Object.assign(state.view, { homemade: data.homemade, ratings: data.ratings, writing: Boolean(data.draft && data.writing) });
+    if (state.view.recipe.draft && !data.draft && !state.view.cooking) showWritten(data);
+    if (before[0] !== state.view.recipe.draft || before[1] !== state.view.writing) renderView();
+    else {
+      renderReviews(data.ratings);
+      renderViewServings();
+    }
+    if (state.view.writing) setTimeout(() => loadDetails(recipeId), 4000);
   } catch {} // alleen extra informatie; zonder gaat het ook
+}
+
+// Het volledig uitgeschreven recept tonen, en ook in het receptenboek bijwerken.
+function showWritten(updated) {
+  applyUpdated(updated);
+  const index = state.recipes.findIndex((r) => r.id === updated.id);
+  if (index >= 0) state.recipes[index] = { ...state.recipes[index], ...updated };
+  state.view.done = { steps: new Set(), ingredients: new Set() };
+}
+
+// Zelf laten uitschrijven: een schets, of een recept dat je te summier vindt.
+async function writeOut() {
+  const { recipe } = state.view;
+  const replace = `${aiName()} schrijft “${recipe.name}” opnieuw en uitgebreider uit: alle stappen, tijden en temperaturen. `
+    + "De huidige ingrediënten en bereiding worden daardoor vervangen. Doorgaan?";
+  if (!recipe.draft && !confirm(replace)) return;
+  state.view.writing = true;
+  renderView();
+  try {
+    const updated = await api(`/api/recipes/${recipe.id}/write`, { method: "POST" });
+    if (state.view?.recipe?.id === recipe.id) showWritten(updated);
+    toast(`${updated.name} is volledig uitgeschreven`);
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    if (state.view?.recipe?.id === recipe.id) {
+      state.view.writing = false;
+      renderView();
+    }
+  }
 }
 
 function renderReviews(ratings) {
@@ -302,6 +359,7 @@ async function viewAction(action) {
   }
   if (action === "done-cooking") return finishCooking();
   if (action === "rate") return openRating({ recipe, onSaved: afterRating });
+  if (action === "write") return writeOut();
   if (action === "to-shopping") return addViewToShopping();
   if (action === "choose") {
     closeSheet("#view-sheet");

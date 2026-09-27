@@ -7,20 +7,32 @@ Web-app voor het avondeten van je huishouden.
   beoordeeld, dan vraagt hij hoe het was.
 - **Plannen:** een stappenplan. "Wat wil je volgende week eten?", daarna per avond een paar opties van de AI.
   Tik op een gerecht om het te kiezen, vraag om **andere opties**, of kies **Anders…**: uit de vriezer, uit eten,
-  afhalen, restjes of iets uit je receptenboek. Swipe (of tik) door naar de volgende avond; aan het eind zie je
+  afhalen, restjes of iets uit je receptenboek. Met **Zelf omschrijven** typ je waar je zin in hebt ("iets met de
+  kip en spinazie die nog in de koelkast liggen, binnen 30 minuten"); de AI schrijft er een volledig recept bij, dat
+  vooraan bij de opties van die avond komt. Swipe (of tik) door naar de volgende avond; aan het eind zie je
   je week. Nieuwe recepten van de AI komen pas in je receptenboek als je ze kiest of bewaart. Een gerecht staat
   maar één keer in de week op het menu, en wat je deze week al hebt weggeklikt of op een andere avond hebt laten
   liggen, komt die week niet terug. Bovenaan de week: **Zet op boodschappenlijst** (de ingrediënten van de
   gekozen avonden vanaf vandaag), **Wijzigen** (de avonden vanaf vandaag nog eens langslopen) en **Opnieuw
   beginnen** (keuzes en opties vanaf vandaag weghalen en opnieuw plannen; je receptenboek blijft zoals het is).
+  In het weekoverzicht **sleep** je een avond naar een andere dag (aan de greep rechts, met de muis aan de hele rij,
+  of op de telefoon door de rij even vast te houden): de twee avonden wisselen om, met hun opties en boodschappen.
+  Met het toetsenbord kan het ook: pijltje omhoog of omlaag op de greep.
 - **Receptenboek:** schrijf recepten zelf, importeer ze via een link van een receptensite (inclusief foto)
-  of laat Claude er een bedenken. Je kunt ook je eigen foto uploaden. Met een **hartje** maak je een recept
+  of laat Claude er een bedenken (volledig uitgeschreven: voorbereiding, tijden, temperaturen, en elk ingrediënt
+  gebruikt). Je kunt ook je eigen foto uploaden. Met een **hartje** maak je een recept
   favoriet (ieder voor zich); het filter *Favorieten* toont alleen die.
 - **Een recept** opent als pagina met drie kolommen: foto en gegevens, ingrediënten (om te rekenen naar het
   aantal personen) en de bereiding. **Start met koken** zet de **kookmodus** aan: grotere letters, stappen en
   ingrediënten afvinken door erop te tikken, een kookwekker, en het scherm blijft aan. Na **Klaar met koken**
   geef je 1 tot 5 sterren, met een notitie voor de volgende keer ("meer knoflook"). De AI stelt favorieten
   en goed beoordeelde gerechten vaker voor, en slecht beoordeelde niet meer.
+- **Eerst een impressie, daarna het volledige recept.** Swipekaarten, inspiratie en opties voor het weekmenu
+  bedenkt de AI met vele tegelijk: een impressie om zin te krijgen (foto, een smakelijke zin, ingrediënten en een
+  korte bereiding; de receptpagina zegt dat erbij). Bewaar of kies je er een, dan schrijft de AI het volledige
+  recept op de achtergrond uit, met dezelfde naam, personen en foto; staat het op je boodschappenlijst, dan
+  verandert die mee. Dat geldt ook voor kaarten en inspiratie die er al stonden. Heb je het recept intussen zelf gewijzigd, dan blijft jouw versie staan. Vind je een
+  bestaand recept te summier, tik dan onder de bereiding op **Te kort? Laat … het uitgebreider uitschrijven**.
 - **Recepten swipen** (op de inspiratiepagina): geef je voedselvoorkeuren op (dieet, keukens, tijd,
   liever niet) en swipe door gerechten met foto en korte omschrijving. Naar rechts bewaart het recept
   in je receptenboek, naar links slaat het over; gezien gerechten komen niet terug. De server zet op de
@@ -34,6 +46,10 @@ Web-app voor het avondeten van je huishouden.
   maakt (staat "Naan" in je receptenboek, dan is naanbrood in een ander recept dat recept) komt niet op de lijst:
   de ingrediënten ervan wel. Toevoegen gaat via de balk onderin: het veld blijft onderin, net boven het
   toetsenbord, met de suggesties erboven; eerst wat je volgens je koopritme waarschijnlijk weer nodig hebt.
+  Typ je iets ("tom"), dan zie je wat je eerder kocht (tomaten, tomatenpuree, cherrytomaten), met wat speling
+  ("tomaat" vindt ook "tomaten"); ingrediënten uit je recepten alleen als dat weinig oplevert. Tik de producten
+  aan die je nodig hebt; je zoekwoord blijft staan, zodat je er meer kunt aantikken. Enter zet precies wat je
+  typte op de lijst (of het bekende product, als je dat typte).
   Gemini tekent voor elk product één keer een icoon. Houd een tegel ingedrukt om hem te wijzigen; daar kun je
   ook een **nieuw icoon** laten tekenen (eventueel met een beschrijving, zoals "een fles"), een eigen afbeelding
   kiezen of teruggaan naar de emoji.
@@ -195,10 +211,11 @@ Zo is de app van buitenaf bereikbaar via een eigen adres met HTTPS, bijvoorbeeld
 | `mealplanner/groceries.py` | Boodschappen samenvoegen: zelfde product, winkeleenheden (blikken, hele stuks), zelfgemaakte onderdelen |
 | `mealplanner/images.py` | Opslag van receptfoto's |
 | `mealplanner/preloader.py` | Houdt op de achtergrond swipekaarten mét foto klaar |
+| `mealplanner/writer.py` | Schrijft op de achtergrond impressies van de AI volledig uit zodra ze in het receptenboek komen |
 | `mealplanner/icons.py` | Laat Gemini op de achtergrond iconen voor producten tekenen |
 | `static/index.html` | De pagina's en vensters |
 | `static/css/` | Opmaak per onderdeel (pastel wit, groen als hoofdkleur, roze als tweede kleur) |
-| `static/js/` | JavaScript-modules per onderdeel; `main.js` start de app, `nav.js` wisselt tussen de pagina's (die zich daar zelf aanmelden), `home.js` is Vandaag, `menu.js` Plannen, `journey.js` het stappenplan, `plan.js` wat die delen (keuzes, boodschappen), `view.js` de receptpagina, `cook.js` de kookmodus, `rating.js` sterren en hartjes |
+| `static/js/` | JavaScript-modules per onderdeel; `main.js` start de app, `nav.js` wisselt tussen de pagina's (die zich daar zelf aanmelden), `home.js` is Vandaag, `menu.js` Plannen (weekoverzicht met slepen), `journey.js` het stappenplan (met zelf omschrijven), `plan.js` wat die delen (keuzes, boodschappen), `view.js` de receptpagina, `cook.js` de kookmodus, `rating.js` sterren en hartjes |
 | `tests/` | Unittests; `tests/helpers.py` start een testserver met een ingelogde gebruiker |
 
 ## API
@@ -217,7 +234,8 @@ login (sessie-cookie). Verzoeken die iets wijzigen moeten de kop `X-Requested-Wi
 | GET/POST | `/api/users` | Accounts bekijken / toevoegen (beheerder) |
 | PUT/DELETE | `/api/users/{id}` | `{display_name, is_admin, password}` wijzigen / account verwijderen (beheerder) |
 | GET/POST | `/api/recipes` | Recepten ophalen (met jouw hartje en de gemiddelde sterren) / aanmaken |
-| GET/PUT/DELETE | `/api/recipes/{id}` | Eén recept (GET met de laatste beoordelingen en notities) |
+| GET/PUT/DELETE | `/api/recipes/{id}` | Eén recept (GET met de laatste beoordelingen en notities; bij een impressie (`draft`) ook `writing`: wordt hij nu uitgeschreven?) |
+| POST | `/api/recipes/{id}/write` | Recept (opnieuw) volledig laten uitschrijven door de AI; naam, personen en foto blijven |
 | PUT | `/api/recipes/{id}/favorite` | `{favorite}` → hartje aan of uit (per gebruiker) |
 | POST | `/api/recipes/{id}/rating` | `{stars, note, date}` → beoordeling na het koken (1 per gebruiker per dag) |
 | POST | `/api/recipes/import` | `{url}` → concept-recept van een website (niet opgeslagen) |
@@ -249,6 +267,8 @@ login (sessie-cookie). Verzoeken die iets wijzigen moeten de kop `X-Requested-Wi
 | POST | `/api/menu/fill` | `{week, dates?, wishes, servings, per_day}` de AI vult komende avonden zonder keuze aan tot `per_day` opties (optioneel alleen `dates`) |
 | POST | `/api/menu/refresh` | `{date, per_day, servings, wishes}` "andere opties": nieuwe AI-opties voor één avond (de oude gaan pas weg als de nieuwe er zijn) |
 | POST | `/api/menu/special` | `{date, kind}` avond zonder recept: `vriezer`, `uiteten`, `afhalen` of `restjes` |
+| POST | `/api/menu/describe` | `{date, prompt, servings}` zelf omschrijven: de AI schrijft een volledig recept dat vooraan bij de opties van die avond komt → `{id}` |
+| POST | `/api/menu/move` | `{from, to, today}` twee avonden (vanaf vandaag) omwisselen, met hun keuze, opties en boodschappen |
 | GET | `/api/home?today=JJJJ-MM-DD` | Startpagina: vanavond en de komende 6 dagen, hoeveel er nog te halen is, en het avondeten van gisteren als je dat nog niet beoordeeld hebt |
 | GET | `/api/shopping` | De hele boodschappenlijst (samengevoegd per product, met iconen) |
 | POST | `/api/shopping/check` | `{key, checked}` product als gekocht markeren of terugzetten |
@@ -257,7 +277,7 @@ login (sessie-cookie). Verzoeken die iets wijzigen moeten de kop `X-Requested-Wi
 | PUT | `/api/shopping/items` | `{key, name, quantity, unit}` product wijzigen |
 | DELETE | `/api/shopping/items?key=…` | Product van de lijst halen |
 | POST | `/api/shopping/clear-bought` | Alles wat gekocht is van de lijst halen |
-| GET | `/api/shopping/suggestions` | Wat je waarschijnlijk nodig hebt (op koopritme), gangbare boodschappen, en alle bekende producten om in te zoeken |
+| GET | `/api/shopping/suggestions` | Wat je waarschijnlijk nodig hebt (op koopritme), gangbare boodschappen, en alle bekende producten om in te zoeken (`bought`: eerder gekocht) |
 | POST | `/api/shopping/icon` | `{name, hint}` Gemini tekent een nieuw icoon voor een product (eventueel naar een beschrijving) |
 | PUT | `/api/shopping/icon` | `{name, image}` eigen afbeelding als icoon (eerst uploaden via `/api/images`), of `""` voor de emoji |
 | GET/DELETE | `/api/errors` | Foutmeldingen bekijken / wissen (beheerder) |

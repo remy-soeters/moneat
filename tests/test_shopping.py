@@ -254,6 +254,14 @@ class ShoppingApiTest(unittest.TestCase):
         self.call("POST", "/api/shopping/check", {"key": item["key"], "checked": True})
         _, result = self.call("GET", "/api/shopping/suggestions")
         self.assertEqual((result["suggestions"][0]["name"], result["has_history"]), ("Stroopwafels", True))
+        self.assertEqual([s["bought"] for s in result["suggestions"][:2]], [True, False])  # daarna gangbare boodschappen
+
+    def test_catalog_says_what_you_bought_before(self):
+        self.db.create_recipe({"name": "Soep", "ingredients": [{"name": "tomatenpuree", "quantity": 1, "unit": "blik"}]})
+        item = self.call("POST", "/api/shopping/items", {"text": "tomaten"})[1]["items"][0]
+        self.call("POST", "/api/shopping/check", {"key": item["key"], "checked": True})
+        catalog = self.call("GET", "/api/shopping/suggestions")[1]["catalog"]
+        self.assertEqual([(c["name"], c["bought"]) for c in catalog], [("Tomaten", True), ("Tomatenpuree", False)])
 
 
 if __name__ == "__main__":

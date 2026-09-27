@@ -149,3 +149,56 @@ class NoRepeatsTest(unittest.TestCase):
         self.assertEqual(suggest.call_args.kwargs["avoid"], ["Stamppot"])
         options = [o["name"] for o in self.db.get_week_menu(self.next_day)["options"] if o["date"] == self.next_day]
         self.assertEqual(options, ["Wraps"])
+
+
+class MoveAndDescribeTest(unittest.TestCase):
+    """Avonden omwisselen door te slepen, en zelf omschrijven wat je zoekt."""
+
+    def setUp(self):
+        self.api = api_test(self)
+        self.db = self.api.db
+        self.today, self.other = TODAY.isoformat(), (TODAY + timedelta(days=2)).isoformat()
+
+    def move(self, source, target):
+        return self.api.call("POST", "/api/menu/move", {"from": source, "to": target, "today": self.today})
+
+    def test_move_swaps_evenings_with_their_options_and_shopping(self):
+        soup = self.db.create_recipe(SOUP)
+        self.db.add_suggested_option(self.today, idea("Curry"), "lekker")
+        self.db.choose_dinner(self.today, soup["id"], servings=3)
+        self.db.put_dinners_on_list([self.today])
+        self.db.set_special_dinner(self.other, "afhalen")
+
+        self.assertEqual(self.move(self.today, self.other), (200, {"ok": True}))
+        menu = self.db.get_week_menu(self.other)
+        days = {d["date"]: d for d in self.db.upcoming_dinners(self.today, 3)}
+        self.assertEqual((days[self.other]["recipe"]["name"], days[self.other]["servings"]), ("Soep", 3))
+        self.assertEqual(days[self.today]["special"]["kind"], "afhalen")
+        self.assertEqual(days[self.other]["options"], 2)  # de opties van die avond gaan mee
+        # De boodschappen gaan mee: nog steeds op de lijst, en een andere keuze verandert de lijst nog steeds mee.
+        self.assertTrue(next(c for c in menu["choices"] if c["date"] == self.other)["listed"])
+        self.db.choose_dinner(self.other, self.db.create_recipe({**SOUP, "name": "Stoof", "ingredients": [{"name": "ui", "quantity": 1, "unit": ""}]})["id"])
+        self.assertEqual([i["name"] for i in self.db.shopping_list()], ["Ui"])
+
+        self.assertEqual(self.move(self.other, (TODAY + timedelta(days=1)).isoformat())[0], 200)  # naar een lege avond
+        self.assertIsNone(self.db.upcoming_dinners(self.other, 1)[0]["recipe"])
+        yesterday = (TODAY - timedelta(days=1)).isoformat()
+        self.assertEqual(self.move(self.today, yesterday)[0], 400)  # wat geweest is, blijft
+        self.assertEqual(self.move(self.today, "morgen")[0], 400)
+
+    def test_describe_puts_a_full_recipe_first(self):
+        self.db.add_suggested_option(DAY, idea("Curry"), "lekker")
+        with mock.patch.object(ai, "generate_recipe", return_value=idea("Kip met spinazie")) as generate:
+            status, body = self.api.call("POST", "/api/menu/describe", {"date": DAY, "prompt": " iets met kip ", "servings": 3})
+        self.assertEqual(status, 200)
+        self.assertEqual(generate.call_args.args, ("iets met kip", 3))
+        self.assertTrue(generate.call_args.kwargs["dinner"])
+        options = [o for o in self.db.get_week_menu(DAY)["options"] if o["date"] == DAY]
+        self.assertEqual([o["name"] for o in options], ["Kip met spinazie", "Curry"])
+        self.assertEqual((options[0]["id"], options[0]["reason"]), (body["id"], "Op jouw verzoek: iets met kip"))
+        self.assertFalse(options[0]["suggestion"]["draft"])  # volledig geschreven, geen schets
+
+        with mock.patch.object(ai, "generate_recipe", return_value=idea("Kip met spinazie")):  # stond er al
+            self.assertEqual(self.api.call("POST", "/api/menu/describe", {"date": DAY, "prompt": "kip"})[1], {"id": body["id"]})
+        self.assertEqual(self.api.call("POST", "/api/menu/describe", {"date": DAY, "prompt": "  "})[0], 400)
+        self.assertEqual(self.api.call("POST", "/api/menu/describe", {"date": "ooit", "prompt": "kip"})[0], 400)

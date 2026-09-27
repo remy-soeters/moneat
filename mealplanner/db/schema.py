@@ -9,7 +9,9 @@ CREATE TABLE IF NOT EXISTS recipes (
     instructions  TEXT NOT NULL DEFAULT '',
     tags          TEXT NOT NULL DEFAULT '',
     image         TEXT NOT NULL DEFAULT '',
-    source_url    TEXT NOT NULL DEFAULT ''
+    source_url    TEXT NOT NULL DEFAULT '',
+    -- 1 = een korte schets van de AI (bedacht met vele tegelijk) die nog volledig uitgeschreven wordt (writer.py)
+    draft         INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS ingredients (
@@ -206,13 +208,14 @@ def _has_table(conn, name):
 
 
 def _add_missing_recipe_columns(conn):
-    """Oudere databases hebben nog geen kolommen voor foto en bron."""
+    """Oudere databases hebben nog geen kolommen voor foto, bron en schets."""
     columns = [r[1] for r in conn.execute("PRAGMA table_info(recipes)")]
     if not columns:
         return
-    for column in ("image", "source_url"):
+    added = {"image": "TEXT NOT NULL DEFAULT ''", "source_url": "TEXT NOT NULL DEFAULT ''", "draft": "INTEGER NOT NULL DEFAULT 0"}
+    for column, definition in added.items():
         if column not in columns:
-            conn.execute(f"ALTER TABLE recipes ADD COLUMN {column} TEXT NOT NULL DEFAULT ''")
+            conn.execute(f"ALTER TABLE recipes ADD COLUMN {column} {definition}")
 
 
 def _migrate_week_shopping(conn):

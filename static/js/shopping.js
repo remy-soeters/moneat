@@ -190,20 +190,36 @@ async function loadSuggestions() {
 }
 
 const plain = (text) => String(text).toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").trim();
+// Met wat Nederlandse speling: dubbele klinkers enkel, en van het zoekwoord meervoud en verkleinwoord eraf.
+// Zo vindt "tomaten" ook "tomaatjes" en "tomaat" ook "tomatenpuree".
+const stem = (text) => plain(text).replace(/([aeou])\1/g, "$1");
+const stemQuery = (q) => stem(q).replace(/(tjes|jes|en|s)$/, "");
 
-// Zoeken: eerst wat met je zoekwoord begint, dan waar een woord mee begint, dan de rest; binnen elke groep
-// blijft de volgorde van "waarschijnlijk nodig" en "vaak gekocht" staan.
-function searchProducts(q) {
+// Zoeken: eerst wat met je zoekwoord begint, dan waar een woord mee begint, dan waar het in staat, en dan wat
+// alleen met speling lijkt; binnen elke groep blijft de volgorde van "waarschijnlijk nodig" en "vaak gekocht".
+// Geeft {bought, other, exact}: eerder gekochte producten, andere (ingrediënten van je recepten, gangbare
+// boodschappen), en het product dat precies is wat je typte (als dat er is).
+function searchProducts(typed) {
+  const q = plain(typed);
+  const fuzzy = stemQuery(q);
   const seen = new Set();
   const scored = [];
+  let same = null; // precies wat je typte
+  let alike = null; // met speling hetzelfde ("tomaat" en "Tomaten")
   for (const item of [...shop.suggestions, ...shop.catalog]) {
     if (seen.has(item.product)) continue;
     seen.add(item.product);
     const name = plain(item.name);
-    const rank = name.startsWith(q) ? 0 : name.split(/[\s-]+/).some((w) => w.startsWith(q)) ? 1 : name.includes(q) ? 2 : -1;
-    if (rank >= 0) scored.push([rank, scored.length, item]);
+    const words = name.split(/[\s-]+/);
+    let rank = name.startsWith(q) ? 0 : words.some((w) => w.startsWith(q)) ? 1 : name.includes(q) ? 2 : -1;
+    if (rank < 0 && fuzzy.length >= 4 && words.some((w) => stem(w).startsWith(fuzzy))) rank = 3;
+    if (rank < 0) continue;
+    if (name === q) same ??= item;
+    else if (fuzzy.length >= 4 && stemQuery(name) === fuzzy) alike ??= item;
+    scored.push([rank, scored.length, item]);
   }
-  return scored.sort((a, b) => a[0] - b[0] || a[1] - b[1]).map(([, , item]) => item);
+  const found = scored.sort((a, b) => a[0] - b[0] || a[1] - b[1]).map(([, , item]) => item);
+  return { bought: found.filter((i) => i.bought), other: found.filter((i) => !i.bought), exact: same ?? alike };
 }
 
 function suggestTile(item, onList) {
@@ -225,12 +241,15 @@ function renderSuggestions() {
     items.length ? `<h3>${title}</h3><div class="tiles-grid">${items.map((i) => suggestTile(i, onList)).join("")}</div>` : "";
 
   if (typed) {
-    const matches = searchProducts(plain(typed)).slice(0, 15);
-    const exact = matches.some((m) => plain(m.name) === plain(typed));
-    const add = exact ? "" : `<button type="button" class="shop-add-typed" data-suggest="${esc(typed)}">
-        <span class="tile-icon" aria-hidden="true">${productEmoji(typed)}</span>
-        <span>“${esc(typed)}” toevoegen</span>${ICONS.plus}</button>`;
-    panel.innerHTML = add + section("Uit je producten", matches);
+    // Eerst wat je eerder kocht; ingrediënten uit je recepten alleen als dat weinig oplevert.
+    const { bought, other, exact } = searchProducts(typed);
+    const more = bought.length < 6 ? other.slice(0, 8 - Math.min(bought.length, 4)) : [];
+    const add = exact ? "" : `<button type="button" class="shop-add-typed" data-suggest="${esc(typed)}" data-typed>
+        ${ICONS.plus}<span>Nieuw product: <strong>${esc(typed)}</strong></span><kbd>Enter</kbd></button>`;
+    panel.innerHTML = (bought.length || more.length
+      ? section("Eerder gekocht", bought.slice(0, 16)) + section(bought.length ? "Uit je recepten" : "Uit je recepten en gangbare boodschappen", more)
+      : `<p class="muted shop-none">Dit heb je nog niet eerder gekocht.</p>`) + add;
+    panel.scrollTop = 0;
     return;
   }
   if (!shop.suggestions.length) {
@@ -243,12 +262,16 @@ function renderSuggestions() {
     + section(shop.hasHistory ? (due.length ? "Ook vaak gekocht" : "Vaak gekocht") : "Veelgekochte boodschappen", rest);
 }
 
-async function addShopItem(text) {
+// Met `keepQuery` (een tegel aangetikt) blijft je zoekwoord staan, zodat je meer producten kunt aantikken
+// (tomaten én tomatenpuree); het zoekwoord wordt geselecteerd, dus typ je verder, dan begin je opnieuw.
+async function addShopItem(text, { keepQuery = false } = {}) {
   text = text.trim();
   if (!text) return;
   await guarded(async () => {
     applyShopping(await api("/api/shopping/items", { method: "POST", body: { text } }));
-    $("#shop-add-form").text.value = "";
+    const input = $("#shop-add-form").text;
+    if (keepQuery) input.select();
+    else input.value = "";
     $("#shop-added").textContent = `✓ ${text} staat op je lijst`;
     renderSuggestions();
   });
@@ -378,8 +401,10 @@ window.visualViewport?.addEventListener("scroll", fitShopAdd);
 $("#shop-add-form").addEventListener("submit", (e) => {
   e.preventDefault();
   const text = e.target.text.value.trim();
-  if (text) addShopItem(text);
-  else closeSheet("#shop-add-sheet"); // Enter op een leeg veld: klaar
+  if (!text) return closeSheet("#shop-add-sheet"); // Enter op een leeg veld: klaar
+  // Typte je precies een bekend product ("tomaat" terwijl je "Tomaten" koopt), dan dat product.
+  const exact = searchProducts(text).exact;
+  addShopItem(exact && !/\d/.test(text) ? exact.name : text);
 });
 $("#shop-add-form").text.addEventListener("input", renderSuggestions);
 $("#shop-suggest").addEventListener("pointerdown", (e) => e.preventDefault()); // focus (en toetsenbord) in het veld houden
@@ -389,7 +414,7 @@ $("#shop-suggest").addEventListener("click", (e) => {
   const product = tile.dataset.product;
   const onList = product && shop.items.find((i) => !i.checked && i.product === product);
   if (onList) return removeShopItem(onList.key); // nog eens tikken haalt het er weer af
-  addShopItem(tile.dataset.suggest);
+  addShopItem(tile.dataset.suggest, { keepQuery: !("typed" in tile.dataset) });
 });
 
 $("#shop-edit-form").addEventListener("submit", saveShopEdit);

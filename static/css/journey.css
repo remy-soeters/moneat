@@ -61,6 +61,18 @@ dialog.modal.journey { width: min(1040px, calc(100vw - 32px)); height: min(92vh,
 
 .journey-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: -6px 0 18px; }
 .journey-actions .btn { min-height: 38px; padding: 6px 16px; font-size: 14px; }
+/* zelf omschrijven wat je zoekt */
+.journey-describe {
+  max-width: 640px; margin: -6px 0 18px; padding: 16px 18px; border-radius: var(--radius);
+  background: var(--color-accent-50); border: 1px solid var(--color-accent-100);
+}
+.journey-describe .field { margin-bottom: 10px; }
+.journey-describe textarea { background: #fff; }
+.describe-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+.describe-foot small { color: var(--ink-2); font-size: 13.5px; }
+.describe-foot .journey-busy { margin: 0; }
+.j-card.fresh { animation: fresh-card 1.6s ease 2; }
+@keyframes fresh-card { 40% { box-shadow: 0 0 0 4px var(--main-strong), var(--shadow-hover); } }
 .journey-others { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; max-width: 640px; margin: -6px 0 18px; }
 .other-choice {
   display: flex; flex-direction: column; align-items: center; gap: 8px; min-height: 96px; padding: 14px 10px;

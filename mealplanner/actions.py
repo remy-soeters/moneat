@@ -6,6 +6,8 @@ import re
 ACTIONS = [
     (r"POST /api/menu/fill", "Opties voor het weekmenu"),
     (r"POST /api/menu/refresh", "Andere opties"),
+    (r"POST /api/menu/describe", "Recept omschrijven bij Plannen"),
+    (r"POST /api/recipes/\d+/write", "Recept uitschrijven"),
     (r"POST /api/recipes/generate", "Recept laten bedenken"),
     (r"POST /api/recipes/import", "Recept importeren"),
     (r"POST (/api/recipes/\d+/photo|/api/photos/draft|/api/inspiration/photo)", "Foto maken"),

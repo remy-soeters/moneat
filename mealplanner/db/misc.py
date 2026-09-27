@@ -3,6 +3,8 @@
 import json
 from datetime import date
 
+from .cleaning import as_sketch
+
 
 class SettingsMixin:
     def get_setting(self, key, default=None):
@@ -40,7 +42,10 @@ class SettingsMixin:
             row = conn.execute("SELECT created_at, payload FROM inspiration WHERE key = ?", (key,)).fetchone()
         if row is None:
             return None
-        return {**json.loads(row["payload"]), "created_at": row["created_at"]}
+        payload = json.loads(row["payload"])
+        for idea in payload.get("ideas") or []:
+            as_sketch(idea["recipe"])
+        return {**payload, "created_at": row["created_at"]}
 
     def save_inspiration(self, key, payload):
         created = date.today().isoformat()

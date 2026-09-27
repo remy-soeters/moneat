@@ -119,6 +119,17 @@ dialog.recipe-page.cooking .recipe-foot { display: none; }
 .own-recipe svg { width: 12px; height: 12px; }
 
 .method-list { list-style: none; margin: 0 0 20px; padding: 0; display: grid; gap: 6px; }
+/* korte versie van de AI die (nog) volledig uitgeschreven wordt */
+.sketch-note {
+  display: flex; align-items: flex-start; gap: 10px; margin: 0 0 16px; padding: 12px 14px; border-radius: 14px;
+  background: #fff; border: 1px dashed var(--color-accent-2-200); font-size: 14.5px; line-height: 1.45; color: var(--ink-2);
+}
+.sketch-note > svg { flex: none; width: 18px; height: 18px; margin-top: 1px; color: var(--second-ink); fill: currentColor; stroke: none; }
+.sketch-note .spinner { flex: none; width: 16px; height: 16px; margin-top: 2px; }
+.sketch-note .btn.link { display: inline; padding: 0; min-height: 0; font-size: inherit; }
+.write-more { align-self: center; display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 14px; }
+.write-more svg { width: 16px; height: 16px; fill: currentColor; stroke: none; }
+.write-more .spinner { width: 15px; height: 15px; }
 .step {
   display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 8px 10px 8px 0; border: 0; border-radius: var(--radius-sm);
   background: none; text-align: left; font: inherit; font-size: 15px; line-height: 1.55; color: var(--ink); cursor: pointer;
